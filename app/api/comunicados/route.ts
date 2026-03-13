@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getMojibakeScore, sanitizeTextDeep } from '../../../utils/textEncoding.ts';
+import { getMojibakeScore, sanitizeTextDeep } from '../../../utils/textEncoding';
 
 export const dynamic = 'force-dynamic';
 
