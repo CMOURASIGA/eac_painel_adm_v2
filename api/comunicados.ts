@@ -1,6 +1,47 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getMojibakeScore, sanitizeTextDeep } from '../utils/textEncoding.ts';
 
 type ApiResult = Record<string, any> & { success?: boolean; error?: string };
+const LATIN1_CHARSET_REGEX = /(charset\s*=\s*(iso-8859-1|latin1|windows-1252))/i;
+
+async function readJsonWithEncodingFallback(response: globalThis.Response) {
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const utf8Text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+  const latin1Text = new TextDecoder('iso-8859-1', { fatal: false }).decode(bytes);
+  const contentType = String(response.headers.get('content-type') || '');
+  const preferLatin1 = LATIN1_CHARSET_REGEX.test(contentType);
+  const candidates = preferLatin1
+    ? [{ encoding: 'latin1', text: latin1Text }, { encoding: 'utf8', text: utf8Text }]
+    : [{ encoding: 'utf8', text: utf8Text }, { encoding: 'latin1', text: latin1Text }];
+
+  const parsedCandidates: Array<{ encoding: string; score: number; payload: any; text: string }> = [];
+  for (const candidate of candidates) {
+    if (!candidate.text) continue;
+    try {
+      parsedCandidates.push({
+        encoding: candidate.encoding,
+        score: getMojibakeScore(candidate.text),
+        payload: JSON.parse(candidate.text),
+        text: candidate.text,
+      });
+    } catch {
+      // continua tentando outra codificação
+    }
+  }
+
+  if (parsedCandidates.length === 0) {
+    const sample = (candidates[0]?.text || '').slice(0, 400);
+    throw new Error(sample ? `JSON inválido. Amostra: ${sample}` : 'JSON inválido.');
+  }
+
+  parsedCandidates.sort((a, b) => a.score - b.score);
+  const best = parsedCandidates[0];
+  return {
+    result: sanitizeTextDeep(best.payload),
+    encoding: best.encoding,
+    sample: best.text.slice(0, 400),
+  };
+}
 
 function normalizeUrl(url?: string | null) {
   if (!url) return '';
@@ -113,16 +154,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       clearTimeout(timeout);
     }
 
-    const text = await response.text();
     let result: ApiResult;
 
     try {
-      result = JSON.parse(text) as ApiResult;
+      const parsed = await readJsonWithEncodingFallback(response);
+      result = parsed.result as ApiResult;
     } catch (e) {
+      const sample = errorToSample(e);
       console.error('[pages/api/comunicados] Resposta não-JSON do Google Script:', {
         status: response.status,
         statusText: response.statusText,
-        sample: (text || '').slice(0, 400)
+        sample
       });
 
       return res.status(502).json({ success: false, error: 'Resposta inválida do servidor Google.' });
@@ -157,4 +199,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error('[pages/api/comunicados] Falha:', error);
     return res.status(500).json({ success: false, error: msg });
   }
+}
+
+function errorToSample(error: unknown) {
+  const message = (error as any)?.message || '';
+  const marker = 'Amostra: ';
+  const idx = message.indexOf(marker);
+  if (idx === -1) return '';
+  return message.slice(idx + marker.length).slice(0, 400);
 }

@@ -46,7 +46,7 @@ const AGE_RANGE_META: Record<AgeRangeId, AgeRangeMeta> = {
   },
 };
 
-const toClean = (value: any) => String(value ?? '').trim();
+const toClean = (value: any) => toCleanString(value);
 
 const parseDateFlexible = (value: any): Date | null => {
   if (!value) return null;
@@ -115,3 +115,4 @@ export const getMemberAgeInfo = (birthDate: any): MemberAgeInfo => {
     range,
   };
 };
+import { toCleanString } from '../utils/textEncoding.ts';

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { CalendarEvent, User, SystemSettings } from '../types.ts';
 import Badge from './Badge.tsx';
 import { showAppConfirm } from '../utils/appDialog.ts';
+import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
 
 interface CalendarPageProps {
   googleWebAppUrl: string;
@@ -15,7 +16,7 @@ const MONTH_NAMES = [
 ];
 
 const getEventTypeColor = (type: string) => {
-  const t = type?.toLowerCase() || '';
+  const t = toCleanString(type).toLowerCase();
   if (t.includes('missa')) return 'bg-[#10b981] shadow-[0_0_10px_rgba(16,185,129,0.3)]';        
   if (t.includes('preparação')) return 'bg-[#dc2626] shadow-[0_0_10px_rgba(220,38,38,0.3)]';   
   if (t.includes('cantina')) return 'bg-[#0ea5e9] shadow-[0_0_10px_rgba(14,165,233,0.3)]';      
@@ -51,8 +52,8 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'GET_EVENTS', googleWebAppUrl })
       });
-      const data = await response.json();
-      if (data.success && data.events) setInternalEvents(data.events);
+      const data = sanitizeTextDeep(await response.json());
+      if (data.success && data.events) setInternalEvents(Array.isArray(data.events) ? data.events : []);
     } catch (e) { console.error('Erro:', e); }
     finally { setIsLoading(false); }
   }, [googleWebAppUrl]);
@@ -93,7 +94,8 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'SAVE_EVENT', data: formData, googleWebAppUrl })
       });
-      if ((await response.json()).success) { 
+      const result = sanitizeTextDeep(await response.json());
+      if (result.success) { 
         setIsModalOpen(false); 
         fetchInternalEvents(); 
       }
@@ -103,7 +105,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
   const handleDeleteEvent = async (ev: CalendarEvent) => {
     const confirmed = await showAppConfirm({
       title: 'Excluir evento',
-      message: `Confirma a exclusão do evento "${ev.atividade || 'Sem título'}"?`,
+      message: `Confirma a exclusão do evento "${toCleanString(ev.atividade) || 'Sem título'}"?`,
       tone: 'warning',
       confirmLabel: 'Excluir',
       cancelLabel: 'Cancelar',
@@ -117,7 +119,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'DELETE_EVENT', data: { id: ev.id }, googleWebAppUrl })
       });
-      const data = await response.json();
+      const data = sanitizeTextDeep(await response.json());
       if (!data?.success) {
         alert(data?.error || 'Não foi possível excluir o evento.');
         return;
@@ -140,9 +142,9 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         <div key={day} onClick={() => setSelectedDay(day)} className={`h-16 md:h-32 border border-slate-100 p-2 transition-all cursor-pointer relative ${selectedDay === day ? 'bg-blue-50/50 ring-2 ring-blue-500 z-10' : 'hover:bg-slate-50'}`}>
           <span className={`text-[10px] md:text-xs font-black flex items-center justify-center w-6 h-6 rounded-full ${isToday ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400'}`}>{day}</span>
           <div className="hidden md:block mt-2 space-y-1">
-            {dayEvs.slice(0, 3).map((ev, idx) => (
+                {dayEvs.slice(0, 3).map((ev, idx) => (
               <div key={idx} className={`text-[8px] p-1.5 rounded-lg font-black truncate text-white shadow-sm transition-transform hover:scale-105 ${getEventTypeColor(ev.tipo)}`}>
-                {ev.atividade}
+                {toCleanString(ev.atividade)}
               </div>
             ))}
             {dayEvs.length > 3 && (
@@ -240,7 +242,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                     <div className={`absolute top-0 left-0 w-1.5 h-full ${getEventTypeColor(ev.tipo)}`}></div>
                     <div className="flex justify-between items-start">
                       <div className={`px-4 py-1.5 rounded-full text-[9px] font-black text-white uppercase tracking-widest shadow-sm ${getEventTypeColor(ev.tipo)}`}>
-                        {ev.tipo}
+                        {toCleanString(ev.tipo)}
                       </div>
                       <div className="flex gap-2">
                          {canEdit && (
@@ -259,9 +261,9 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                       </div>
                     </div>
                     <div>
-                      <h4 className="font-black text-slate-800 text-base leading-tight uppercase tracking-tight mb-2">{ev.atividade}</h4>
+                      <h4 className="font-black text-slate-800 text-base leading-tight uppercase tracking-tight mb-2">{toCleanString(ev.atividade)}</h4>
                       <div className="flex items-center text-slate-400 gap-4">
-                         <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">📍</span> {ev.local || 'Paróquia'}</p>
+                         <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">📍</span> {toCleanString(ev.local) || 'Paróquia'}</p>
                          <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">🕒</span> {new Date(ev.inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                       </div>
                     </div>

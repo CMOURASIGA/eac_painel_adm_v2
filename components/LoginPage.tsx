@@ -1,6 +1,7 @@
 
 import React, { useState } from "react";
 import type { User, View } from "../types"; // ajuste o caminho conforme sua estrutura
+import { sanitizeTextDeep, toCleanString } from "../utils/textEncoding.ts";
 // import type { UserRole } from "../types"; // só se você realmente usa UserRole aqui
 
 // resto do arquivo...
@@ -63,13 +64,13 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, googleWebAppUrl }) => {
         })
       });
 
-      const result = await response.json();
+      const result = sanitizeTextDeep(await response.json());
 
       if (result.success && result.user) {
         const u = result.user;
         const isAdmin = u.perfil === 'Administrador';
         const allowedModules: View[] = ['dashboard'];
-        const boolSim = (v: any) => String(v || '').trim().toLowerCase() === 'sim';
+        const boolSim = (v: any) => toCleanString(v).toLowerCase() === 'sim';
         const pushUnique = (module: View) => {
           if (!allowedModules.includes(module)) allowedModules.push(module);
         };
@@ -84,20 +85,20 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, googleWebAppUrl }) => {
         if (isAdmin || boolSim(u.cadastro)) {
           pushUnique('members');
         }
-        const hasPrioritariosConfigured = String(u.prioritarios || '').trim() !== '';
+        const hasPrioritariosConfigured = toCleanString(u.prioritarios) !== '';
         if (isAdmin || boolSim(u.prioritarios) || (!hasPrioritariosConfigured && boolSim(u.cadastro))) {
           pushUnique('inscricoes_prioritarias');
         }
-        const hasCirculosConfigured = String(u.circulos || '').trim() !== '';
+        const hasCirculosConfigured = toCleanString(u.circulos) !== '';
         if (isAdmin || boolSim(u.circulos) || (!hasCirculosConfigured && (boolSim(u.prioritarios) || boolSim(u.cadastro)))) {
           pushUnique('inscricoes_prioritarias_circulos');
         }
-        const hasPresencaConfigured = String(u.presenca || '').trim() !== '';
+        const hasPresencaConfigured = toCleanString(u.presenca) !== '';
         if (isAdmin || boolSim(u.presenca) || (!hasPresencaConfigured && boolSim(u.cadastro))) {
           pushUnique('presence');
         }
 
-        const hasEncontreiroAccessConfigured = String(u.encontreiro || '').trim() !== '';
+        const hasEncontreiroAccessConfigured = toCleanString(u.encontreiro) !== '';
         if (isAdmin || boolSim(u.encontreiro) || (!hasEncontreiroAccessConfigured && boolSim(u.cadastro))) {
           pushUnique('encontreiros');
         }
@@ -116,10 +117,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, googleWebAppUrl }) => {
             allowedModules,
             modulePermissions: {
               encontreiros: {
-                canCreate: isAdmin || boolSim(u.encontreiro_inclusao) || (!String(u.encontreiro_inclusao || '').trim() && boolSim(u.inclusao)),
-                canEdit: isAdmin || boolSim(u.encontreiro_alteracao) || (!String(u.encontreiro_alteracao || '').trim() && boolSim(u.alteracao)),
-                canView: isAdmin || boolSim(u.encontreiro_visualizacao) || (!String(u.encontreiro_visualizacao || '').trim() && boolSim(u.visualizacao)),
-                canDelete: isAdmin || boolSim(u.encontreiro_exclusao) || (!String(u.encontreiro_exclusao || '').trim() && boolSim(u.exclusao)),
+                canCreate: isAdmin || boolSim(u.encontreiro_inclusao) || (!toCleanString(u.encontreiro_inclusao) && boolSim(u.inclusao)),
+                canEdit: isAdmin || boolSim(u.encontreiro_alteracao) || (!toCleanString(u.encontreiro_alteracao) && boolSim(u.alteracao)),
+                canView: isAdmin || boolSim(u.encontreiro_visualizacao) || (!toCleanString(u.encontreiro_visualizacao) && boolSim(u.visualizacao)),
+                canDelete: isAdmin || boolSim(u.encontreiro_exclusao) || (!toCleanString(u.encontreiro_exclusao) && boolSim(u.exclusao)),
               }
             }
           }

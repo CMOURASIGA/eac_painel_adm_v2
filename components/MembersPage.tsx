@@ -6,6 +6,7 @@ import MemberCard from './MemberCard.tsx';
 import NonEnrolledCard from './NonEnrolledCard.tsx';
 import { calculateAgeFromBirthDate, getMemberAgeInfo } from './memberAge.ts';
 import { showAppConfirm } from '../utils/appDialog.ts';
+import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
 
 // =========================
 // Helpers ..
@@ -27,7 +28,7 @@ async function callApiProxy(
     return { success: false, error: `Resposta vazia da API (HTTP ${res.status}).` };
   }
   try {
-    const parsed = JSON.parse(raw);
+    const parsed = sanitizeTextDeep(JSON.parse(raw));
     if (!res.ok) return { success: false, ...parsed };
     return {
       ...parsed,
@@ -41,26 +42,6 @@ async function callApiProxy(
     };
   }
 }
-
-const fixMojibake = (s: string) => {
-  // Some entries come with UTF-8 bytes interpreted as Latin1 (e.g. "Não").
-  // Only attempt to fix when we see the typical markers to avoid breaking already-correct strings.
-  if (typeof TextDecoder === 'undefined') return s;
-  const hasMarkers = s && (s.includes('Ã') || s.includes('Â') || s.includes('�') || s.includes('ï¿½'));
-  if (!hasMarkers) return s;
-  try {
-    const bytes = Uint8Array.from([...s].map((c) => c.charCodeAt(0)));
-    const decoded = new TextDecoder('utf-8').decode(bytes);
-    return decoded;
-  } catch {
-    return s;
-  }
-};
-
-const toCleanString = (v: any) => {
-  const base = (v ?? '').toString().trim();
-  return fixMojibake(base);
-};
 
 const normalizeBairroStats = (raw: any): Array<{ nome: string; quantidade: number }> => {
   if (!raw) return [];
@@ -1284,7 +1265,7 @@ const handlePrioritizeNonEnrolled = async (ne: any) => {
     const raw = await response.text();
     let res: any = {};
     try {
-      res = raw ? JSON.parse(raw) : {};
+      res = raw ? sanitizeTextDeep(JSON.parse(raw)) : {};
     } catch (e) {
       throw new Error('Resposta inválida ao priorizar candidato.');
     }

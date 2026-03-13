@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { PresenceRecord, User } from '../types.ts';
 import PersonCard from './PersonCard.tsx';
+import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
 
 interface PresencePageProps {
   user: User;
@@ -40,10 +41,10 @@ const DEFAULT_FILTERS: PresenceFilters = {
   presenca: 'todos',
 };
 
-const toClean = (value: any) => String(value ?? '').trim();
+const toClean = (value: any) => toCleanString(value);
 
 const normalizeText = (value: any) =>
-  String(value ?? '')
+  toCleanString(value)
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -168,7 +169,7 @@ async function callApiProxy(action: string, googleWebAppUrl: string, payload: an
   if (!raw) return { success: false, error: `Resposta vazia da API (HTTP ${response.status}).` };
 
   try {
-    const parsed = JSON.parse(raw);
+    const parsed = sanitizeTextDeep(JSON.parse(raw));
     if (!response.ok) return { success: false, ...parsed };
     return { ...parsed, success: Boolean(parsed?.success ?? parsed?.ok ?? false) };
   } catch (err: any) {

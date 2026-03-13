@@ -3,23 +3,7 @@ import React from 'react';
 import { Log, View, LogStatus, User, Comunicado, CalendarEvent } from '../types.ts';
 import StatCard from './StatCard.tsx';
 import Banner from './Banner.tsx';
-
-const fixMojibake = (s: string) => {
-  if (typeof TextDecoder === 'undefined') return s;
-  const hasMarkers = s && (s.includes('Ã') || s.includes('Â') || s.includes('�') || s.includes('ï¿½'));
-  if (!hasMarkers) return s;
-  try {
-    const bytes = Uint8Array.from([...s].map((c) => c.charCodeAt(0)));
-    return new TextDecoder('utf-8').decode(bytes);
-  } catch {
-    return s;
-  }
-};
-
-const toCleanString = (v: any) => {
-  const base = (v ?? '').toString().trim();
-  return fixMojibake(base);
-};
+import { toCleanString } from '../utils/textEncoding.ts';
 
 interface DashboardProps {
   user: User;

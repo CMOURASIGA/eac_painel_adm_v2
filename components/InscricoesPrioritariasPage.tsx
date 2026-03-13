@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Drawer from './Drawer.tsx';
 import PersonCard from './PersonCard.tsx';
 import { showAppAlert, showAppConfirm } from '../utils/appDialog.ts';
+import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
 
 type Prioritario = {
   id?: string;
@@ -33,7 +34,7 @@ interface InscricoesPrioritariasPageProps {
 
 const formatDate = (value: any) => {
   if (!value) return '-';
-  const raw = String(value).trim();
+  const raw = toCleanString(value);
 
   const br = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (br) {
@@ -55,7 +56,7 @@ const formatDate = (value: any) => {
   return raw;
 };
 
-const normalize = (value: any) => String(value || '').trim().toLowerCase();
+const normalize = (value: any) => toCleanString(value).toLowerCase();
 const parseAgeNumber = (value: any) => {
   const raw = String(value || '').replace(',', '.').trim();
   if (!raw) return null;
@@ -89,7 +90,7 @@ async function readJsonResponseSafe(response: Response, source: string) {
   const raw = await response.text();
   if (!raw) throw new Error(`Resposta vazia da API (${source}) (HTTP ${response.status}).`);
   try {
-    return JSON.parse(raw);
+    return sanitizeTextDeep(JSON.parse(raw));
   } catch (e: any) {
     const sample = String(raw || '').replace(/\s+/g, ' ').trim().slice(0, 120);
     throw new Error(`Resposta inválida da API (${source}): ${e?.message || 'JSON malformado.'}${sample ? ` | amostra: ${sample}` : ''}`);
@@ -99,7 +100,7 @@ async function readJsonResponseSafe(response: Response, source: string) {
 const uniqueOptions = (values: any[]) => {
   const map = new Map<string, string>();
   values.forEach((v) => {
-    const label = String(v || '').trim();
+    const label = toCleanString(v);
     if (!label) return;
     const key = normalize(label);
     if (!map.has(key)) map.set(key, label);
@@ -209,7 +210,7 @@ const formatPrioritarioExportValue = (columnKey: string, value: any) => {
     }
   }
 
-  const raw = String(value).trim();
+  const raw = toCleanString(value);
   if (!raw) return '';
 
   if (/^data/i.test(columnKey)) {
@@ -399,7 +400,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
       return;
     }
 
-    const nomeRef = String(item?.nome || item?.email || linhaOrigem).trim();
+    const nomeRef = toCleanString(item?.nome || item?.email || linhaOrigem);
     const confirmed = await showAppConfirm({
       title: 'Despriorizar registro',
       message: `Confirma despriorizar "${nomeRef}"?`,

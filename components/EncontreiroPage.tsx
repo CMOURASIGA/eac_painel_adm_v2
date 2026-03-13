@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { EncontreiroRecord, User } from '../types.ts';
 import { showAppConfirm } from '../utils/appDialog.ts';
 import PersonCard from './PersonCard.tsx';
+import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
 
 interface EncontreiroPageProps {
   user: User;
@@ -101,7 +102,7 @@ async function callApiProxy(action: string, googleWebAppUrl: string, payload: an
     return { success: false, error: `Resposta vazia da API (HTTP ${response.status}).` };
   }
   try {
-    const parsed = JSON.parse(raw);
+    const parsed = sanitizeTextDeep(JSON.parse(raw));
     if (!response.ok) return { success: false, ...parsed };
     return parsed;
   } catch (err: any) {
@@ -113,7 +114,7 @@ async function callApiProxy(action: string, googleWebAppUrl: string, payload: an
   }
 }
 
-const toClean = (value: any) => String(value ?? '').trim();
+const toClean = (value: any) => toCleanString(value);
 
 const parseDateFlexible = (value: any): Date | null => {
   if (!value) return null;

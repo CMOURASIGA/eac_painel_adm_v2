@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import html2canvas from 'html2canvas';
+import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
 
 type PessoaCirculo = {
   nome?: string;
@@ -85,8 +86,7 @@ function createEmptyGroups() {
 }
 
 function normalizeHeaderLite(value: any) {
-  return String(value || '')
-    .trim()
+  return toCleanString(value)
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -115,10 +115,10 @@ function normalizeCirculosPayload(input: any) {
     const rows = Array.isArray(input[groupName]) ? input[groupName] : [];
     rows.forEach((row: any) => {
       grouped[target].push({
-        nome: String(row?.nome || '').trim(),
-        idade: row?.idade ?? '',
-        bairro: String(row?.bairro || '').trim(),
-        sexo: String(row?.sexo || '').trim(),
+        nome: toCleanString(row?.nome),
+        idade: toCleanString(row?.idade ?? ''),
+        bairro: toCleanString(row?.bairro),
+        sexo: toCleanString(row?.sexo),
         grupoSugerido: target,
       });
     });
@@ -145,8 +145,8 @@ function sortByNome(list: PessoaCirculo[]) {
 }
 
 function formatIdadeBairro(idade: any, bairro: any) {
-  const ageRaw = String(idade ?? '').trim();
-  const bairroRaw = String(bairro ?? '').trim() || '-';
+  const ageRaw = toCleanString(idade);
+  const bairroRaw = toCleanString(bairro) || '-';
   const ageLabel = ageRaw ? `${ageRaw} anos` : '-';
   return `${ageLabel} • ${bairroRaw}`;
 }
@@ -169,7 +169,7 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
 
       let json: any;
       try {
-        json = JSON.parse(raw);
+        json = sanitizeTextDeep(JSON.parse(raw));
       } catch (e: any) {
         throw new Error(`Resposta inválida da API: ${e?.message || 'JSON malformado.'}`);
       }
@@ -235,7 +235,7 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
 
       let json: any;
       try {
-        json = JSON.parse(raw);
+        json = sanitizeTextDeep(JSON.parse(raw));
       } catch (e: any) {
         throw new Error(`Resposta inválida da API: ${e?.message || 'JSON malformado.'}`);
       }

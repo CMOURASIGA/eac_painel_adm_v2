@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { sanitizeTextDeep } from '../utils/textEncoding.ts';
 
 const TestApi: React.FC = () => {
   const [result, setResult] = useState<any>(null);
@@ -25,7 +26,7 @@ const TestApi: React.FC = () => {
           throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
         }
 
-        const data = await response.json();
+        const data = sanitizeTextDeep(await response.json());
         setResult(data);
       } catch (e: any) {
         setError(e.message);

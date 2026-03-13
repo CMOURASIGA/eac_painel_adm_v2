@@ -1,6 +1,48 @@
 import { NextResponse } from 'next/server';
+import { getMojibakeScore, sanitizeTextDeep } from '../../../utils/textEncoding.ts';
 
 export const dynamic = 'force-dynamic';
+
+const LATIN1_CHARSET_REGEX = /(charset\s*=\s*(iso-8859-1|latin1|windows-1252))/i;
+
+async function readJsonWithEncodingFallback(response: Response) {
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const utf8Text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+  const latin1Text = new TextDecoder('iso-8859-1', { fatal: false }).decode(bytes);
+  const contentType = String(response.headers.get('content-type') || '');
+  const preferLatin1 = LATIN1_CHARSET_REGEX.test(contentType);
+  const candidates = preferLatin1
+    ? [{ encoding: 'latin1', text: latin1Text }, { encoding: 'utf8', text: utf8Text }]
+    : [{ encoding: 'utf8', text: utf8Text }, { encoding: 'latin1', text: latin1Text }];
+
+  const parsedCandidates: Array<{ encoding: string; score: number; payload: any; text: string }> = [];
+  for (const candidate of candidates) {
+    if (!candidate.text) continue;
+    try {
+      parsedCandidates.push({
+        encoding: candidate.encoding,
+        score: getMojibakeScore(candidate.text),
+        payload: JSON.parse(candidate.text),
+        text: candidate.text,
+      });
+    } catch {
+      // continua tentando outra codificação
+    }
+  }
+
+  if (parsedCandidates.length === 0) {
+    const sample = (candidates[0]?.text || '').slice(0, 400);
+    throw new Error(sample ? `JSON inválido. Amostra: ${sample}` : 'JSON inválido.');
+  }
+
+  parsedCandidates.sort((a, b) => a.score - b.score);
+  const best = parsedCandidates[0];
+  return {
+    result: sanitizeTextDeep(best.payload),
+    encoding: best.encoding,
+    sample: best.text.slice(0, 400),
+  };
+}
 
 function normalizeUrl(url?: string | null) {
   return (url || '').toString().trim();
@@ -132,13 +174,14 @@ export async function POST(req: Request) {
       clearTimeout(timeout);
     }
 
-    const text = await response.text();
-
     let result: any;
     try {
-      result = JSON.parse(text);
+      const parsed = await readJsonWithEncodingFallback(response);
+      result = parsed.result;
+      // Header útil para diagnosticar respostas que chegam em latin1.
+      webAppSource = `${webAppSource}|decode:${parsed.encoding}`;
     } catch (e) {
-      const sample = (text || '').slice(0, 400);
+      const sample = errorToSample(e);
       console.error('[api/comunicados] Resposta não-JSON do Google Script:', {
         status: response.status,
         statusText: response.statusText,
@@ -203,4 +246,12 @@ export async function POST(req: Request) {
     r.headers.set('X-EAC-Action', actionName);
     return r;
   }
+}
+
+function errorToSample(error: unknown) {
+  const message = (error as any)?.message || '';
+  const marker = 'Amostra: ';
+  const idx = message.indexOf(marker);
+  if (idx === -1) return '';
+  return message.slice(idx + marker.length).slice(0, 400);
 }

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, View } from '../types.ts';
 import Badge from './Badge.tsx';
+import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
 
 interface UserManagementPageProps {
   currentUser: User;
@@ -82,20 +83,20 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentUser, go
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'GET_USERS', googleWebAppUrl })
       });
-      const data = await response.json();
+      const data = sanitizeTextDeep(await response.json());
       if (data.success && data.users) {
         const mappedUsers: User[] = data.users.map((u: any, idx: number) => ({
           id: String(idx + 1),
-          name: u.usuario,
-          email: u.usuario,
+          name: toCleanString(u.usuario),
+          email: toCleanString(u.usuario),
           password: u.senha,
           role: u.perfil === 'Administrador' ? 'ADMIN' : 'VIEWER',
-          status: u.status || 'Ativo',
+          status: toCleanString(u.status) || 'Ativo',
           permissions: {
-            canCreate: u.inclusao === 'Sim',
-            canEdit: u.alteracao === 'Sim',
-            canView: u.visualizacao === 'Sim',
-            canDelete: u.exclusao === 'Sim',
+            canCreate: toCleanString(u.inclusao).toLowerCase() === 'sim',
+            canEdit: toCleanString(u.alteracao).toLowerCase() === 'sim',
+            canView: toCleanString(u.visualizacao).toLowerCase() === 'sim',
+            canDelete: toCleanString(u.exclusao).toLowerCase() === 'sim',
             allowedModules: [], // Preenchido no login, aqui focado na gestão bruta
             // Guardamos os dados brutos para edição fácil
             _raw: u 
@@ -139,7 +140,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentUser, go
           googleWebAppUrl 
         })
       });
-      const res = await response.json();
+      const res = sanitizeTextDeep(await response.json());
       if (res.success) {
         setIsFormOpen(false);
         fetchUsers();
@@ -168,7 +169,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentUser, go
           googleWebAppUrl 
         })
       });
-      const res = await response.json();
+      const res = sanitizeTextDeep(await response.json());
       if (res.success) {
         setIsDeleteModalOpen(false);
         setUserToDelete(null);

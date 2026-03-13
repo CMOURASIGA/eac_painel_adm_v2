@@ -20,6 +20,7 @@ import PublicInterestForm from './components/PublicInterestForm.tsx';
 import Toast from './components/Toast.tsx';
 import AppDialog from './components/AppDialog.tsx';
 import { AppDialogRequest, installWindowAlertBridge, registerAppDialogHandler } from './utils/appDialog.ts';
+import { sanitizeTextDeep } from './utils/textEncoding.ts';
 
 const viewPathMap: Partial<Record<View, string>> = {
   members: '/cadastro',
@@ -150,7 +151,7 @@ const App: React.FC = () => {
         return { success: false, error: `Resposta vazia da API (HTTP ${response.status}).` };
       }
       try {
-        const parsed = JSON.parse(raw);
+        const parsed = sanitizeTextDeep(JSON.parse(raw));
         if (!response.ok) return { success: false, ...parsed };
         return {
           ...parsed,

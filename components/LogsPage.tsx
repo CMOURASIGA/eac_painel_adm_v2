@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Log, LogStatus } from '../types';
 import Badge from './Badge';
+import { toCleanString } from '../utils/textEncoding.ts';
 
 interface LogsPageProps {
   logs: Log[];
@@ -13,15 +14,19 @@ const LogsPage: React.FC<LogsPageProps> = ({ logs }) => {
   const [selectedLog, setSelectedLog] = useState<Log | null>(null);
 
   const filteredLogs = logs.filter(log => {
-    const matchesText = log.dispatchName.toLowerCase().includes(filter.toLowerCase()) || 
-                       log.operator.toLowerCase().includes(filter.toLowerCase());
+    const logDispatch = toCleanString(log.dispatchName).toLowerCase();
+    const logOperator = toCleanString(log.operator).toLowerCase();
+    const query = toCleanString(filter).toLowerCase();
+    const matchesText = logDispatch.includes(query) || logOperator.includes(query);
     const matchesStatus = statusFilter === 'ALL' || log.status === statusFilter;
     return matchesText && matchesStatus;
   });
 
   const handleExport = () => {
     const headers = 'ID,Disparo,Operador,Data,Status,Duracao,Resumo\n';
-    const csv = logs.map(l => `${l.id},${l.dispatchName},${l.operator},${l.timestamp},${l.status},${l.duration}ms,"${l.responseSummary.replace(/"/g, '""')}"`).join('\n');
+    const csv = logs
+      .map((l) => `${toCleanString(l.id)},${toCleanString(l.dispatchName)},${toCleanString(l.operator)},${toCleanString(l.timestamp)},${toCleanString(l.status)},${l.duration}ms,"${toCleanString(l.responseSummary).replace(/"/g, '""')}"`)
+      .join('\n');
     const blob = new Blob([headers + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -101,10 +106,10 @@ const LogsPage: React.FC<LogsPageProps> = ({ logs }) => {
                     {new Date(log.timestamp).toLocaleString('pt-BR')}
                   </td>
                   <td className="px-8 py-6 font-bold text-slate-900">
-                    {log.dispatchName}
+                    {toCleanString(log.dispatchName)}
                   </td>
                   <td className="px-8 py-6 text-slate-600">
-                    {log.operator}
+                    {toCleanString(log.operator)}
                   </td>
                   <td className="px-8 py-6">
                     <Badge type={getBadgeType(log.status)}>
@@ -143,7 +148,7 @@ const LogsPage: React.FC<LogsPageProps> = ({ logs }) => {
                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
                   <p className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Status</p>
                   <Badge type={getBadgeType(selectedLog.status)}>
-                    {getStatusLabel(selectedLog.status)}
+                  {getStatusLabel(selectedLog.status)}
                   </Badge>
                 </div>
                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
@@ -159,7 +164,7 @@ const LogsPage: React.FC<LogsPageProps> = ({ logs }) => {
               <div>
                 <p className="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">Resumo do Retorno</p>
                 <div className="bg-slate-900 text-blue-300 p-6 rounded-2xl font-mono text-xs overflow-x-auto shadow-inner border border-slate-800 leading-relaxed">
-                  {selectedLog.responseSummary}
+                  {toCleanString(selectedLog.responseSummary)}
                 </div>
               </div>
             </div>

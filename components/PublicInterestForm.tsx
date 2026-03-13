@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import Toast from './Toast';
+import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
 
 interface PublicInterestFormProps {
   email: string;
@@ -47,7 +48,7 @@ const PublicInterestForm: React.FC<PublicInterestFormProps> = ({
           body: JSON.stringify({ action, data: payload, googleWebAppUrl })
         });
 
-        const result = await response.json();
+        const result = sanitizeTextDeep(await response.json());
 
         if (!result.success) {
           throw new Error(result.error || 'Ocorreu um erro desconhecido.');
@@ -86,7 +87,7 @@ const PublicInterestForm: React.FC<PublicInterestFormProps> = ({
 
     const payload = {
       email,
-      nome: nome || '',
+      nome: toCleanString(nome || ''),
       answers
     };
 
@@ -120,7 +121,7 @@ const PublicInterestForm: React.FC<PublicInterestFormProps> = ({
             Confirmação de Interesse
           </h1>
           <p className="text-center text-slate-600 mb-6">
-            Olá, {nome || 'jovem'}! Por favor, responda as perguntas abaixo.
+            Olá, {toCleanString(nome || 'jovem')}! Por favor, responda as perguntas abaixo.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-6">
