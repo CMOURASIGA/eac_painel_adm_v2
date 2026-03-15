@@ -86,6 +86,37 @@ const matchesAgeFilter = (idadeRaw: any, filtroIdade: string) => {
   return String(age).includes(filter);
 };
 
+type AgeSegmentKey = '13' | '14' | '15' | '16' | 'outros';
+const AGE_SEGMENTS: Array<{ key: AgeSegmentKey; label: string }> = [
+  { key: '13', label: '13' },
+  { key: '14', label: '14' },
+  { key: '15', label: '15' },
+  { key: '16', label: '16' },
+  { key: 'outros', label: 'Outros' },
+];
+
+const getAgeSegmentKey = (idadeRaw: any): AgeSegmentKey => {
+  const age = parseAgeNumber(idadeRaw);
+  if (age === 13) return '13';
+  if (age === 14) return '14';
+  if (age === 15) return '15';
+  if (age === 16) return '16';
+  return 'outros';
+};
+
+type SexoBucket = 'masculino' | 'feminino' | 'outro';
+const getSexoBucket = (sexoRaw: any): SexoBucket => {
+  const sex = normalize(sexoRaw);
+  if (sex === 'masculino' || sex === 'masc' || sex === 'm') return 'masculino';
+  if (sex === 'feminino' || sex === 'fem' || sex === 'f') return 'feminino';
+  return 'outro';
+};
+
+const matchesAgeSegment = (idadeRaw: any, selected: AgeSegmentKey | '') => {
+  if (!selected) return true;
+  return getAgeSegmentKey(idadeRaw) === selected;
+};
+
 async function readJsonResponseSafe(response: Response, source: string) {
   const raw = await response.text();
   if (!raw) throw new Error(`Resposta vazia da API (${source}) (HTTP ${response.status}).`);
@@ -239,6 +270,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
   const [showDrawer, setShowDrawer] = useState(false);
   const [isDistributing, setIsDistributing] = useState(false);
   const [updatingDeprioritizeId, setUpdatingDeprioritizeId] = useState<string | null>(null);
+  const [selectedAgeSegment, setSelectedAgeSegment] = useState<AgeSegmentKey | ''>('');
   const [draftFilters, setDraftFilters] = useState({
     nome: '',
     bairro: '',
@@ -372,6 +404,42 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
 
   const bairroOptions = useMemo(() => uniqueOptions(items.map((it) => it.bairro)), [items]);
   const sexoOptions = useMemo(() => uniqueOptions(items.map((it) => it.sexo)), [items]);
+  const ageSegmentStats = useMemo(() => {
+    const acc: Record<AgeSegmentKey, { total: number; masculino: number; feminino: number }> = {
+      '13': { total: 0, masculino: 0, feminino: 0 },
+      '14': { total: 0, masculino: 0, feminino: 0 },
+      '15': { total: 0, masculino: 0, feminino: 0 },
+      '16': { total: 0, masculino: 0, feminino: 0 },
+      outros: { total: 0, masculino: 0, feminino: 0 },
+    };
+    items.forEach((it) => {
+      const ageKey = getAgeSegmentKey(it.idade);
+      const sexoKey = getSexoBucket(it.sexo);
+      acc[ageKey].total += 1;
+      if (sexoKey === 'masculino') acc[ageKey].masculino += 1;
+      if (sexoKey === 'feminino') acc[ageKey].feminino += 1;
+    });
+    return acc;
+  }, [items]);
+  const bairroStatsByAgeSegment = useMemo(() => {
+    const map = new Map<string, { nome: string; quantidade: number }>();
+    items
+      .filter((it) => matchesAgeSegment(it.idade, selectedAgeSegment))
+      .forEach((it) => {
+        const nome = toCleanString(it.bairro) || 'Não informado';
+        const key = normalize(nome);
+        const current = map.get(key);
+        if (current) {
+          current.quantidade += 1;
+        } else {
+          map.set(key, { nome, quantidade: 1 });
+        }
+      });
+    return Array.from(map.values()).sort((a, b) => {
+      if (b.quantidade !== a.quantidade) return b.quantidade - a.quantidade;
+      return a.nome.localeCompare(b.nome, 'pt-BR');
+    });
+  }, [items, selectedAgeSegment]);
 
   const filtered = useMemo(() => {
     return items.filter((it) => {
@@ -379,9 +447,10 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
       if (appliedFilters.bairro && normalize(it.bairro) !== normalize(appliedFilters.bairro)) return false;
       if (appliedFilters.sexo && normalize(it.sexo) !== normalize(appliedFilters.sexo)) return false;
       if (!matchesAgeFilter(it.idade, appliedFilters.idade)) return false;
+      if (!matchesAgeSegment(it.idade, selectedAgeSegment)) return false;
       return true;
     });
-  }, [items, appliedFilters]);
+  }, [items, appliedFilters, selectedAgeSegment]);
 
   const applyFilters = useCallback(() => {
     setAppliedFilters({ ...draftFilters });
@@ -391,6 +460,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     const empty = { nome: '', bairro: '', sexo: '', idade: '' };
     setDraftFilters(empty);
     setAppliedFilters(empty);
+    setSelectedAgeSegment('');
   }, []);
 
   const handleDeprioritize = useCallback(async (item: Prioritario) => {
@@ -619,6 +689,66 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
             >
               Ver Distribuição de Círculos
             </button>
+          </div>
+        </div>
+
+        <div className="mt-5 p-4 rounded-2xl border border-slate-100 bg-slate-50/70 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {AGE_SEGMENTS.map((seg) => {
+              const isActive = selectedAgeSegment === seg.key;
+              const stats = ageSegmentStats[seg.key];
+              return (
+                <button
+                  key={seg.key}
+                  type="button"
+                  onClick={() => setSelectedAgeSegment((prev) => (prev === seg.key ? '' : seg.key))}
+                  className={`px-4 py-2 rounded-xl border text-left transition-all ${
+                    isActive
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                      : 'bg-white border-slate-200 text-slate-600 hover:border-blue-300 hover:text-blue-700'
+                  }`}
+                >
+                  <div className="text-[11px] font-black uppercase tracking-widest">
+                    {seg.label} <span className={`${isActive ? 'text-blue-100' : 'text-slate-400'}`}>({stats.total})</span>
+                  </div>
+                  <div className={`text-[10px] font-black mt-0.5 ${isActive ? 'text-blue-100' : 'text-slate-500'}`}>
+                    M {stats.masculino} • F {stats.feminino}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="pt-1">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400 font-black mb-2">
+              Bairros {selectedAgeSegment ? `- idade ${selectedAgeSegment === 'outros' ? 'Outros' : selectedAgeSegment}` : '- todas as idades'}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {bairroStatsByAgeSegment.length === 0 ? (
+                <span className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[11px] font-bold text-slate-500">
+                  Nenhum bairro para o recorte selecionado.
+                </span>
+              ) : (
+                bairroStatsByAgeSegment.map((entry) => (
+                  <button
+                    key={`${entry.nome}-${entry.quantidade}`}
+                    type="button"
+                    onClick={() => {
+                      setDraftFilters((prev) => ({ ...prev, bairro: entry.nome }));
+                      setAppliedFilters((prev) => ({ ...prev, bairro: entry.nome }));
+                    }}
+                    className={`px-3 py-2 rounded-xl border text-[11px] font-black transition-all ${
+                      normalize(draftFilters.bairro) === normalize(entry.nome)
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                        : 'bg-white border-slate-200 text-slate-600 hover:border-emerald-300 hover:text-emerald-700'
+                    }`}
+                    title="Aplicar filtro por bairro"
+                  >
+                    {entry.nome} <span className="text-slate-400">({entry.quantidade})</span>
+                  </button>
+                ))
+              )}
+            </div>
           </div>
         </div>
 

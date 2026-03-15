@@ -329,6 +329,98 @@ const DEFAULT_NON_ENROLLED_TABLE_FILTERS = {
 
 const NON_ENROLLED_QUERY_LIMIT = 30;
 
+type NonEnrolledEditDraft = {
+  nome: string;
+  email: string;
+  status: string;
+  dataCadastro: string;
+  telefone: string;
+  bairro: string;
+  statusEnvio: string;
+  dataNascimento: string;
+  sexo: string;
+  interesseConfirmado: string;
+  jaFezEac: string;
+  contatoMudou: string;
+  recado: string;
+  dataResposta: string;
+  amigo: string;
+  nomeAmigo: string;
+  statusPreConfirmacao: string;
+  statusPriorizacao: string;
+};
+
+const EMPTY_NON_ENROLLED_EDIT_DRAFT: NonEnrolledEditDraft = {
+  nome: '',
+  email: '',
+  status: '',
+  dataCadastro: '',
+  telefone: '',
+  bairro: '',
+  statusEnvio: '',
+  dataNascimento: '',
+  sexo: '',
+  interesseConfirmado: '',
+  jaFezEac: '',
+  contatoMudou: '',
+  recado: '',
+  dataResposta: '',
+  amigo: '',
+  nomeAmigo: '',
+  statusPreConfirmacao: '',
+  statusPriorizacao: '',
+};
+
+const normalizeEditableYesNo = (value: any) => {
+  const normalized = formatYesNoOrBlank(value);
+  return normalized === 'Em branco' ? '' : normalized;
+};
+
+const buildNonEnrolledEditDraft = (ne: any): NonEnrolledEditDraft => ({
+  nome: toCleanString(ne?.nome || ne?.Nome || ne?.['Nome']),
+  email: toCleanString(ne?.email || ne?.Email || ne?.['Email']),
+  status: toCleanString(getNonEnrolledField(ne, ['status', 'Status'])),
+  dataCadastro: toCleanString(getNonEnrolledField(ne, ['dataCadastro', 'Data Cadastro', 'dataInscricao', 'Data Inscrição', 'E'])),
+  telefone: toCleanString(getNonEnrolledField(ne, ['telefone', 'Telefone', 'whatsapp'])),
+  bairro: toCleanString(ne?.bairro || ne?.Bairro || ne?.BAIRRO || ne?.['Bairro']),
+  statusEnvio: toCleanString(getNonEnrolledField(ne, ['statusEnvio', 'Status Envio', 'status_envio', 'H'])),
+  dataNascimento: toCleanString(getNonEnrolledField(ne, ['dataNascimento', 'nascimento', 'Nascimento', 'Data de nascimento', 'Data Nascimento', 'R'])),
+  sexo: toCleanString(getNonEnrolledField(ne, ['sexo', 'Sexo', 'S'])),
+  interesseConfirmado: normalizeEditableYesNo(getNonEnrolledField(ne, ['interesseConfirmado', 'Interesse Confirmado', 'interesse', 'Interesse', 'I'])),
+  jaFezEac: normalizeEditableYesNo(getNonEnrolledField(ne, ['jaFezEac', 'Ja fez o EAC', 'J fez o EAC', 'J'])),
+  contatoMudou: normalizeEditableYesNo(getNonEnrolledField(ne, ['contatoMudou', 'Contato Mudou', 'K'])),
+  recado: toCleanString(getNonEnrolledField(ne, ['recado', 'Recado', 'L'])),
+  dataResposta: toCleanString(getNonEnrolledField(ne, ['dataResposta', 'Data Resposta', 'M'])),
+  amigo: toCleanString(getNonEnrolledField(ne, ['amigo', 'Amigo para', 'N'])),
+  nomeAmigo: toCleanString(getNonEnrolledField(ne, ['nomeAmigo', 'Nome do amigo', 'O'])),
+  statusPreConfirmacao: toCleanString(getNonEnrolledField(ne, ['statusPreConfirmacao', 'preConfirmacao', 'Status Pre Confirmacao', 'P'])),
+  statusPriorizacao: isPrioritizedStatus(getNonEnrolledField(ne, ['statusPriorizacao', 'Status Priorizacao', 'Q'])) ? 'SIM' : '',
+});
+
+const applyNonEnrolledDraftToItem = (item: any, draft: NonEnrolledEditDraft) => ({
+  ...item,
+  nome: draft.nome,
+  email: draft.email,
+  status: draft.status,
+  dataCadastro: draft.dataCadastro,
+  telefone: draft.telefone,
+  bairro: draft.bairro,
+  statusEnvio: draft.statusEnvio,
+  dataNascimento: draft.dataNascimento,
+  nascimento: draft.dataNascimento,
+  sexo: draft.sexo,
+  interesseConfirmado: draft.interesseConfirmado,
+  interesse: draft.interesseConfirmado,
+  jaFezEac: draft.jaFezEac,
+  contatoMudou: draft.contatoMudou,
+  recado: draft.recado,
+  dataResposta: draft.dataResposta,
+  amigo: draft.amigo,
+  nomeAmigo: draft.nomeAmigo,
+  statusPreConfirmacao: draft.statusPreConfirmacao,
+  statusPriorizacao: draft.statusPriorizacao,
+});
+
 const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl, onOpenPresence }) => {
   const [members, setMembers] = useState<Adolescente[]>([]);
   const [nonEnrolled, setNonEnrolled] = useState<NonEnrolledMember[]>([]);
@@ -369,6 +461,10 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl, onOpen
   const [updatingInterestId, setUpdatingInterestId] = useState<string | null>(null);
   const [updatingRecadoId, setUpdatingRecadoId] = useState<string | null>(null);
   const [updatingPrioridadeId, setUpdatingPrioridadeId] = useState<string | null>(null);
+  const [showNonEnrolledEditor, setShowNonEnrolledEditor] = useState(false);
+  const [editingNonEnrolledId, setEditingNonEnrolledId] = useState<string | null>(null);
+  const [isSavingNonEnrolledEdit, setIsSavingNonEnrolledEdit] = useState(false);
+  const [nonEnrolledEditDraft, setNonEnrolledEditDraft] = useState<NonEnrolledEditDraft>({ ...EMPTY_NON_ENROLLED_EDIT_DRAFT });
 
   const [isConverting, setIsConverting] = useState(false);
   const [originalEmail, setOriginalEmail] = useState<string | null>(null);
@@ -1222,6 +1318,97 @@ const handleUpdateRecado = async (ne: any, recadoInput: string) => {
   }
 };
 
+const openNonEnrolledEditor = (ne: any) => {
+  const idPessoa = getNonEnrolledId(ne);
+  if (!idPessoa) {
+    alert('ID do Não Inscrito (coluna A) não encontrado.');
+    return;
+  }
+  setEditingNonEnrolledId(idPessoa);
+  setNonEnrolledEditDraft(buildNonEnrolledEditDraft(ne));
+  setShowNonEnrolledEditor(true);
+};
+
+const closeNonEnrolledEditor = () => {
+  if (isSavingNonEnrolledEdit) return;
+  setShowNonEnrolledEditor(false);
+  setEditingNonEnrolledId(null);
+  setNonEnrolledEditDraft({ ...EMPTY_NON_ENROLLED_EDIT_DRAFT });
+};
+
+const handleSaveNonEnrolledEdit = async () => {
+  if (!editingNonEnrolledId) {
+    alert('ID do Não Inscrito (coluna A) não encontrado.');
+    return;
+  }
+
+  const previousList = Array.isArray(nonEnrolled) ? [...nonEnrolled] : [];
+  const optimistic = previousList.map((item) => (
+    getNonEnrolledId(item) === editingNonEnrolledId
+      ? applyNonEnrolledDraftToItem(item, nonEnrolledEditDraft)
+      : item
+  ));
+
+  setNonEnrolled(optimistic);
+  setSelectedNonEnrolled((current) => {
+    if (current && getNonEnrolledId(current) === editingNonEnrolledId) {
+      return optimistic.find((item) => getNonEnrolledId(item) === editingNonEnrolledId) || current;
+    }
+    return current;
+  });
+  setNonEnrolledMeta((prev: any) => ({
+    ...prev,
+    interestStats: null,
+    jaFezStats: null,
+    contatoMudouStats: null,
+  }));
+  setIsSavingNonEnrolledEdit(true);
+
+  try {
+    const res = await callApiProxy('UPDATE_NON_ENROLLED_RECORD', googleWebAppUrl, {
+      idPessoa: editingNonEnrolledId,
+      email: nonEnrolledEditDraft.email,
+      record: { ...nonEnrolledEditDraft },
+    });
+
+    if (!res?.success) {
+      throw new Error(res?.error || 'Não foi possível atualizar o cadastro do não inscrito.');
+    }
+
+    let finalList = optimistic;
+    if (res.updatedRow) {
+      const serverDraft = buildNonEnrolledEditDraft(res.updatedRow);
+      finalList = optimistic.map((item) => (
+        getNonEnrolledId(item) === editingNonEnrolledId
+          ? applyNonEnrolledDraftToItem(item, serverDraft)
+          : item
+      ));
+      setNonEnrolledEditDraft(serverDraft);
+    }
+
+    setNonEnrolled(finalList);
+    setSelectedNonEnrolled((current) => {
+      if (current && getNonEnrolledId(current) === editingNonEnrolledId) {
+        return finalList.find((item) => getNonEnrolledId(item) === editingNonEnrolledId) || current;
+      }
+      return current;
+    });
+    setShowNonEnrolledEditor(false);
+    setEditingNonEnrolledId(null);
+  } catch (err: any) {
+    alert(err?.message || 'Erro ao atualizar cadastro do não inscrito.');
+    setNonEnrolled(previousList);
+    setSelectedNonEnrolled((current) => {
+      if (current && getNonEnrolledId(current) === editingNonEnrolledId) {
+        return previousList.find((item) => getNonEnrolledId(item) === editingNonEnrolledId) || current;
+      }
+      return current;
+    });
+  } finally {
+    setIsSavingNonEnrolledEdit(false);
+  }
+};
+
 const handlePrioritizeNonEnrolled = async (ne: any) => {
   const idPessoa = getNonEnrolledId(ne);
   if (!idPessoa) {
@@ -2016,6 +2203,7 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
                     const idPessoa = getNonEnrolledId(ne);
                     const isRecadoUpdating = updatingRecadoId === idPessoa;
                     const isPrioritizing = updatingPrioridadeId === idPessoa;
+                    const isCadastroUpdating = isSavingNonEnrolledEdit && editingNonEnrolledId === idPessoa;
                     const nome = toCleanString(ne?.nome || ne?.Nome || ne?.['Nome']);
                     const whatsappHref = formatWhatsAppLink(toCleanString(ne?.telefone || ne?.Telefone || ne?.whatsapp || ne?.['Telefone']));
                     const handleOpenDetails = () => {
@@ -2037,9 +2225,9 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
                         dataCadastro={formatSheetDateCell(dataCadastro)}
                         interesse={interesse}
                         whatsappHref={whatsappHref}
-                        isEditingRecado={isRecadoUpdating}
+                        isEditingRecado={isRecadoUpdating || isCadastroUpdating}
                         isPrioritizing={isPrioritizing}
-                        onEditar={() => handleEditRecado(ne)}
+                        onEditar={() => openNonEnrolledEditor(ne)}
                         onEnviarEmail={() => openEmailComposer(ne)}
                         onPriorizar={() => handlePrioritizeNonEnrolled(ne)}
                         onVerDetalhes={handleOpenDetails}
@@ -2285,6 +2473,15 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
           </div>
 
           <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                if (selectedNonEnrolled) openNonEnrolledEditor(selectedNonEnrolled);
+              }}
+              className="flex-1 px-4 py-3 rounded-2xl bg-amber-50 text-amber-700 font-black uppercase text-[10px] tracking-widest text-center hover:bg-amber-600 hover:text-white transition-all"
+            >
+              Editar cadastro
+            </button>
             <a
               href={formatWhatsAppLink(toCleanString(selectedNonEnrolled?.telefone || selectedNonEnrolled?.whatsapp || selectedNonEnrolled?.Telefone || selectedNonEnrolled?.['Telefone'])) || '#'}
               target="_blank"
@@ -2305,6 +2502,206 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
           </div>
         </div>
       </Drawer>
+
+      {showNonEnrolledEditor && (
+        <div className="fixed inset-0 z-[82] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl overflow-hidden border border-slate-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div>
+                <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Não Inscritos</p>
+                <h3 className="text-xl font-black text-slate-900">Editar cadastro completo</h3>
+                <p className="text-xs text-slate-500 font-medium mt-1">
+                  Esta edição atualiza as abas Não inscritos e Inscricoes_Sem_Duplicidade.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeNonEnrolledEditor}
+                disabled={isSavingNonEnrolledEdit}
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-400 disabled:opacity-60"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-auto">
+              <div className="p-4 rounded-2xl bg-slate-50 border">
+                <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Linha Origem (A)</div>
+                <div className="font-black text-slate-800">{editingNonEnrolledId || '-'}</div>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-sm font-black text-slate-700 uppercase tracking-widest">Dados base</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <InputField
+                    label="Nome completo"
+                    value={nonEnrolledEditDraft.nome}
+                    onChange={(value: string) => setNonEnrolledEditDraft(prev => ({ ...prev, nome: value }))}
+                  />
+                  <InputField
+                    label="E-mail"
+                    value={nonEnrolledEditDraft.email}
+                    onChange={(value: string) => setNonEnrolledEditDraft(prev => ({ ...prev, email: value }))}
+                  />
+                  <InputField
+                    label="Telefone"
+                    value={nonEnrolledEditDraft.telefone}
+                    onChange={(value: string) => setNonEnrolledEditDraft(prev => ({ ...prev, telefone: value }))}
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <InputField
+                    label="Bairro"
+                    value={nonEnrolledEditDraft.bairro}
+                    onChange={(value: string) => setNonEnrolledEditDraft(prev => ({ ...prev, bairro: value }))}
+                  />
+                  <InputField
+                    label="Data cadastro (E)"
+                    value={nonEnrolledEditDraft.dataCadastro}
+                    onChange={(value: string) => setNonEnrolledEditDraft(prev => ({ ...prev, dataCadastro: value }))}
+                  />
+                  <InputField
+                    label="Data nascimento (R)"
+                    value={nonEnrolledEditDraft.dataNascimento}
+                    onChange={(value: string) => setNonEnrolledEditDraft(prev => ({ ...prev, dataNascimento: value }))}
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Sexo (S)</label>
+                    <select
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-all text-sm shadow-sm"
+                      value={nonEnrolledEditDraft.sexo}
+                      onChange={(e) => setNonEnrolledEditDraft(prev => ({ ...prev, sexo: e.target.value }))}
+                    >
+                      <option value="">Em branco</option>
+                      <option value="Masculino">Masculino</option>
+                      <option value="Feminino">Feminino</option>
+                      <option value="Outro">Outro</option>
+                    </select>
+                  </div>
+                  <InputField
+                    label="Status (D)"
+                    value={nonEnrolledEditDraft.status}
+                    onChange={(value: string) => setNonEnrolledEditDraft(prev => ({ ...prev, status: value }))}
+                  />
+                  <InputField
+                    label="Status envio (H)"
+                    value={nonEnrolledEditDraft.statusEnvio}
+                    onChange={(value: string) => setNonEnrolledEditDraft(prev => ({ ...prev, statusEnvio: value }))}
+                  />
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status priorização (Q)</label>
+                    <select
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-all text-sm shadow-sm"
+                      value={nonEnrolledEditDraft.statusPriorizacao}
+                      onChange={(e) => setNonEnrolledEditDraft(prev => ({ ...prev, statusPriorizacao: e.target.value }))}
+                    >
+                      <option value="">Em branco</option>
+                      <option value="SIM">SIM</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h4 className="text-sm font-black text-slate-700 uppercase tracking-widest">Respostas e acompanhamento</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Interesse (I)</label>
+                    <select
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-all text-sm shadow-sm"
+                      value={nonEnrolledEditDraft.interesseConfirmado}
+                      onChange={(e) => setNonEnrolledEditDraft(prev => ({ ...prev, interesseConfirmado: e.target.value }))}
+                    >
+                      <option value="">Em branco</option>
+                      <option value="Sim">Sim</option>
+                      <option value="Não">Não</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Já fez EAC (J)</label>
+                    <select
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-all text-sm shadow-sm"
+                      value={nonEnrolledEditDraft.jaFezEac}
+                      onChange={(e) => setNonEnrolledEditDraft(prev => ({ ...prev, jaFezEac: e.target.value }))}
+                    >
+                      <option value="">Em branco</option>
+                      <option value="Sim">Sim</option>
+                      <option value="Não">Não</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Contato mudou (K)</label>
+                    <select
+                      className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 font-bold text-slate-800 outline-none focus:border-blue-500 focus:bg-white transition-all text-sm shadow-sm"
+                      value={nonEnrolledEditDraft.contatoMudou}
+                      onChange={(e) => setNonEnrolledEditDraft(prev => ({ ...prev, contatoMudou: e.target.value }))}
+                    >
+                      <option value="">Em branco</option>
+                      <option value="Sim">Sim</option>
+                      <option value="Não">Não</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <InputField
+                    label="Data resposta (M)"
+                    value={nonEnrolledEditDraft.dataResposta}
+                    onChange={(value: string) => setNonEnrolledEditDraft(prev => ({ ...prev, dataResposta: value }))}
+                  />
+                  <InputField
+                    label="Status pré confirmação (P)"
+                    value={nonEnrolledEditDraft.statusPreConfirmacao}
+                    onChange={(value: string) => setNonEnrolledEditDraft(prev => ({ ...prev, statusPreConfirmacao: value }))}
+                  />
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <InputField
+                    label="Amigo para fazer junto? (N)"
+                    value={nonEnrolledEditDraft.amigo}
+                    onChange={(value: string) => setNonEnrolledEditDraft(prev => ({ ...prev, amigo: value }))}
+                  />
+                  <InputField
+                    label="Nome do amigo (O)"
+                    value={nonEnrolledEditDraft.nomeAmigo}
+                    onChange={(value: string) => setNonEnrolledEditDraft(prev => ({ ...prev, nomeAmigo: value }))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Recado (L)</label>
+                  <textarea
+                    value={nonEnrolledEditDraft.recado}
+                    onChange={(e) => setNonEnrolledEditDraft(prev => ({ ...prev, recado: e.target.value }))}
+                    rows={4}
+                    className="w-full px-4 py-3 rounded-2xl border-2 border-slate-100 bg-white font-bold text-slate-800 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none resize-none"
+                    placeholder="Digite o recado..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 bg-slate-50 border-t flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeNonEnrolledEditor}
+                disabled={isSavingNonEnrolledEdit}
+                className="px-6 py-3 rounded-2xl bg-white text-slate-500 font-black text-[10px] uppercase tracking-widest border border-slate-200 hover:bg-slate-100 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveNonEnrolledEdit}
+                disabled={isSavingNonEnrolledEdit || !editingNonEnrolledId}
+                className="px-8 py-3 rounded-2xl bg-blue-600 text-white font-black text-[10px] uppercase tracking-widest shadow-lg hover:bg-blue-700 disabled:opacity-60"
+              >
+                {isSavingNonEnrolledEdit ? 'Salvando...' : 'Salvar alterações'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showEmailComposer && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">

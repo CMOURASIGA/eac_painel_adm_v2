@@ -397,6 +397,10 @@ function doPost(e) {
       return handleUpdateNonEnrolledRecado(finalPayload);
     }
 
+    if (action === "UPDATE_NON_ENROLLED_RECORD") {
+      return handleUpdateNonEnrolledRecord(finalPayload);
+    }
+
     if (action === "PRIORITIZE_NON_ENROLLED") {
       return handlePrioritizeNonEnrolled(finalPayload);
     }
@@ -1712,6 +1716,315 @@ function handleUpdateNonEnrolledRecado(payload) {
   }
 }
 
+function getOwnValueFromKeys_(obj, keys) {
+  const source = obj && typeof obj === "object" ? obj : {};
+  const list = Array.isArray(keys) ? keys : [];
+  for (let i = 0; i < list.length; i++) {
+    const key = list[i];
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      return source[key];
+    }
+  }
+  return undefined;
+}
+
+function normalizeYesNoOrBlank_(value) {
+  const raw = String(value === undefined || value === null ? "" : value).trim();
+  const s = raw.toLowerCase();
+  if (!s) return "";
+  if (s === "sim" || s === "s" || s === "yes" || s === "y" || s === "1" || s === "true") return "Sim";
+  if (s === "nao" || s === "não" || s === "n" || s === "no" || s === "0" || s === "false") return "Não";
+  if (s === "-" || s === "em branco" || s === "branco") return "";
+  return raw;
+}
+
+function normalizePriorizacaoForSheet_(value) {
+  const raw = String(value === undefined || value === null ? "" : value).trim();
+  const s = raw.toLowerCase();
+  if (!s) return "";
+  if (s === "sim" || s === "s" || s === "yes" || s === "y" || s === "1" || s === "true" || s === "on") return "SIM";
+  if (s === "nao" || s === "não" || s === "n" || s === "no" || s === "0" || s === "false" || s === "off") return "";
+  return raw;
+}
+
+function buildNonEnrolledIndexes_(headers) {
+  const hdr = Array.isArray(headers) ? headers : [];
+  return {
+    idxId: getColIndex(hdr, "Linha Origem", 0),
+    idxNome: getColIndex(hdr, "Nome completo", getColIndex(hdr, "Nome", 1)),
+    idxEmail: getColIndex(hdr, "E-mail", getColIndex(hdr, "Email", 2)),
+    idxStatus: getColIndex(hdr, "Status", 3),
+    idxDataCadastro: getColIndex(hdr, "Data Cadastro", 4),
+    idxTelefone: getColIndex(hdr, "Telefone", 5),
+    idxBairro: getColIndex(hdr, "Bairro", 6),
+    idxStatusEnvio: getColIndex(hdr, "Status Envio", 7),
+    idxInteresse: getColIndex(hdr, "Interesse Confirmado", 8),
+    idxJaFez: getColIndex(hdr, "Já fez o EAC em outra paróquia?", getColIndex(hdr, "Ja fez o EAC", 9)),
+    idxContatoMudou: getColIndex(hdr, "Contato Mudou?", getColIndex(hdr, "Contato mudou", 10)),
+    idxRecado: getColIndex(hdr, "Recado", 11),
+    idxDataResposta: getColIndex(hdr, "Data Resposta", 12),
+    idxAmigo: getColIndex(hdr, "Amigo para fazer junto?", getColIndex(hdr, "Amigo para", 13)),
+    idxNomeAmigo: getColIndex(hdr, "Nome do amigo", 14),
+    idxPreConfirmacao: getColIndex(hdr, "Status Pre Confirmacao", 15),
+    idxStatusPriorizacao: getColIndex(hdr, "Status Priorizacao", 16),
+    idxDataNascimento: getColIndex(hdr, "Data de nascimento", getColIndex(hdr, "Data nascimento", 17)),
+    idxSexo: getColIndex(hdr, "Sexo", 18)
+  };
+}
+
+function buildUpdatedNonEnrolledRowObject_(rowData, idx) {
+  const row = Array.isArray(rowData) ? rowData : [];
+  const indexes = idx || {};
+  return {
+    linhaOrigem: row[indexes.idxId] || "",
+    nome: row[indexes.idxNome] || "",
+    email: row[indexes.idxEmail] || "",
+    status: row[indexes.idxStatus] || "",
+    dataCadastro: row[indexes.idxDataCadastro] || "",
+    telefone: row[indexes.idxTelefone] || "",
+    bairro: row[indexes.idxBairro] || "",
+    statusEnvio: row[indexes.idxStatusEnvio] || "",
+    interesseConfirmado: row[indexes.idxInteresse] || "",
+    jaFezEac: row[indexes.idxJaFez] || "",
+    contatoMudou: row[indexes.idxContatoMudou] || "",
+    recado: row[indexes.idxRecado] || "",
+    dataResposta: row[indexes.idxDataResposta] || "",
+    amigo: row[indexes.idxAmigo] || "",
+    nomeAmigo: row[indexes.idxNomeAmigo] || "",
+    statusPreConfirmacao: row[indexes.idxPreConfirmacao] || "",
+    statusPriorizacao: row[indexes.idxStatusPriorizacao] || "",
+    dataNascimento: row[indexes.idxDataNascimento] || "",
+    nascimento: row[indexes.idxDataNascimento] || "",
+    sexo: row[indexes.idxSexo] || ""
+  };
+}
+
+function updateSemDuplicidadeFromNonEnrolled_(input) {
+  const payload = input && typeof input === "object" ? input : {};
+  const dbIns = SpreadsheetApp.openById(SPREADSHEET_ID_INSCRICOES);
+  const shSemDup = getSheetResiliente(dbIns, "Inscricoes_Sem_Duplicidade");
+  const data = shSemDup.getDataRange().getValues();
+  if (!data || data.length < 2) {
+    throw new Error("Aba 'Inscricoes_Sem_Duplicidade' vazia.");
+  }
+
+  const headers = data[0] || [];
+  const lastCol = Math.max(shSemDup.getLastColumn(), headers.length, 8);
+  const idxNome = getColIndex(headers, "Nome completo", getColIndex(headers, "Nome", 1));
+  const idxNascimento = getColIndex(headers, "Data de nascimento", getColIndex(headers, "Data nascimento", 2));
+  const idxSexo = getColIndex(headers, "Sexo", 3);
+  const idxDataCadastro = getColIndex(headers, "Data Cadastro", 0);
+  const idxBairro = getColIndex(headers, "Bairro", 5);
+  const idxTelefone = getColIndex(headers, "Telefone", 6);
+  const idxEmail = getColIndex(headers, "E-mail", getColIndex(headers, "Email", 7));
+
+  const linhaOrigem = Number(payload.linhaOrigem);
+  const emailTarget = String(payload.email || "").trim().toLowerCase();
+  const phoneTarget = normalizePhone(payload.telefone || "");
+  const nomeTarget = String(payload.nome || "").trim().toLowerCase();
+  const nascimentoTarget = String(payload.dataNascimento || "").trim();
+  const hasAnyMatchKey = !!(emailTarget || phoneTarget || nomeTarget);
+
+  function rowMatches(row) {
+    const r = Array.isArray(row) ? row : [];
+    const emailVal = String(r[idxEmail] || "").trim().toLowerCase();
+    const phoneVal = normalizePhone(r[idxTelefone] || "");
+    const nomeVal = String(r[idxNome] || "").trim().toLowerCase();
+    const nascimentoVal = String(r[idxNascimento] || "").trim();
+
+    if (emailTarget && emailVal === emailTarget) return true;
+    if (phoneTarget && phoneVal === phoneTarget) return true;
+    if (nomeTarget && nascimentoTarget && nomeVal === nomeTarget && nascimentoVal === nascimentoTarget) return true;
+    if (nomeTarget && !nascimentoTarget && nomeVal === nomeTarget) return true;
+    return false;
+  }
+
+  let rowNumber = -1;
+  if (isFinite(linhaOrigem) && linhaOrigem >= 2 && linhaOrigem <= data.length) {
+    const candidate = data[linhaOrigem - 1] || [];
+    if (!hasAnyMatchKey || rowMatches(candidate)) {
+      rowNumber = linhaOrigem;
+    }
+  }
+
+  if (rowNumber === -1 && hasAnyMatchKey) {
+    for (let i = 1; i < data.length; i++) {
+      if (rowMatches(data[i])) {
+        rowNumber = i + 1;
+        break;
+      }
+    }
+  }
+
+  if (rowNumber === -1) {
+    throw new Error("Registro não encontrado em 'Inscricoes_Sem_Duplicidade' para sincronizar edição.");
+  }
+
+  const row = (data[rowNumber - 1] || []).slice();
+  while (row.length < lastCol) row.push("");
+
+  if (idxNome >= 0) row[idxNome] = String(payload.nome || "").trim();
+  if (idxEmail >= 0) row[idxEmail] = String(payload.email || "").trim();
+  if (idxTelefone >= 0) row[idxTelefone] = String(payload.telefone || "").trim();
+  if (idxBairro >= 0) row[idxBairro] = String(payload.bairro || "").trim();
+  if (idxNascimento >= 0) row[idxNascimento] = String(payload.dataNascimento || "").trim();
+  if (idxSexo >= 0) row[idxSexo] = String(payload.sexo || "").trim();
+  if (idxDataCadastro >= 0) row[idxDataCadastro] = payload.dataCadastro || "";
+
+  shSemDup.getRange(rowNumber, 1, 1, row.length).setValues([row]);
+  return { updated: true, rowNumber: rowNumber };
+}
+
+function handleUpdateNonEnrolledRecord(payload) {
+  try {
+    const source = payload && typeof payload === "object" ? payload : {};
+    const record = source.record && typeof source.record === "object" ? source.record : source;
+
+    const idPessoa = String(
+      source.idPessoa ||
+      source.id ||
+      source.linhaOrigem ||
+      source.linha_origem ||
+      record.idPessoa ||
+      record.id ||
+      record.linhaOrigem ||
+      record.linha_origem ||
+      ""
+    ).trim();
+    const emailLookup = String(source.email || source.to || record.email || "").trim().toLowerCase();
+
+    if (!idPessoa && !emailLookup) {
+      throw new Error("Informe o ID (coluna A) ou o e-mail para editar o cadastro.");
+    }
+
+    const shNao = getNaoInscritosSheet();
+    const data = shNao.getDataRange().getValues();
+    if (!data || data.length < 2) {
+      throw new Error("Planilha 'Nao inscritos' vazia.");
+    }
+
+    const headers = data[0] || [];
+    const idx = buildNonEnrolledIndexes_(headers);
+
+    let rowIndex = -1;
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i] || [];
+      const idVal = String(row[idx.idxId] || "").trim();
+      const emailVal = String(row[idx.idxEmail] || "").trim().toLowerCase();
+      if ((idPessoa && idVal === idPessoa) || (emailLookup && emailVal === emailLookup)) {
+        rowIndex = i;
+        break;
+      }
+    }
+
+    if (rowIndex === -1) {
+      throw new Error("Registro de Nao Inscrito nao encontrado para edicao.");
+    }
+
+    const rowData = (data[rowIndex] || []).slice();
+    const maxIdx = Math.max(
+      idx.idxSexo,
+      idx.idxDataNascimento,
+      idx.idxStatusPriorizacao,
+      idx.idxPreConfirmacao,
+      idx.idxNomeAmigo,
+      idx.idxAmigo,
+      idx.idxDataResposta,
+      idx.idxRecado,
+      idx.idxContatoMudou,
+      idx.idxJaFez,
+      idx.idxInteresse,
+      idx.idxStatusEnvio,
+      idx.idxBairro,
+      idx.idxTelefone,
+      idx.idxDataCadastro,
+      idx.idxStatus,
+      idx.idxEmail,
+      idx.idxNome,
+      idx.idxId
+    );
+    while (rowData.length <= maxIdx) rowData.push("");
+
+    const currentInteresse = String(rowData[idx.idxInteresse] || "").trim();
+
+    function applyString(keys, index, shouldTrim) {
+      if (index < 0) return false;
+      const provided = getOwnValueFromKeys_(record, keys);
+      if (provided === undefined) return false;
+      const raw = String(provided === null ? "" : provided);
+      rowData[index] = shouldTrim === false ? raw : raw.trim();
+      return true;
+    }
+
+    function applyYesNo(keys, index) {
+      if (index < 0) return false;
+      const provided = getOwnValueFromKeys_(record, keys);
+      if (provided === undefined) return false;
+      rowData[index] = normalizeYesNoOrBlank_(provided);
+      return true;
+    }
+
+    applyString(["nome", "Nome"], idx.idxNome, true);
+    applyString(["email", "Email", "eMail", "e-mail"], idx.idxEmail, true);
+    applyString(["status", "Status"], idx.idxStatus, true);
+    applyString(["dataCadastro", "data_cadastro", "Data Cadastro", "timestamp"], idx.idxDataCadastro, true);
+    applyString(["telefone", "Telefone", "whatsapp", "WhatsApp"], idx.idxTelefone, true);
+    applyString(["bairro", "Bairro"], idx.idxBairro, true);
+    applyString(["statusEnvio", "Status Envio", "status_envio"], idx.idxStatusEnvio, true);
+
+    const changedInteresse = applyYesNo(["interesseConfirmado", "interesse", "Interesse", "I"], idx.idxInteresse);
+    applyYesNo(["jaFezEac", "jaFez", "Ja fez o EAC", "J"], idx.idxJaFez);
+    applyYesNo(["contatoMudou", "Contato Mudou", "K"], idx.idxContatoMudou);
+
+    applyString(["recado", "Recado", "L"], idx.idxRecado, false);
+    const changedDataResposta = applyString(["dataResposta", "Data Resposta", "M"], idx.idxDataResposta, true);
+    applyString(["amigo", "Amigo para", "N"], idx.idxAmigo, true);
+    applyString(["nomeAmigo", "Nome do amigo", "O"], idx.idxNomeAmigo, true);
+    applyString(["statusPreConfirmacao", "preConfirmacao", "Status Pre Confirmacao", "P"], idx.idxPreConfirmacao, true);
+
+    if (idx.idxStatusPriorizacao >= 0) {
+      const providedPriorizacao = getOwnValueFromKeys_(record, ["statusPriorizacao", "Status Priorizacao", "Q"]);
+      if (providedPriorizacao !== undefined) {
+        rowData[idx.idxStatusPriorizacao] = normalizePriorizacaoForSheet_(providedPriorizacao);
+      }
+    }
+
+    applyString(["dataNascimento", "nascimento", "Data de nascimento", "R"], idx.idxDataNascimento, true);
+    applyString(["sexo", "Sexo", "S"], idx.idxSexo, true);
+
+    if (changedInteresse && !changedDataResposta && idx.idxDataResposta >= 0) {
+      const finalInteresse = String(rowData[idx.idxInteresse] || "").trim();
+      if (finalInteresse !== currentInteresse) {
+        rowData[idx.idxDataResposta] = finalInteresse ? nowBR() : "";
+      }
+    }
+
+    const linhaOrigemFinal = String(rowData[idx.idxId] || idPessoa || "").trim();
+    const syncInfo = updateSemDuplicidadeFromNonEnrolled_({
+      linhaOrigem: linhaOrigemFinal,
+      nome: rowData[idx.idxNome] || "",
+      email: rowData[idx.idxEmail] || "",
+      telefone: rowData[idx.idxTelefone] || "",
+      bairro: rowData[idx.idxBairro] || "",
+      dataCadastro: rowData[idx.idxDataCadastro] || "",
+      dataNascimento: rowData[idx.idxDataNascimento] || "",
+      sexo: rowData[idx.idxSexo] || ""
+    });
+
+    shNao.getRange(rowIndex + 1, 1, 1, rowData.length).setValues([rowData]);
+    const updated = buildUpdatedNonEnrolledRowObject_(rowData, idx);
+
+    return responder(true, {
+      message: "Cadastro de Nao Inscrito atualizado com sucesso.",
+      updatedRow: updated,
+      semDuplicidadeSync: syncInfo
+    });
+  } catch (err) {
+    registrarLog("error", "handleUpdateNonEnrolledRecord", "Sistema", err.toString(), "ERROR");
+    return responder(false, { error: err.toString() });
+  }
+}
+
 function handlePrioritizeNonEnrolled(payload) {
   try {
     const idRegistro = String(
@@ -2179,7 +2492,10 @@ function novaDistribuicaoCirculos() {
   const sheetDestino = getSheetResiliente(dbIns, "Nova_Distribuicao_Circulos");
   const DEST_HEADERS = ["Nome", "Idade", "Bairro", "Sexo", "Grupo Sugerido"];
   const CIRCLE_NAMES = ["Circulo 1", "Circulo 2", "Circulo 3", "Circulo 4", "Circulo 5", "Circulo 6", "Circulo Excedente"];
-  const MIN_AGE = 12;
+  const MAIN_MIN_AGE = 13;
+  const MAIN_MAX_AGE = 16;
+  const MAIN_CIRCLES_COUNT = 6;
+  const MAX_BY_SEXO_PER_CIRCLE = 6;
 
   const data = sheetOrigem.getDataRange().getValues();
   sheetDestino.clear();
@@ -2210,6 +2526,7 @@ function novaDistribuicaoCirculos() {
 
   const aptos = [];
   let filtradosPorIdade = 0;
+  let foraDaFaixaPrincipal = 0;
   for (let i = 1; i < data.length; i++) {
     const row = data[i] || [];
     const nome = String(row[idxNome] || "").trim();
@@ -2225,11 +2542,11 @@ function novaDistribuicaoCirculos() {
     const idadePlanilha = idxIdade >= 0 ? parseMemberAgeNumber(row[idxIdade]) : null;
     const idadeCalculada = idxDataNascimento >= 0 ? parseMemberAgeNumber(calcularIdade(row[idxDataNascimento])) : null;
     const idade = idadePlanilha !== null ? idadePlanilha : idadeCalculada;
-    if (idade === null) continue;
-    if (idade < MIN_AGE) {
+    if (idade === null) {
       filtradosPorIdade++;
       continue;
     }
+    if (!isMainRangeAgeForCirculo_(idade, MAIN_MIN_AGE, MAIN_MAX_AGE)) foraDaFaixaPrincipal++;
 
     const sexoInfo = idxSexo >= 0 ? normalizeSexoForCirculo_(row[idxSexo]) : { key: "nao_informado", label: "Nao informado" };
     const bairro = String(row[idxBairro] || "").trim();
@@ -2242,46 +2559,67 @@ function novaDistribuicaoCirculos() {
     });
   }
 
-  // Estratégia:
-  // 1) Círculos 1..6 com progressão de idade (C1: <=12, C2: <=13, ... C6: <=17).
-  // 2) Balanceia sexo dentro do círculo (M/F) sempre que possível.
-  // 3) Usa bairro preferencial por círculo (maior frequência ainda disponível) para reduzir mistura.
-  // 4) Restante vai para "Circulo Excedente".
-  const pool = aptos.slice();
   const grupos = Array.from({ length: CIRCLE_NAMES.length }, function () { return []; });
-  const bairrosJaPreferidos = {};
 
-  for (let i = 0; i < 6; i++) {
-    const maxAge = MIN_AGE + i;
-    const remainingCircles = CIRCLE_NAMES.length - i;
-    const targetSize = Math.max(1, Math.ceil(pool.length / remainingCircles));
+  const masculinosPool = aptos.filter(function (p) { return p.sexoKey === "masculino"; });
+  const femininosPool = aptos.filter(function (p) { return p.sexoKey === "feminino"; });
+  const naoInformadosPool = aptos.filter(function (p) { return p.sexoKey !== "masculino" && p.sexoKey !== "feminino"; });
 
-    const eligibleForCircle = function (p) {
-      return Number(p.idade) >= MIN_AGE && Number(p.idade) <= maxAge;
-    };
+  // Nova regra:
+  // 1) C1..C6 com limite de 6 meninos + 6 meninas (max 12 por circulo).
+  // 2) Prioridade de idade: 13 -> 14 -> 15 -> 16.
+  // 3) Para completar vagas, usa fora da faixa priorizando 17+, depois menores de 13.
+  // 4) Meninas tentam seguir o mesmo bairro dominante dos meninos do circulo.
+  for (let i = 0; i < MAIN_CIRCLES_COUNT; i++) {
+    let bairroReferencia = pickDominantBairroForCirculoPool_(masculinosPool, MAIN_MIN_AGE, MAIN_MAX_AGE);
+    if (!bairroReferencia) {
+      bairroReferencia = pickDominantBairroForCirculoPool_(femininosPool, MAIN_MIN_AGE, MAIN_MAX_AGE);
+    }
 
-    const preferredBairro = pickPreferredBairroFromPool_(pool, eligibleForCircle, bairrosJaPreferidos);
-    if (preferredBairro) bairrosJaPreferidos[normalizeHeader(preferredBairro)] = true;
-
-    while (grupos[i].length < targetSize) {
-      const counts = getSexoCounts_(grupos[i]);
-      const desiredSexo = counts.masculino <= counts.feminino ? "masculino" : "feminino";
-
-      const picked = pullCandidateFromPool_(pool, {
-        eligibilityFn: eligibleForCircle,
-        preferredBairro: preferredBairro,
-        preferredSexo: desiredSexo
+    for (let slot = 0; slot < MAX_BY_SEXO_PER_CIRCLE; slot++) {
+      const picked = pullCandidateForCirclePool_(masculinosPool, {
+        preferredBairro: bairroReferencia,
+        mainMinAge: MAIN_MIN_AGE,
+        mainMaxAge: MAIN_MAX_AGE
       });
-
       if (!picked) break;
       grupos[i].push(picked);
+      if (!bairroReferencia && String(picked.bairro || "").trim()) {
+        bairroReferencia = String(picked.bairro || "").trim();
+      }
+    }
+
+    for (let slot = 0; slot < MAX_BY_SEXO_PER_CIRCLE; slot++) {
+      const picked = pullCandidateForCirclePool_(femininosPool, {
+        preferredBairro: bairroReferencia,
+        mainMinAge: MAIN_MIN_AGE,
+        mainMaxAge: MAIN_MAX_AGE
+      });
+      if (!picked) break;
+      grupos[i].push(picked);
+      if (!bairroReferencia && String(picked.bairro || "").trim()) {
+        bairroReferencia = String(picked.bairro || "").trim();
+      }
     }
   }
 
-  // Sobras (idade maior e qualquer remanescente) vão para excedente.
-  while (pool.length > 0) {
-    grupos[6].push(pool.shift());
+  // Excedente: prioridade para fora da faixa 13..16.
+  // Se houver sobra dentro da faixa por limite de capacidade/sexo, tambem vai para excedente.
+  const sobras = []
+    .concat(masculinosPool)
+    .concat(femininosPool)
+    .concat(naoInformadosPool);
+  const excedenteForaFaixa = [];
+  const excedenteDentroFaixa = [];
+  for (let i = 0; i < sobras.length; i++) {
+    const p = sobras[i];
+    if (isMainRangeAgeForCirculo_(p.idade, MAIN_MIN_AGE, MAIN_MAX_AGE)) {
+      excedenteDentroFaixa.push(p);
+    } else {
+      excedenteForaFaixa.push(p);
+    }
   }
+  grupos[6] = excedenteForaFaixa.concat(excedenteDentroFaixa);
 
   const rowsOut = [];
   const gruposResumo = [];
@@ -2311,16 +2649,20 @@ function novaDistribuicaoCirculos() {
     totalAptos: aptos.length,
     totalDistribuidos: rowsOut.length,
     totalFiltradosPorIdade: filtradosPorIdade,
+    totalForaDaFaixaPrincipal: foraDaFaixaPrincipal,
+    totalExcedenteForaFaixa: excedenteForaFaixa.length,
+    totalExcedenteDentroFaixa: excedenteDentroFaixa.length,
     grupos: gruposResumo,
     storage: {
       spreadsheetId: SPREADSHEET_ID_INSCRICOES,
       sheetName: "Nova_Distribuicao_Circulos"
     },
     criterios: {
-      idadeMinima: MIN_AGE,
-      progressaoIdade: "C1 <= 12, C2 <= 13, C3 <= 14, C4 <= 15, C5 <= 16, C6 <= 17",
-      balanceamentoSexo: "Tentativa de equilibrio M/F por circulo",
-      prioridadeBairro: "Bairro dominante por circulo com fallback misto"
+      faixaPrincipalIdade: "13 a 16 anos",
+      limitePorCirculo: "C1..C6: ate 6 meninos e ate 6 meninas (maximo 12)",
+      prioridadeIdade: "13, depois 14, depois 15, depois 16; fora da faixa so para completar vagas",
+      prioridadeBairro: "Meninas tentam acompanhar o bairro dominante dos meninos do circulo",
+      regraExcedente: "Prioriza idades fora de 13..16; dentro da faixa so excede por limite de sexo/capacidade"
     }
   };
 }
@@ -2342,80 +2684,118 @@ function isTruthyYes_(value) {
   return s === "sim" || s === "s" || s === "yes" || s === "y" || s === "1" || s === "true";
 }
 
-function pickPreferredBairroFromPool_(pool, eligibilityFn, bairrosJaPreferidos) {
-  const countByBairro = {};
-  for (let i = 0; i < pool.length; i++) {
-    const p = pool[i];
-    if (!eligibilityFn(p)) continue;
-    const bairro = String(p.bairro || "").trim() || "Nao informado";
-    const key = normalizeHeader(bairro);
-    countByBairro[key] = countByBairro[key] || { label: bairro, total: 0 };
-    countByBairro[key].total++;
-  }
-
-  let best = "";
-  let bestCount = -1;
-  const keys = Object.keys(countByBairro);
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
-    const item = countByBairro[key];
-    const alreadyUsed = !!(bairrosJaPreferidos && bairrosJaPreferidos[key]);
-    // preferência para bairro ainda não usado em outros círculos
-    const score = item.total + (alreadyUsed ? 0 : 1000);
-    if (score > bestCount) {
-      bestCount = score;
-      best = item.label;
-    }
-  }
-
-  return best;
+function isMainRangeAgeForCirculo_(age, minAge, maxAge) {
+  const n = Number(age);
+  return isFinite(n) && n >= minAge && n <= maxAge;
 }
 
-function pullCandidateFromPool_(pool, options) {
-  const eligibilityFn = options && options.eligibilityFn ? options.eligibilityFn : function () { return true; };
-  const preferredBairroNorm = normalizeHeader(options && options.preferredBairro ? options.preferredBairro : "");
-  const preferredSexo = String(options && options.preferredSexo ? options.preferredSexo : "").trim();
+function getOutsideRangeAgeRankForCirculo_(age, minAge, maxAge) {
+  const n = Number(age);
+  if (!isFinite(n)) return 9999;
+  if (n > maxAge) return n - maxAge; // 17 antes de 18, etc
+  if (n < minAge) return 100 + (minAge - n); // menores ficam apos maiores de 16
+  return 0;
+}
 
-  function matchIndex(predicate) {
-    for (let i = 0; i < pool.length; i++) {
-      if (predicate(pool[i])) return i;
+function pickDominantBairroForCirculoPool_(pool, minAge, maxAge) {
+  const list = Array.isArray(pool) ? pool : [];
+  if (list.length === 0) return "";
+
+  const countByBairro = {};
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i] || {};
+    const bairroLabel = String(p.bairro || "").trim() || "Nao informado";
+    const bairroKey = normalizeHeader(bairroLabel);
+    if (!countByBairro[bairroKey]) {
+      countByBairro[bairroKey] = { label: bairroLabel, inRange: 0, total: 0, firstIndex: i };
     }
-    return -1;
+    countByBairro[bairroKey].total++;
+    if (isMainRangeAgeForCirculo_(p.idade, minAge, maxAge)) {
+      countByBairro[bairroKey].inRange++;
+    }
   }
 
-  const byBairro = function (p) {
-    if (!preferredBairroNorm) return true;
-    return normalizeHeader(p.bairro || "") === preferredBairroNorm;
-  };
-  const bySexo = function (p, sexo) {
-    return String(p.sexoKey || "").trim() === sexo;
-  };
+  const keys = Object.keys(countByBairro);
+  const hasInRange = keys.some(function (key) { return countByBairro[key].inRange > 0; });
 
-  // Ordem de seleção:
-  // 1) Elegível + bairro preferido + sexo preferido
-  // 2) Elegível + sexo preferido
-  // 3) Elegível + bairro preferido + sexo não informado
-  // 4) Elegível + bairro preferido
-  // 5) Elegível + sexo não informado
-  // 6) Qualquer elegível
-  const idx1 = matchIndex(function (p) { return eligibilityFn(p) && byBairro(p) && bySexo(p, preferredSexo); });
-  if (idx1 >= 0) return pool.splice(idx1, 1)[0];
+  let bestLabel = "";
+  let bestPrimary = -1;
+  let bestTotal = -1;
+  let bestFirstIndex = Number.MAX_SAFE_INTEGER;
+  for (let i = 0; i < keys.length; i++) {
+    const item = countByBairro[keys[i]];
+    const primary = hasInRange ? item.inRange : item.total;
+    if (
+      primary > bestPrimary ||
+      (primary === bestPrimary && item.total > bestTotal) ||
+      (primary === bestPrimary && item.total === bestTotal && item.firstIndex < bestFirstIndex)
+    ) {
+      bestPrimary = primary;
+      bestTotal = item.total;
+      bestFirstIndex = item.firstIndex;
+      bestLabel = item.label;
+    }
+  }
 
-  const idx2 = matchIndex(function (p) { return eligibilityFn(p) && bySexo(p, preferredSexo); });
-  if (idx2 >= 0) return pool.splice(idx2, 1)[0];
+  return bestLabel;
+}
 
-  const idx3 = matchIndex(function (p) { return eligibilityFn(p) && byBairro(p) && bySexo(p, "nao_informado"); });
-  if (idx3 >= 0) return pool.splice(idx3, 1)[0];
+function pullCandidateForCirclePool_(pool, options) {
+  const list = Array.isArray(pool) ? pool : [];
+  if (list.length === 0) return null;
 
-  const idx4 = matchIndex(function (p) { return eligibilityFn(p) && byBairro(p); });
-  if (idx4 >= 0) return pool.splice(idx4, 1)[0];
+  const minAgeRaw = Number(options && options.mainMinAge);
+  const maxAgeRaw = Number(options && options.mainMaxAge);
+  const minAge = isFinite(minAgeRaw) ? Math.floor(minAgeRaw) : 13;
+  const maxAge = isFinite(maxAgeRaw) ? Math.floor(maxAgeRaw) : 16;
+  const preferredBairroNorm = normalizeHeader(options && options.preferredBairro ? options.preferredBairro : "");
 
-  const idx5 = matchIndex(function (p) { return eligibilityFn(p) && bySexo(p, "nao_informado"); });
-  if (idx5 >= 0) return pool.splice(idx5, 1)[0];
+  function pickByAge(age, requirePreferredBairro) {
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i] || {};
+      const idade = Number(p.idade);
+      if (!isFinite(idade) || idade !== age) continue;
+      if (requirePreferredBairro && preferredBairroNorm && normalizeHeader(p.bairro || "") !== preferredBairroNorm) continue;
+      return list.splice(i, 1)[0];
+    }
+    return null;
+  }
 
-  const idx6 = matchIndex(function (p) { return eligibilityFn(p); });
-  if (idx6 >= 0) return pool.splice(idx6, 1)[0];
+  // Prioridade principal de idade: 13 -> 14 -> 15 -> 16
+  for (let age = minAge; age <= maxAge; age++) {
+    const picked = pickByAge(age, true);
+    if (picked) return picked;
+  }
+  for (let age = minAge; age <= maxAge; age++) {
+    const picked = pickByAge(age, false);
+    if (picked) return picked;
+  }
 
+  // Fallback fora da faixa para completar vagas.
+  let bestIdx = -1;
+  let bestBairroPenalty = Number.MAX_SAFE_INTEGER;
+  let bestAgeRank = Number.MAX_SAFE_INTEGER;
+  for (let i = 0; i < list.length; i++) {
+    const p = list[i] || {};
+    const idade = Number(p.idade);
+    if (isMainRangeAgeForCirculo_(idade, minAge, maxAge)) continue;
+
+    const bairroPenalty = preferredBairroNorm && normalizeHeader(p.bairro || "") !== preferredBairroNorm ? 1 : 0;
+    const ageRank = getOutsideRangeAgeRankForCirculo_(idade, minAge, maxAge);
+
+    if (
+      bestIdx < 0 ||
+      bairroPenalty < bestBairroPenalty ||
+      (bairroPenalty === bestBairroPenalty && ageRank < bestAgeRank) ||
+      (bairroPenalty === bestBairroPenalty && ageRank === bestAgeRank && i < bestIdx)
+    ) {
+      bestIdx = i;
+      bestBairroPenalty = bairroPenalty;
+      bestAgeRank = ageRank;
+    }
+  }
+
+  if (bestIdx >= 0) return list.splice(bestIdx, 1)[0];
   return null;
 }
 
