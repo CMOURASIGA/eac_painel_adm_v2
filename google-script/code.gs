@@ -2528,6 +2528,7 @@ function novaDistribuicaoCirculos() {
   const aptos = [];
   let filtradosPorIdade = 0;
   let foraDaFaixaPrincipal = 0;
+  let dozePromovidosParaFaixaPrincipal = 0;
   for (let i = 1; i < data.length; i++) {
     const row = data[i] || [];
     const nome = String(row[idxNome] || "").trim();
@@ -2542,18 +2543,23 @@ function novaDistribuicaoCirculos() {
 
     const idadePlanilha = idxIdade >= 0 ? parseMemberAgeNumber(row[idxIdade]) : null;
     const idadeCalculada = idxDataNascimento >= 0 ? parseMemberAgeNumber(calcularIdade(row[idxDataNascimento])) : null;
-    const idade = idadeCalculada !== null ? idadeCalculada : idadePlanilha;
-    if (idade === null) {
+    const idadeBase = idadeCalculada !== null ? idadeCalculada : idadePlanilha;
+    if (idadeBase === null) {
       filtradosPorIdade++;
       continue;
     }
-    if (!isMainRangeAgeForCirculo_(idade, MAIN_MIN_AGE, MAIN_MAX_AGE)) foraDaFaixaPrincipal++;
+    const nascimento = idxDataNascimento >= 0 ? row[idxDataNascimento] : "";
+    const promote12 = shouldPromoteAge12ToMainRange_(idadeBase, nascimento, 6);
+    if (promote12) dozePromovidosParaFaixaPrincipal++;
+    const idadeDistribuicao = promote12 ? MAIN_MIN_AGE : idadeBase;
+    if (!isMainRangeAgeForCirculo_(idadeDistribuicao, MAIN_MIN_AGE, MAIN_MAX_AGE)) foraDaFaixaPrincipal++;
 
     const sexoInfo = idxSexo >= 0 ? normalizeSexoForCirculo_(row[idxSexo]) : { key: "nao_informado", label: "Nao informado" };
     const bairro = String(row[idxBairro] || "").trim();
     aptos.push({
       nome: nome,
-      idade: idade,
+      idade: idadeBase,
+      idadeDistribuicao: idadeDistribuicao,
       bairro: bairro,
       sexo: sexoInfo.label,
       sexoKey: sexoInfo.key
@@ -2580,6 +2586,7 @@ function novaDistribuicaoCirculos() {
     for (let slot = 0; slot < MAX_BY_SEXO_PER_CIRCLE; slot++) {
       const picked = pullCandidateForCirclePool_(masculinosPool, {
         preferredBairro: bairroReferencia,
+        currentCircle: grupos[i],
         mainMinAge: MAIN_MIN_AGE,
         mainMaxAge: MAIN_MAX_AGE
       });
@@ -2593,6 +2600,7 @@ function novaDistribuicaoCirculos() {
     for (let slot = 0; slot < MAX_BY_SEXO_PER_CIRCLE; slot++) {
       const picked = pullCandidateForCirclePool_(femininosPool, {
         preferredBairro: bairroReferencia,
+        currentCircle: grupos[i],
         mainMinAge: MAIN_MIN_AGE,
         mainMaxAge: MAIN_MAX_AGE
       });
@@ -2614,7 +2622,7 @@ function novaDistribuicaoCirculos() {
   const excedenteDentroFaixa = [];
   for (let i = 0; i < sobras.length; i++) {
     const p = sobras[i];
-    if (isMainRangeAgeForCirculo_(p.idade, MAIN_MIN_AGE, MAIN_MAX_AGE)) {
+    if (isMainRangeAgeForCirculo_(getCandidateAgeForDistribuicao_(p), MAIN_MIN_AGE, MAIN_MAX_AGE)) {
       excedenteDentroFaixa.push(p);
     } else {
       excedenteForaFaixa.push(p);
@@ -2651,6 +2659,7 @@ function novaDistribuicaoCirculos() {
     totalDistribuidos: rowsOut.length,
     totalFiltradosPorIdade: filtradosPorIdade,
     totalForaDaFaixaPrincipal: foraDaFaixaPrincipal,
+    totalDozeComViradaAte6Meses: dozePromovidosParaFaixaPrincipal,
     totalExcedenteForaFaixa: excedenteForaFaixa.length,
     totalExcedenteDentroFaixa: excedenteDentroFaixa.length,
     grupos: gruposResumo,
@@ -2660,8 +2669,10 @@ function novaDistribuicaoCirculos() {
     },
     criterios: {
       faixaPrincipalIdade: "13 a 16 anos",
+      regraDozeAnos: "12 anos so entra na faixa principal quando falta ate 6 meses para completar 13",
+      matrizCombinacaoIdade: "13 com 14; 14 com 15 e 16; 15 com 16 e 17; sequencia equivalente para as demais idades",
       limitePorCirculo: "C1..C6: ate 6 meninos e ate 6 meninas (maximo 12)",
-      prioridadeIdade: "13, depois 14, depois 15, depois 16; fora da faixa so para completar vagas",
+      prioridadeIdade: "13, depois 14, depois 15, depois 16; respeitando matriz de combinacao sempre que houver opcao",
       prioridadeBairro: "Meninas tentam acompanhar o bairro dominante dos meninos do circulo",
       regraExcedente: "Prioriza idades fora de 13..16; dentro da faixa so excede por limite de sexo/capacidade"
     }
@@ -2690,6 +2701,75 @@ function isMainRangeAgeForCirculo_(age, minAge, maxAge) {
   return isFinite(n) && n >= minAge && n <= maxAge;
 }
 
+function getCandidateAgeForDistribuicao_(candidate) {
+  if (!candidate || typeof candidate !== "object") return null;
+  const n = Number(candidate.idadeDistribuicao !== undefined ? candidate.idadeDistribuicao : candidate.idade);
+  if (!isFinite(n)) return null;
+  return Math.floor(n);
+}
+
+function getStartOfDay_(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
+
+function getDaysUntilNextBirthday_(birthDate, refDate) {
+  const birth = parseDateAny(birthDate);
+  if (!birth) return null;
+
+  const ref = getStartOfDay_(refDate || new Date());
+  let next = new Date(ref.getFullYear(), birth.getMonth(), birth.getDate(), 0, 0, 0, 0);
+  if (next.getTime() < ref.getTime()) {
+    next = new Date(ref.getFullYear() + 1, birth.getMonth(), birth.getDate(), 0, 0, 0, 0);
+  }
+
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  const diff = next.getTime() - ref.getTime();
+  if (diff < 0) return 0;
+  return Math.floor(diff / MS_PER_DAY);
+}
+
+function shouldPromoteAge12ToMainRange_(age, birthDate, maxMonthsAhead) {
+  const n = Number(age);
+  if (!isFinite(n) || Math.floor(n) !== 12) return false;
+
+  const monthsAhead = Number(maxMonthsAhead);
+  const daysLimit = (isFinite(monthsAhead) && monthsAhead > 0 ? Math.floor(monthsAhead) : 6) * 31;
+  const days = getDaysUntilNextBirthday_(birthDate, new Date());
+  return days !== null && days >= 0 && days <= daysLimit;
+}
+
+function isAgePairAllowedByCirculoMatrix_(a, b) {
+  const na = Number(a);
+  const nb = Number(b);
+  if (!isFinite(na) || !isFinite(nb)) return true;
+
+  const low = Math.min(na, nb);
+  const high = Math.max(na, nb);
+
+  // 13 com 14 (e entre 13) como base da matriz.
+  if (low <= 13) return high <= 14;
+
+  // A partir de 14, permite progressao de ate 2 anos (14-16, 15-17, 16-18...).
+  return (high - low) <= 2;
+}
+
+function isAgeAllowedInCircleByMatrix_(candidateAge, currentCircle) {
+  const n = Number(candidateAge);
+  if (!isFinite(n)) return false;
+
+  const list = Array.isArray(currentCircle) ? currentCircle : [];
+  if (list.length === 0) return true;
+
+  for (let i = 0; i < list.length; i++) {
+    const ageInCircle = getCandidateAgeForDistribuicao_(list[i]);
+    if (ageInCircle === null) continue;
+    if (!isAgePairAllowedByCirculoMatrix_(n, ageInCircle)) return false;
+  }
+
+  return true;
+}
+
 function getOutsideRangeAgeRankForCirculo_(age, minAge, maxAge) {
   const n = Number(age);
   if (!isFinite(n)) return 9999;
@@ -2711,7 +2791,7 @@ function pickDominantBairroForCirculoPool_(pool, minAge, maxAge) {
       countByBairro[bairroKey] = { label: bairroLabel, inRange: 0, total: 0, firstIndex: i };
     }
     countByBairro[bairroKey].total++;
-    if (isMainRangeAgeForCirculo_(p.idade, minAge, maxAge)) {
+    if (isMainRangeAgeForCirculo_(getCandidateAgeForDistribuicao_(p), minAge, maxAge)) {
       countByBairro[bairroKey].inRange++;
     }
   }
@@ -2750,54 +2830,71 @@ function pullCandidateForCirclePool_(pool, options) {
   const minAge = isFinite(minAgeRaw) ? Math.floor(minAgeRaw) : 13;
   const maxAge = isFinite(maxAgeRaw) ? Math.floor(maxAgeRaw) : 16;
   const preferredBairroNorm = normalizeHeader(options && options.preferredBairro ? options.preferredBairro : "");
+  const currentCircle = Array.isArray(options && options.currentCircle) ? options.currentCircle : [];
 
-  function pickByAge(age, requirePreferredBairro) {
+  function pickByAge(age, requirePreferredBairro, requireMatrix) {
     for (let i = 0; i < list.length; i++) {
       const p = list[i] || {};
-      const idade = Number(p.idade);
-      if (!isFinite(idade) || idade !== age) continue;
+      const idade = getCandidateAgeForDistribuicao_(p);
+      if (idade === null || idade !== age) continue;
       if (requirePreferredBairro && preferredBairroNorm && normalizeHeader(p.bairro || "") !== preferredBairroNorm) continue;
+      if (requireMatrix && !isAgeAllowedInCircleByMatrix_(idade, currentCircle)) continue;
       return list.splice(i, 1)[0];
     }
     return null;
   }
 
   // Prioridade principal de idade: 13 -> 14 -> 15 -> 16
+  // Primeiro respeita a matriz de combinacao; se nao houver opcao, relaxa a matriz.
   for (let age = minAge; age <= maxAge; age++) {
-    const picked = pickByAge(age, true);
+    const picked = pickByAge(age, true, true);
     if (picked) return picked;
   }
   for (let age = minAge; age <= maxAge; age++) {
-    const picked = pickByAge(age, false);
+    const picked = pickByAge(age, false, true);
+    if (picked) return picked;
+  }
+  for (let age = minAge; age <= maxAge; age++) {
+    const picked = pickByAge(age, true, false);
+    if (picked) return picked;
+  }
+  for (let age = minAge; age <= maxAge; age++) {
+    const picked = pickByAge(age, false, false);
     if (picked) return picked;
   }
 
   // Fallback fora da faixa para completar vagas.
-  let bestIdx = -1;
-  let bestBairroPenalty = Number.MAX_SAFE_INTEGER;
-  let bestAgeRank = Number.MAX_SAFE_INTEGER;
-  for (let i = 0; i < list.length; i++) {
-    const p = list[i] || {};
-    const idade = Number(p.idade);
-    if (isMainRangeAgeForCirculo_(idade, minAge, maxAge)) continue;
+  function pickFallbackOutsideMainRange(requireMatrix) {
+    let bestIdx = -1;
+    let bestBairroPenalty = Number.MAX_SAFE_INTEGER;
+    let bestAgeRank = Number.MAX_SAFE_INTEGER;
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i] || {};
+      const idade = getCandidateAgeForDistribuicao_(p);
+      if (idade === null) continue;
+      if (isMainRangeAgeForCirculo_(idade, minAge, maxAge)) continue;
+      if (requireMatrix && !isAgeAllowedInCircleByMatrix_(idade, currentCircle)) continue;
 
-    const bairroPenalty = preferredBairroNorm && normalizeHeader(p.bairro || "") !== preferredBairroNorm ? 1 : 0;
-    const ageRank = getOutsideRangeAgeRankForCirculo_(idade, minAge, maxAge);
+      const bairroPenalty = preferredBairroNorm && normalizeHeader(p.bairro || "") !== preferredBairroNorm ? 1 : 0;
+      const ageRank = getOutsideRangeAgeRankForCirculo_(idade, minAge, maxAge);
 
-    if (
-      bestIdx < 0 ||
-      bairroPenalty < bestBairroPenalty ||
-      (bairroPenalty === bestBairroPenalty && ageRank < bestAgeRank) ||
-      (bairroPenalty === bestBairroPenalty && ageRank === bestAgeRank && i < bestIdx)
-    ) {
-      bestIdx = i;
-      bestBairroPenalty = bairroPenalty;
-      bestAgeRank = ageRank;
+      if (
+        bestIdx < 0 ||
+        bairroPenalty < bestBairroPenalty ||
+        (bairroPenalty === bestBairroPenalty && ageRank < bestAgeRank) ||
+        (bairroPenalty === bestBairroPenalty && ageRank === bestAgeRank && i < bestIdx)
+      ) {
+        bestIdx = i;
+        bestBairroPenalty = bairroPenalty;
+        bestAgeRank = ageRank;
+      }
     }
+
+    if (bestIdx >= 0) return list.splice(bestIdx, 1)[0];
+    return null;
   }
 
-  if (bestIdx >= 0) return list.splice(bestIdx, 1)[0];
-  return null;
+  return pickFallbackOutsideMainRange(true) || pickFallbackOutsideMainRange(false);
 }
 
 function getSexoCounts_(rows) {

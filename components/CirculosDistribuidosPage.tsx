@@ -25,6 +25,14 @@ const CIRCLE_NAMES = [
   'Circulo Excedente',
 ];
 
+const DISTRIBUTION_RULES = [
+  'Faixa principal: 13 a 16 anos.',
+  'Idade 12 entra na faixa principal somente quando faltar ate 6 meses para completar 13 anos.',
+  'Matriz de combinacao de idade: 13 com 14; 14 com 15 e 16; 15 com 16 e 17; e assim sucessivamente.',
+  'C1 a C6: ate 6 meninos e ate 6 meninas por circulo (maximo 12).',
+  'Quando faltar gente na faixa principal, o sistema completa vagas com idades fora da faixa.',
+];
+
 function getCircleTheme(name: string) {
   const map: Record<string, { card: string; title: string; badge: string; colorLabel: string }> = {
     'Circulo 1': {
@@ -305,6 +313,16 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500 font-black mt-1">
               Total distribuído: {total}
             </p>
+          </div>
+          <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Regras da distribuição</p>
+            <ul className="mt-2 space-y-1.5">
+              {DISTRIBUTION_RULES.map((rule) => (
+                <li key={rule} className="text-xs font-bold text-amber-900 leading-relaxed">
+                  • {rule}
+                </li>
+              ))}
+            </ul>
           </div>
 
           {loading ? (
