@@ -2542,7 +2542,7 @@ function novaDistribuicaoCirculos() {
 
     const idadePlanilha = idxIdade >= 0 ? parseMemberAgeNumber(row[idxIdade]) : null;
     const idadeCalculada = idxDataNascimento >= 0 ? parseMemberAgeNumber(calcularIdade(row[idxDataNascimento])) : null;
-    const idade = idadePlanilha !== null ? idadePlanilha : idadeCalculada;
+    const idade = idadeCalculada !== null ? idadeCalculada : idadePlanilha;
     if (idade === null) {
       filtradosPorIdade++;
       continue;
