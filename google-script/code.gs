@@ -2371,7 +2371,8 @@ function listarInscricoesPrioritarias() {
 
     const dataNascimento = idxDataNascimento >= 0 ? (row[idxDataNascimento] || "") : "";
     const idadeRaw = idxIdade >= 0 ? row[idxIdade] : "";
-    const idadeFinal = String(idadeRaw || "").trim() || calcularIdade(dataNascimento);
+    const idadeCalculada = calcularIdade(dataNascimento);
+    const idadeFinal = String(idadeCalculada || "").trim() || String(idadeRaw || "").trim();
     const sexo = idxSexo >= 0 ? String(row[idxSexo] || "").trim() : "";
     const pertencePorciuncula = idxPertence >= 0 ? String(row[idxPertence] || "").trim() : "";
     const statusValidacao = idxStatusValidacao >= 0 ? String(row[idxStatusValidacao] || "").trim() : "";
@@ -2961,26 +2962,19 @@ function parseDateAny(value) {
 function calcularIdade(dataNascimento) {
   if (dataNascimento === undefined || dataNascimento === null || dataNascimento === "") return "";
 
+  const idadeReal = getAgeFromBirthDate(dataNascimento);
+  if (idadeReal !== "") return idadeReal;
+
   let anoNascimento = NaN;
+  const raw = String(dataNascimento).trim();
+  if (!raw) return "";
 
-  if (dataNascimento instanceof Date && !isNaN(dataNascimento.getTime())) {
-    anoNascimento = dataNascimento.getFullYear();
+  // Fallback para entradas que tenham apenas o ano.
+  if (/^\d{4}$/.test(raw)) {
+    anoNascimento = Number(raw);
   } else {
-    const raw = String(dataNascimento).trim();
-    if (!raw) return "";
-
-    // Aceita valor simples de ano, ex.: "2012"
-    if (/^\d{4}$/.test(raw)) {
-      anoNascimento = Number(raw);
-    } else {
-      const parsed = parseDateAny(raw);
-      if (parsed && !isNaN(parsed.getTime())) {
-        anoNascimento = parsed.getFullYear();
-      } else {
-        const m = raw.match(/(\d{4})/);
-        if (m) anoNascimento = Number(m[1]);
-      }
-    }
+    const m = raw.match(/(\d{4})/);
+    if (m) anoNascimento = Number(m[1]);
   }
 
   const anoAtual = new Date().getFullYear();
