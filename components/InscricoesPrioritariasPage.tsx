@@ -65,6 +65,14 @@ const parseAgeNumber = (value: any) => {
   return Math.floor(n);
 };
 
+const parseDistributionAgeValue = (value: any) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.floor(n);
+};
+
 const matchesAgeFilter = (idadeRaw: any, filtroIdade: string) => {
   const filter = String(filtroIdade || '').trim();
   if (!filter) return true;
@@ -269,6 +277,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
   const [selectedItem, setSelectedItem] = useState<Prioritario | null>(null);
   const [showDrawer, setShowDrawer] = useState(false);
   const [isDistributing, setIsDistributing] = useState(false);
+  const [distributionRange, setDistributionRange] = useState({ minAge: '13', maxAge: '17' });
   const [updatingDeprioritizeId, setUpdatingDeprioritizeId] = useState<string | null>(null);
   const [selectedAgeSegment, setSelectedAgeSegment] = useState<AgeSegmentKey | ''>('');
   const [draftFilters, setDraftFilters] = useState({
@@ -345,9 +354,21 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
   }, []);
 
   const handleDistribuir = useCallback(async () => {
+    const minAge = parseDistributionAgeValue(distributionRange.minAge);
+    const maxAge = parseDistributionAgeValue(distributionRange.maxAge);
+    if (minAge === null || maxAge === null) {
+      setError('Informe idade mínima e máxima válidas para distribuir os círculos.');
+      return;
+    }
+    if (maxAge < minAge) {
+      setError('A idade máxima não pode ser menor que a idade mínima.');
+      return;
+    }
+    const faixaLabel = `${minAge} a ${maxAge}`;
+
     const confirmed = await showAppConfirm({
       title: 'Distribuir Círculos',
-      message: 'Confirma a execução da distribuição de círculos para todos os registros prioritários aptos?',
+      message: `Confirma a execução da distribuição de círculos para todos os registros prioritários aptos? Faixa: ${faixaLabel}.`,
       tone: 'warning',
       confirmLabel: 'Executar',
       cancelLabel: 'Cancelar',
@@ -360,7 +381,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
       let response = await fetch('/api/inscricoes-prioritarias/distribuir', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ googleWebAppUrl })
+        body: JSON.stringify({ googleWebAppUrl, minAge, maxAge })
       });
 
       let json: any;
@@ -374,7 +395,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             action: 'EXECUTE_DISTRIBUICAO_CIRCULOS',
-            data: {},
+            data: { minAge, maxAge },
             ...(googleWebAppUrl ? { googleWebAppUrl } : {})
           })
         });
@@ -386,8 +407,8 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
       }
 
       const successMessage = usedFallback
-        ? 'Distribuição feita com sucesso (endpoint alternativo).'
-        : 'Distribuição feita com sucesso.';
+        ? `Distribuição feita com sucesso (endpoint alternativo). Faixa aplicada: ${faixaLabel}.`
+        : `Distribuição feita com sucesso. Faixa aplicada: ${faixaLabel}.`;
       showInfo(successMessage);
       await showAppAlert({
         title: 'Distribuição finalizada',
@@ -400,7 +421,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     } finally {
       setIsDistributing(false);
     }
-  }, [googleWebAppUrl, showInfo]);
+  }, [distributionRange.maxAge, distributionRange.minAge, googleWebAppUrl, showInfo]);
 
   const bairroOptions = useMemo(() => uniqueOptions(items.map((it) => it.bairro)), [items]);
   const sexoOptions = useMemo(() => uniqueOptions(items.map((it) => it.sexo)), [items]);
@@ -647,6 +668,34 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+            <div className="flex items-end gap-2 p-2 rounded-2xl border border-slate-200 bg-slate-50">
+              <label className="flex flex-col gap-1 text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
+                Idade mínima
+                <input
+                  type="number"
+                  min={0}
+                  max={99}
+                  step={1}
+                  value={distributionRange.minAge}
+                  onChange={(e) => setDistributionRange((prev) => ({ ...prev, minAge: e.target.value }))}
+                  className="w-20 px-2 py-2 rounded-xl border border-slate-300 bg-white text-xs font-black text-slate-700 outline-none focus:border-indigo-500"
+                  disabled={loading || isDistributing}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
+                Idade máxima
+                <input
+                  type="number"
+                  min={0}
+                  max={99}
+                  step={1}
+                  value={distributionRange.maxAge}
+                  onChange={(e) => setDistributionRange((prev) => ({ ...prev, maxAge: e.target.value }))}
+                  className="w-20 px-2 py-2 rounded-xl border border-slate-300 bg-white text-xs font-black text-slate-700 outline-none focus:border-indigo-500"
+                  disabled={loading || isDistributing}
+                />
+              </label>
+            </div>
             <button
               type="button"
               onClick={fetchData}

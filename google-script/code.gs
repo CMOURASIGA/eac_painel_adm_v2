@@ -436,7 +436,7 @@ function doPost(e) {
     }
 
     if (action === "EXECUTE_DISTRIBUICAO_CIRCULOS") {
-      const info = novaDistribuicaoCirculos();
+      const info = novaDistribuicaoCirculos(finalPayload);
       return responder(true, {
         message: info.message || "Distribuicao de circulos executada com sucesso.",
         info: info
@@ -2487,14 +2487,47 @@ function listarDistribuicaoCirculos() {
   return grouped;
 }
 
-function novaDistribuicaoCirculos() {
+function parseCirculoAgeLimit_(value, fallback, hardMin, hardMax) {
+  const n = Number(value);
+  if (!isFinite(n)) return fallback;
+  const floored = Math.floor(n);
+  if (floored < hardMin || floored > hardMax) return fallback;
+  return floored;
+}
+
+function buildAgePriorityLabel_(minAge, maxAge) {
+  const start = Number(minAge);
+  const end = Number(maxAge);
+  if (!isFinite(start) || !isFinite(end) || end < start) return "";
+  const list = [];
+  for (let age = start; age <= end; age++) list.push(String(age));
+  if (list.length === 1) return list[0];
+  if (list.length === 2) return list[0] + " e " + list[1];
+  return list.slice(0, -1).join(", ") + " e " + list[list.length - 1];
+}
+
+function novaDistribuicaoCirculos(payload) {
+  const input = payload && typeof payload === "object" ? payload : {};
   const dbIns = SpreadsheetApp.openById(SPREADSHEET_ID_INSCRICOES);
   const sheetOrigem = getSheetResiliente(dbIns, "Inscricoes_Prioritarias");
   const sheetDestino = getSheetResiliente(dbIns, "Nova_Distribuicao_Circulos");
   const DEST_HEADERS = ["Nome", "Idade", "Bairro", "Sexo", "Grupo Sugerido"];
   const CIRCLE_NAMES = ["Circulo 1", "Circulo 2", "Circulo 3", "Circulo 4", "Circulo 5", "Circulo 6", "Circulo Excedente"];
-  const MAIN_MIN_AGE = 13;
-  const MAIN_MAX_AGE = 16;
+  const MAIN_MIN_AGE = parseCirculoAgeLimit_(
+    input.minAge !== undefined ? input.minAge : input.idadeMinima,
+    13,
+    0,
+    99
+  );
+  const MAIN_MAX_AGE = parseCirculoAgeLimit_(
+    input.maxAge !== undefined ? input.maxAge : input.idadeMaxima,
+    17,
+    0,
+    99
+  );
+  if (MAIN_MAX_AGE < MAIN_MIN_AGE) {
+    throw new Error("Faixa etaria invalida para distribuicao: idade maxima menor que idade minima.");
+  }
   const MAIN_CIRCLES_COUNT = 6;
   const MAX_BY_SEXO_PER_CIRCLE = 6;
 
@@ -2574,7 +2607,7 @@ function novaDistribuicaoCirculos() {
 
   // Nova regra:
   // 1) C1..C6 com limite de 6 meninos + 6 meninas (max 12 por circulo).
-  // 2) Prioridade de idade: 13 -> 14 -> 15 -> 16.
+  // 2) Prioridade de idade: 13 -> 14 -> 15 -> 16 -> 17.
   // 3) Para completar vagas, usa fora da faixa priorizando 17+, depois menores de 13.
   // 4) Meninas tentam seguir o mesmo bairro dominante dos meninos do circulo.
   for (let i = 0; i < MAIN_CIRCLES_COUNT; i++) {
@@ -2616,7 +2649,7 @@ function novaDistribuicaoCirculos() {
     }
   }
 
-  // Excedente: prioridade para fora da faixa 13..16.
+  // Excedente: prioridade para fora da faixa principal.
   // Se houver sobra dentro da faixa por limite de capacidade/sexo, tambem vai para excedente.
   const sobras = []
     .concat(masculinosPool)
@@ -2673,13 +2706,13 @@ function novaDistribuicaoCirculos() {
       sheetName: "Nova_Distribuicao_Circulos"
     },
     criterios: {
-      faixaPrincipalIdade: "13 a 16 anos",
+      faixaPrincipalIdade: MAIN_MIN_AGE + " a " + MAIN_MAX_AGE + " anos",
       regraDozeAnos: "12 anos so entra na faixa principal quando falta ate 6 meses para completar 13",
-      matrizCombinacaoIdade: "13 com 14; 14 com 15 e 16; 15 com 16 e 17; sequencia equivalente para as demais idades",
+      matrizCombinacaoIdade: "13 com 14; a partir de 14, combinacao com diferenca maxima de 2 anos",
       limitePorCirculo: "C1..C6: ate 6 meninos e ate 6 meninas (maximo 12)",
-      prioridadeIdade: "13, depois 14, depois 15, depois 16; respeitando matriz de combinacao de forma estrita em C1..C6",
+      prioridadeIdade: buildAgePriorityLabel_(MAIN_MIN_AGE, MAIN_MAX_AGE) + "; respeitando matriz de combinacao de forma estrita em C1..C6",
       prioridadeBairro: "Meninas tentam acompanhar o bairro dominante dos meninos do circulo",
-      regraExcedente: "Recebe idades fora de 13..16 e tambem sobras da faixa principal que nao encaixam por matriz/limite de sexo"
+      regraExcedente: "Recebe idades fora de " + MAIN_MIN_AGE + ".." + MAIN_MAX_AGE + " e tambem sobras da faixa principal que nao encaixam por matriz/limite de sexo"
     }
   };
 }
@@ -2833,7 +2866,7 @@ function pullCandidateForCirclePool_(pool, options) {
   const minAgeRaw = Number(options && options.mainMinAge);
   const maxAgeRaw = Number(options && options.mainMaxAge);
   const minAge = isFinite(minAgeRaw) ? Math.floor(minAgeRaw) : 13;
-  const maxAge = isFinite(maxAgeRaw) ? Math.floor(maxAgeRaw) : 16;
+  const maxAge = isFinite(maxAgeRaw) ? Math.floor(maxAgeRaw) : 17;
   const preferredBairroNorm = normalizeHeader(options && options.preferredBairro ? options.preferredBairro : "");
   const currentCircle = Array.isArray(options && options.currentCircle) ? options.currentCircle : [];
   const strictMatrix = !!(options && options.strictMatrix);
@@ -2851,7 +2884,7 @@ function pullCandidateForCirclePool_(pool, options) {
     return null;
   }
 
-  // Prioridade principal de idade: 13 -> 14 -> 15 -> 16
+  // Prioridade principal de idade: minAge -> ... -> maxAge
   // Primeiro respeita a matriz de combinacao; se nao houver opcao, relaxa a matriz.
   for (let age = minAge; age <= maxAge; age++) {
     const picked = pickByAge(age, true, true);
