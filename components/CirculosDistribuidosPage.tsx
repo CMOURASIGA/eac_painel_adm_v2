@@ -30,7 +30,7 @@ const DISTRIBUTION_RULES = [
   'Idade 12 entra na faixa principal somente quando faltar ate 6 meses para completar 13 anos.',
   'Matriz de combinacao de idade: 13 com 14; 14 com 15 e 16; 15 com 16 e 17; e assim sucessivamente.',
   'C1 a C6: ate 6 meninos e ate 6 meninas por circulo (maximo 12).',
-  'Quando faltar gente na faixa principal, o sistema completa vagas com idades fora da faixa.',
+  'C1 a C6 respeitam a matriz de forma estrita; quem nao encaixa vai para o Circulo Excedente.',
 ];
 
 function getCircleTheme(name: string) {
