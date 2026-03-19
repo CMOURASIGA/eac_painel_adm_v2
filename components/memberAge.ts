@@ -64,7 +64,16 @@ const parseDateFlexible = (value: any): Date | null => {
     const minute = Number(brMatch[5] || 0);
     const second = Number(brMatch[6] || 0);
     const parsed = new Date(year, month, day, hour, minute, second, 0);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+    if (
+      Number.isNaN(parsed.getTime()) ||
+      parsed.getFullYear() !== year ||
+      parsed.getMonth() !== month ||
+      parsed.getDate() !== day ||
+      parsed.getHours() !== hour ||
+      parsed.getMinutes() !== minute ||
+      parsed.getSeconds() !== second
+    ) return null;
+    return parsed;
   }
 
   const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
@@ -76,7 +85,16 @@ const parseDateFlexible = (value: any): Date | null => {
     const minute = Number(isoMatch[5] || 0);
     const second = Number(isoMatch[6] || 0);
     const parsed = new Date(year, month, day, hour, minute, second, 0);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+    if (
+      Number.isNaN(parsed.getTime()) ||
+      parsed.getFullYear() !== year ||
+      parsed.getMonth() !== month ||
+      parsed.getDate() !== day ||
+      parsed.getHours() !== hour ||
+      parsed.getMinutes() !== minute ||
+      parsed.getSeconds() !== second
+    ) return null;
+    return parsed;
   }
 
   const native = new Date(raw);

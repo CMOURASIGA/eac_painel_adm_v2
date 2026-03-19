@@ -165,44 +165,150 @@ const formatDateTimeShort = (val: any) => {
 const stripPreConfirmPrefix = (val: any) =>
   toCleanString(val).replace(/^Enviado[_\s-]*Confirmacao\s*-\s*/i, '').trim();
 
-const formatSheetDateCell = (val: any) => {
+type ParsedSheetDate = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  hasTime: boolean;
+};
+
+const isValidDatePart = (year: number, month: number, day: number) => {
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return false;
+  if (month < 1 || month > 12 || day < 1) return false;
+  const maxDay = new Date(year, month, 0).getDate();
+  return day <= maxDay;
+};
+
+const isValidTimePart = (hour: number, minute: number) => {
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return false;
+  return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59;
+};
+
+const buildParsedSheetDate = (
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  hasTime: boolean
+): ParsedSheetDate | null => {
+  if (!isValidDatePart(year, month, day)) return null;
+  if (hasTime && !isValidTimePart(hour, minute)) return null;
+  return {
+    year,
+    month,
+    day,
+    hour: hasTime ? hour : 0,
+    minute: hasTime ? minute : 0,
+    hasTime,
+  };
+};
+
+const parseSheetDate = (val: any): ParsedSheetDate | null => {
+  if (!val) return null;
+
+  if (val instanceof Date) {
+    if (Number.isNaN(val.getTime())) return null;
+    return {
+      year: val.getFullYear(),
+      month: val.getMonth() + 1,
+      day: val.getDate(),
+      hour: val.getHours(),
+      minute: val.getMinutes(),
+      hasTime: true,
+    };
+  }
+
   const raw = stripPreConfirmPrefix(val);
-  if (!raw) return '-';
+  if (!raw) return null;
 
-  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))?/);
-  if (iso) {
-    const [, y, m, d, hh, mm] = iso;
-    return hh && mm ? `${d}/${m}/${y} ${hh}:${mm}` : `${d}/${m}/${y}`;
-  }
-
-  const br = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+  const br = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
   if (br) {
-    const [, d, m, y, hh, mm] = br;
-    const dd = d.padStart(2, '0');
-    const mo = m.padStart(2, '0');
-    return hh && mm ? `${dd}/${mo}/${y} ${hh.padStart(2, '0')}:${mm}` : `${dd}/${mo}/${y}`;
+    const day = Number(br[1]);
+    const month = Number(br[2]);
+    const year = Number(br[3]);
+    const hasTime = Boolean(br[4] && br[5]);
+    const hour = Number(br[4] || 0);
+    const minute = Number(br[5] || 0);
+    return buildParsedSheetDate(year, month, day, hour, minute, hasTime);
   }
 
-  return raw;
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{1,2}):(\d{2}))?/);
+  if (iso) {
+    const year = Number(iso[1]);
+    const month = Number(iso[2]);
+    const day = Number(iso[3]);
+    const hasTime = Boolean(iso[4] && iso[5]);
+    const hour = Number(iso[4] || 0);
+    const minute = Number(iso[5] || 0);
+    return buildParsedSheetDate(year, month, day, hour, minute, hasTime);
+  }
+
+  if (/[A-Za-z]|GMT|UTC|Z|[+-]\d{2}:\d{2}/.test(raw)) {
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      return {
+        year: parsed.getFullYear(),
+        month: parsed.getMonth() + 1,
+        day: parsed.getDate(),
+        hour: parsed.getHours(),
+        minute: parsed.getMinutes(),
+        hasTime: true,
+      };
+    }
+  }
+
+  return null;
+};
+
+const formatSheetDatePartsBR = (parts: ParsedSheetDate, includeTime = false) => {
+  const dd = String(parts.day).padStart(2, '0');
+  const mm = String(parts.month).padStart(2, '0');
+  const yyyy = String(parts.year);
+  if (includeTime && parts.hasTime) {
+    const hh = String(parts.hour).padStart(2, '0');
+    const mi = String(parts.minute).padStart(2, '0');
+    return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+  }
+  return `${dd}/${mm}/${yyyy}`;
+};
+
+const formatSheetDateCell = (val: any, options: { includeTime?: boolean } = {}) => {
+  const parsed = parseSheetDate(val);
+  if (parsed) return formatSheetDatePartsBR(parsed, Boolean(options.includeTime));
+  const raw = stripPreConfirmPrefix(val);
+  return raw || '-';
+};
+
+const formatSheetDateForEditor = (val: any, options: { includeTime?: boolean } = {}) => {
+  const formatted = formatSheetDateCell(val, options);
+  return formatted === '-' ? '' : formatted;
+};
+
+const normalizeBirthDateForSave = (value: any): { ok: boolean; value: string; error?: string } => {
+  const raw = toCleanString(value).trim();
+  if (!raw) return { ok: true, value: '' };
+  const parsed = parseSheetDate(raw);
+  if (!parsed) {
+    return { ok: false, value: raw, error: 'Data de nascimento inválida. Use DD/MM/AAAA ou YYYY-MM-DD.' };
+  }
+  return { ok: true, value: formatSheetDatePartsBR(parsed, false) };
 };
 
 const getSheetDateSortKey = (val: any) => {
+  const parsed = parseSheetDate(val);
+  if (parsed) {
+    const y = String(parsed.year);
+    const m = String(parsed.month).padStart(2, '0');
+    const d = String(parsed.day).padStart(2, '0');
+    const hh = String(parsed.hasTime ? parsed.hour : 0).padStart(2, '0');
+    const mm = String(parsed.hasTime ? parsed.minute : 0).padStart(2, '0');
+    return `${y}${m}${d}${hh}${mm}`;
+  }
   const raw = stripPreConfirmPrefix(val);
-  if (!raw) return '';
-
-  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2}))?/);
-  if (iso) {
-    const [, y, m, d, hh, mm] = iso;
-    return `${y}${m}${d}${hh || '00'}${mm || '00'}`;
-  }
-
-  const br = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
-  if (br) {
-    const [, d, m, y, hh, mm] = br;
-    return `${y}${m.padStart(2, '0')}${d.padStart(2, '0')}${(hh || '00').padStart(2, '0')}${mm || '00'}`;
-  }
-
-  return raw.toLowerCase();
+  return raw ? raw.toLowerCase() : '';
 };
 
 const cleanReplySnippet = (snippet: any) => {
@@ -243,7 +349,7 @@ const cleanReplySnippet = (snippet: any) => {
   return finalText || '-';
 };
 
-const InputField = ({ label, value, onChange, type = "text", placeholder = "", disabled = false, rightElement = null }: any) => (
+const InputField = ({ label, value, onChange, type = "text", placeholder = "", disabled = false, rightElement = null, helperText = '' }: any) => (
   <div className="space-y-1.5 flex-1 relative">
     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{label}</label>
     <div className="relative">
@@ -257,6 +363,7 @@ const InputField = ({ label, value, onChange, type = "text", placeholder = "", d
       />
       {rightElement && <div className="absolute right-2 top-2 bottom-2 flex items-center">{rightElement}</div>}
     </div>
+    {helperText ? <p className="text-[11px] font-semibold text-slate-400 ml-1">{helperText}</p> : null}
   </div>
 );
 
@@ -380,17 +487,17 @@ const buildNonEnrolledEditDraft = (ne: any): NonEnrolledEditDraft => ({
   nome: toCleanString(ne?.nome || ne?.Nome || ne?.['Nome']),
   email: toCleanString(ne?.email || ne?.Email || ne?.['Email']),
   status: toCleanString(getNonEnrolledField(ne, ['status', 'Status'])),
-  dataCadastro: toCleanString(getNonEnrolledField(ne, ['dataCadastro', 'Data Cadastro', 'dataInscricao', 'Data Inscrição', 'E'])),
+  dataCadastro: formatSheetDateForEditor(getNonEnrolledField(ne, ['dataCadastro', 'Data Cadastro', 'dataInscricao', 'Data Inscrição', 'E']), { includeTime: true }),
   telefone: toCleanString(getNonEnrolledField(ne, ['telefone', 'Telefone', 'whatsapp'])),
   bairro: toCleanString(ne?.bairro || ne?.Bairro || ne?.BAIRRO || ne?.['Bairro']),
   statusEnvio: toCleanString(getNonEnrolledField(ne, ['statusEnvio', 'Status Envio', 'status_envio', 'H'])),
-  dataNascimento: toCleanString(getNonEnrolledField(ne, ['dataNascimento', 'nascimento', 'Nascimento', 'Data de nascimento', 'Data Nascimento', 'R'])),
+  dataNascimento: formatSheetDateForEditor(getNonEnrolledField(ne, ['dataNascimento', 'nascimento', 'Nascimento', 'Data de nascimento', 'Data Nascimento', 'R'])),
   sexo: toCleanString(getNonEnrolledField(ne, ['sexo', 'Sexo', 'S'])),
   interesseConfirmado: normalizeEditableYesNo(getNonEnrolledField(ne, ['interesseConfirmado', 'Interesse Confirmado', 'interesse', 'Interesse', 'I'])),
   jaFezEac: normalizeEditableYesNo(getNonEnrolledField(ne, ['jaFezEac', 'Ja fez o EAC', 'J fez o EAC', 'J'])),
   contatoMudou: normalizeEditableYesNo(getNonEnrolledField(ne, ['contatoMudou', 'Contato Mudou', 'K'])),
   recado: toCleanString(getNonEnrolledField(ne, ['recado', 'Recado', 'L'])),
-  dataResposta: toCleanString(getNonEnrolledField(ne, ['dataResposta', 'Data Resposta', 'M'])),
+  dataResposta: formatSheetDateForEditor(getNonEnrolledField(ne, ['dataResposta', 'Data Resposta', 'M']), { includeTime: true }),
   amigo: toCleanString(getNonEnrolledField(ne, ['amigo', 'Amigo para', 'N'])),
   nomeAmigo: toCleanString(getNonEnrolledField(ne, ['nomeAmigo', 'Nome do amigo', 'O'])),
   statusPreConfirmacao: toCleanString(getNonEnrolledField(ne, ['statusPreConfirmacao', 'preConfirmacao', 'Status Pre Confirmacao', 'P'])),
@@ -1342,10 +1449,23 @@ const handleSaveNonEnrolledEdit = async () => {
     return;
   }
 
+  const normalizedBirthDate = normalizeBirthDateForSave(nonEnrolledEditDraft.dataNascimento);
+  if (!normalizedBirthDate.ok) {
+    alert(normalizedBirthDate.error || 'Data de nascimento inválida.');
+    return;
+  }
+
+  const draftToSave: NonEnrolledEditDraft = {
+    ...nonEnrolledEditDraft,
+    dataNascimento: normalizedBirthDate.value,
+  };
+
+  setNonEnrolledEditDraft(draftToSave);
+
   const previousList = Array.isArray(nonEnrolled) ? [...nonEnrolled] : [];
   const optimistic = previousList.map((item) => (
     getNonEnrolledId(item) === editingNonEnrolledId
-      ? applyNonEnrolledDraftToItem(item, nonEnrolledEditDraft)
+      ? applyNonEnrolledDraftToItem(item, draftToSave)
       : item
   ));
 
@@ -1367,8 +1487,8 @@ const handleSaveNonEnrolledEdit = async () => {
   try {
     const res = await callApiProxy('UPDATE_NON_ENROLLED_RECORD', googleWebAppUrl, {
       idPessoa: editingNonEnrolledId,
-      email: nonEnrolledEditDraft.email,
-      record: { ...nonEnrolledEditDraft },
+      email: draftToSave.email,
+      record: { ...draftToSave },
     });
 
     if (!res?.success) {
@@ -2295,11 +2415,29 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="p-4 rounded-2xl bg-slate-50 border">
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data cadastro</div>
-                  <div className="font-bold text-slate-700">{formatSheetDateCell(getNonEnrolledField(selectedNonEnrolled, ['dataCadastro', 'dataInscricao', 'Data Cadastro', 'Data Inscrição', 'E']))}</div>
+                  <div className="font-bold text-slate-700">{formatSheetDateCell(getNonEnrolledField(selectedNonEnrolled, ['dataCadastro', 'dataInscricao', 'Data Cadastro', 'Data Inscrição', 'E']), { includeTime: true })}</div>
                 </div>
                 <div className="p-4 rounded-2xl bg-slate-50 border">
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Status último chamado</div>
                   <div className="font-bold text-slate-700">{toCleanString(getEmailStatusData(selectedNonEnrolled)?.status || '') || '-'}</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="p-4 rounded-2xl bg-slate-50 border">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data nascimento (R)</div>
+                  <div className="font-bold text-slate-700">
+                    {formatSheetDateCell(getNonEnrolledField(selectedNonEnrolled, ['dataNascimento', 'nascimento', 'Nascimento', 'Data de nascimento', 'Data Nascimento', 'R']))}
+                  </div>
+                </div>
+                <div className="p-4 rounded-2xl bg-slate-50 border">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Idade calculada</div>
+                  <div className="font-bold text-slate-700">
+                    {(() => {
+                      const rawNascimento = getNonEnrolledField(selectedNonEnrolled, ['dataNascimento', 'nascimento', 'Nascimento', 'Data de nascimento', 'Data Nascimento', 'R']);
+                      const idade = calculateAgeFromBirthDate(rawNascimento);
+                      return idade === null ? '-' : `${idade} anos`;
+                    })()}
+                  </div>
                 </div>
               </div>
             </div>
@@ -2355,7 +2493,7 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="p-4 rounded-2xl bg-slate-50 border">
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Data resposta (M)</div>
-                  <div className="font-bold text-slate-700">{formatDateTime(getNonEnrolledField(selectedNonEnrolled, ['dataResposta','Data Resposta','M']))}</div>
+                  <div className="font-bold text-slate-700">{formatSheetDateCell(getNonEnrolledField(selectedNonEnrolled, ['dataResposta','Data Resposta','M']), { includeTime: true })}</div>
                 </div>
                 <div className="p-4 rounded-2xl bg-slate-50 border">
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Amigo para (N/O)</div>
@@ -2558,11 +2696,14 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
                   <InputField
                     label="Data cadastro (E)"
                     value={nonEnrolledEditDraft.dataCadastro}
+                    placeholder="DD/MM/AAAA ou DD/MM/AAAA HH:mm"
                     onChange={(value: string) => setNonEnrolledEditDraft(prev => ({ ...prev, dataCadastro: value }))}
                   />
                   <InputField
                     label="Data nascimento (R)"
                     value={nonEnrolledEditDraft.dataNascimento}
+                    placeholder="DD/MM/AAAA"
+                    helperText="Salvo no padrão DD/MM/AAAA"
                     onChange={(value: string) => setNonEnrolledEditDraft(prev => ({ ...prev, dataNascimento: value }))}
                   />
                 </div>
@@ -2648,6 +2789,7 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
                   <InputField
                     label="Data resposta (M)"
                     value={nonEnrolledEditDraft.dataResposta}
+                    placeholder="DD/MM/AAAA HH:mm"
                     onChange={(value: string) => setNonEnrolledEditDraft(prev => ({ ...prev, dataResposta: value }))}
                   />
                   <InputField

@@ -1747,6 +1747,14 @@ function normalizePriorizacaoForSheet_(value) {
   return raw;
 }
 
+function normalizeBirthDateForStorage_(value) {
+  const raw = String(value === undefined || value === null ? "" : value).trim();
+  if (!raw) return "";
+  const parsed = parseDateAny(raw);
+  if (!parsed) return raw;
+  return Utilities.formatDate(parsed, "GMT-3", "dd/MM/yyyy");
+}
+
 function buildNonEnrolledIndexes_(headers) {
   const hdr = Array.isArray(headers) ? headers : [];
   return {
@@ -1867,7 +1875,7 @@ function updateSemDuplicidadeFromNonEnrolled_(input) {
   if (idxEmail >= 0) row[idxEmail] = String(payload.email || "").trim();
   if (idxTelefone >= 0) row[idxTelefone] = String(payload.telefone || "").trim();
   if (idxBairro >= 0) row[idxBairro] = String(payload.bairro || "").trim();
-  if (idxNascimento >= 0) row[idxNascimento] = String(payload.dataNascimento || "").trim();
+  if (idxNascimento >= 0) row[idxNascimento] = normalizeBirthDateForStorage_(payload.dataNascimento || "");
   if (idxSexo >= 0) row[idxSexo] = String(payload.sexo || "").trim();
   if (idxDataCadastro >= 0) row[idxDataCadastro] = payload.dataCadastro || "";
 
@@ -1989,7 +1997,12 @@ function handleUpdateNonEnrolledRecord(payload) {
       }
     }
 
-    applyString(["dataNascimento", "nascimento", "Data de nascimento", "R"], idx.idxDataNascimento, true);
+    if (idx.idxDataNascimento >= 0) {
+      const providedNascimento = getOwnValueFromKeys_(record, ["dataNascimento", "nascimento", "Data de nascimento", "R"]);
+      if (providedNascimento !== undefined) {
+        rowData[idx.idxDataNascimento] = normalizeBirthDateForStorage_(providedNascimento);
+      }
+    }
     applyString(["sexo", "Sexo", "S"], idx.idxSexo, true);
 
     if (changedInteresse && !changedDataResposta && idx.idxDataResposta >= 0) {
@@ -3080,7 +3093,15 @@ function parseDateAny(value) {
     const mi = Number(m[5] || 0);
     const se = Number(m[6] || 0);
     const parsedBR = new Date(y, mo, d, h, mi, se, 0);
-    if (!isNaN(parsedBR.getTime())) return parsedBR;
+    if (
+      !isNaN(parsedBR.getTime()) &&
+      parsedBR.getFullYear() === y &&
+      parsedBR.getMonth() === mo &&
+      parsedBR.getDate() === d &&
+      parsedBR.getHours() === h &&
+      parsedBR.getMinutes() === mi &&
+      parsedBR.getSeconds() === se
+    ) return parsedBR;
   }
 
   // yyyy-MM-dd [HH:mm[:ss]] ou yyyy-MM-ddTHH:mm[:ss]
@@ -3093,7 +3114,15 @@ function parseDateAny(value) {
     const mi = Number(m[5] || 0);
     const se = Number(m[6] || 0);
     const parsedISO = new Date(y, mo, d, h, mi, se, 0);
-    if (!isNaN(parsedISO.getTime())) return parsedISO;
+    if (
+      !isNaN(parsedISO.getTime()) &&
+      parsedISO.getFullYear() === y &&
+      parsedISO.getMonth() === mo &&
+      parsedISO.getDate() === d &&
+      parsedISO.getHours() === h &&
+      parsedISO.getMinutes() === mi &&
+      parsedISO.getSeconds() === se
+    ) return parsedISO;
   }
 
   const parsed = new Date(s);
