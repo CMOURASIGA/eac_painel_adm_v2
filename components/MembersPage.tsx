@@ -3021,7 +3021,7 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
       <div className="p-4 md:p-8 max-w-[100rem] mx-auto animate-in fade-in duration-500 pb-24 space-y-6">
         <header className="flex flex-col xl:flex-row justify-between gap-6 xl:items-end">
           <div>
-            <h2 className="text-3xl font-black uppercase tracking-tighter text-slate-900 leading-none">Cadastro Oficial</h2>
+            <h2 className="text-3xl font-black uppercase tracking-tighter text-slate-900 leading-none">Cadastro de Encontrista</h2>
             <p className="text-slate-500 font-medium italic mt-3 text-sm">Gesto dos adolescentes cadastrados.</p>
           </div>
 

@@ -313,7 +313,7 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentUser, go
                     <PermissionToggle label="Gestão Usuários" field="usuario_mod" />
                     <PermissionToggle label="Ajustes Sistema" field="ajuste" />
                     <PermissionToggle label="Manual Ajuda" field="ajuda" />
-                    <PermissionToggle label="Cadastro Oficial" field="cadastro" />
+                    <PermissionToggle label="Cadastro de Encontrista" field="cadastro" />
                     <PermissionToggle label="Inscrições Prioritárias" field="prioritarios" />
                     <PermissionToggle label="Distribuição de Círculos" field="circulos" />
                     <PermissionToggle label="Controle de Presença" field="presenca" />

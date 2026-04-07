@@ -297,7 +297,7 @@ const App: React.FC = () => {
     }
     if (currentView === 'members' && !allowed.includes('members')) {
       setCurrentView('dashboard');
-      showToast('Seu usuário não possui acesso ao módulo Cadastro.', 'error');
+      showToast('Seu usuário não possui acesso ao módulo Cadastro de Encontrista.', 'error');
       return;
     }
     if (currentView === 'presence' && !allowed.includes('presence')) {

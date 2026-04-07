@@ -69,7 +69,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Grid de Indicadores Estratégicos */}
       <div className={`grid grid-cols-2 gap-4 ${isAdmin ? 'md:grid-cols-3' : 'md:grid-cols-3 lg:grid-cols-6'}`}>
-        <StatCard title="Cadastro Oficial" value={membersCount.toString()} color="blue" />
+        <StatCard title="Cadastro de Encontrista" value={membersCount.toString()} color="blue" />
         <StatCard title="Não Inscritos" value={nonEnrolledCount.toString()} color="red" />
         <StatCard title="Agenda Ativa" value={qtdEventos.toString()} color="indigo" />
         {!isAdmin && (

@@ -46,9 +46,9 @@ export const INITIAL_DISPATCHES: Dispatch[] = [
     endpoint: "google_script",
     method: "POST",
     shortDescription:
-      "Informa aos que não estão no Cadastro Oficial que sua inscrição está em análise.",
+      "Informa aos que não estão no Cadastro de Encontrista que sua inscrição está em análise.",
     detailedDescription:
-      "Identifica automaticamente quem se inscreveu mas não consta no Cadastro Oficial. Envia e-mail informando que o cadastro está sendo verificado para uma nova chamada.",
+      "Identifica automaticamente quem se inscreveu mas não consta no Cadastro de Encontrista. Envia e-mail informando que o cadastro está sendo verificado para uma nova chamada.",
     rules:
       "### Protocolo de Comunicação\n- **Público:** Apenas \"Não Inscritos\" (cruzamento de planilhas).\n- **Formatação:** Layout padrão EAC.\n- **Lote:** Máximo 50 envios por clique.\n- **Controle:** Registra status na aba de Inscrições para evitar reenvio.",
     parameters: [],
@@ -77,12 +77,12 @@ export const INITIAL_DISPATCHES: Dispatch[] = [
   },
   {
     id: "d5",
-    name: "Comunicado 99 → Cadastro",
+    name: "Comunicado 99 → Cadastro de Encontrista",
     type: "comunicado_99_cadastro",
     endpoint: "google_script",
     method: "POST",
     shortDescription:
-      "Envia o comunicado fixo ID 99 para toda a base do Cadastro Oficial via E-mail.",
+      "Envia o comunicado fixo ID 99 para toda a base do Cadastro de Encontrista via E-mail.",
     detailedDescription:
       "Disparo massivo por e-mail utilizando o conteúdo HTML do ID 99 da aba Comunicados. Busca e-mails na **Coluna H**.",
     rules:
@@ -100,7 +100,7 @@ export const INITIAL_DISPATCHES: Dispatch[] = [
     endpoint: "google_script",
     method: "POST",
     shortDescription:
-      "Felicita automaticamente os aniversariantes da data atual no Cadastro Oficial.",
+      "Felicita automaticamente os aniversariantes da data atual no Cadastro de Encontrista.",
     detailedDescription:
       "Varre a coluna C (Nascimento) e envia e-mail (**Coluna H**) para quem faz aniversário hoje.",
     rules:
@@ -118,9 +118,9 @@ export const INITIAL_DISPATCHES: Dispatch[] = [
     endpoint: "google_script",
     method: "POST",
     shortDescription:
-      "Gera e envia automaticamente a agenda de eventos confirmados para o Cadastro Oficial.",
+      "Gera e envia automaticamente a agenda de eventos confirmados para o Cadastro de Encontrista.",
     detailedDescription:
-      "Este motor integra dados de duas planilhas: extrai eventos do Calendário e dispara para a lista de contatos do Cadastro.",
+      "Este motor integra dados de duas planilhas: extrai eventos do Calendário e dispara para a lista de contatos do Cadastro de Encontrista.",
     rules:
       "### Protocolo de Alta Performance\n- **Filtro de Eventos:** Apenas linhas com \"Confirmado\".\n- **Status:** Registra envio da semana atual para evitar duplicidade.\n- **Execução:** Lotes de 50 disparos por vez.",
     parameters: [],
@@ -135,12 +135,12 @@ export const MOCK_LOGS: Log[] = [
   {
     id: "log-1",
     dispatchId: "d5",
-    dispatchName: "Comunicado 99 → Cadastro",
+    dispatchName: "Comunicado 99 → Cadastro de Encontrista",
     operator: "Sistema EAC",
     timestamp: new Date().toISOString(),
     duration: 4500,
     status: LogStatus.SUCCESS,
     responseSummary:
-      "Sucesso: 12 e-mails enviados para a base do Cadastro Oficial.",
+      "Sucesso: 12 e-mails enviados para a base do Cadastro de Encontrista.",
   },
 ];

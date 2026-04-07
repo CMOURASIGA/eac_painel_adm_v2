@@ -14,7 +14,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onNavigate, currentView
 
   const navItems: { label: string, view: View }[] = [
     { label: 'Início', view: 'dashboard' },
-    { label: 'Cadastro', view: 'members' },
+    { label: 'Cadastro de Encontrista', view: 'members' },
     { label: 'Inscrições Prioritárias', view: 'inscricoes_prioritarias' },
     { label: 'Cadastro de Encontreiro', view: 'encontreiros' },
     { label: 'Presença', view: 'presence' },

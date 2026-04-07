@@ -12,8 +12,8 @@ Painel administrativo do EAC com integração ao Google Apps Script/Google Sheet
 
 ## Principais funcionalidades
 
-### 1) Cadastro (Membros)
-- Lista e manutenção do cadastro oficial.
+### 1) Cadastro de Encontrista
+- Lista e manutenção do cadastro de encontrista.
 - Busca com filtros e paginação no backend (`SEARCH_MEMBERS`).
 - Ações de inclusão, edição e exclusão.
 
@@ -42,7 +42,7 @@ Painel administrativo do EAC com integração ao Google Apps Script/Google Sheet
 - Exportação CSV e modal completo de cadastro/edição.
 
 ### 6) Controle de Presença
-- Subtela em Cadastro (`/cadastro/presenca`) com painel operacional.
+- Subtela em Cadastro de Encontrista (`/cadastro/presenca`) com painel operacional.
 - Indicadores com contagem única de adolescentes presentes (sem duplicidade por múltiplas presenças).
 - Filtros por nome, círculo e ano (extraído do carimbo de data/hora).
 - Check-in rápido por telefone e ação de marcar presença por card.
