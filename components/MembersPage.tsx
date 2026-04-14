@@ -540,6 +540,7 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl, onOpen
     preConfirmadasCount: null,
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [isExportingMembersCsv, setIsExportingMembersCsv] = useState(false);
   const [memberFiltersDraft, setMemberFiltersDraft] = useState<MemberSearchFilters>({ ...DEFAULT_MEMBER_SEARCH_FILTERS });
   const [memberFiltersApplied, setMemberFiltersApplied] = useState<MemberSearchFilters>({ ...DEFAULT_MEMBER_SEARCH_FILTERS });
   const [showAdvancedMemberFilters, setShowAdvancedMemberFilters] = useState(false);
@@ -1868,7 +1869,81 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
     }
   };
 
-  
+  const exportMembersCsv = async () => {
+    setIsExportingMembersCsv(true);
+    try {
+      const res = await callApiProxy('GET_MEMBERS', googleWebAppUrl);
+      if (!res?.success) {
+        throw new Error(res?.error || 'Não foi possível carregar os dados de cadastro.');
+      }
+
+      const base: any[] = Array.isArray(res.members) ? res.members : [];
+      const columnDefs: Array<{ header: string; getter: (m: any) => any }> = [
+        { header: 'Timestamp', getter: (m) => m?.timestamp },
+        { header: 'Nome', getter: (m) => m?.nome },
+        { header: 'Nascimento', getter: (m) => m?.nascimento },
+        { header: 'Sexo', getter: (m) => m?.sexo },
+        { header: 'Endereco', getter: (m) => m?.endereco },
+        { header: 'Bairro', getter: (m) => m?.bairro },
+        { header: 'Telefone', getter: (m) => m?.telefone },
+        { header: 'E-mail', getter: (m) => m?.email },
+        { header: 'Responsavel Nome', getter: (m) => m?.responsavelNome },
+        { header: 'Responsavel Telefone', getter: (m) => m?.responsavelTel },
+        { header: 'Responsavel E-mail', getter: (m) => m?.responsavelEmail },
+        { header: 'Tempo de Paroquia', getter: (m) => m?.tempoParoquia },
+        { header: 'Participa de Grupo', getter: (m) => m?.participaGrupo },
+        { header: 'Motivacao', getter: (m) => m?.motivacao },
+        { header: 'Expectativas', getter: (m) => m?.expectativas },
+        { header: 'Autoriza Imagem', getter: (m) => m?.autorizaImagem },
+        { header: 'Concorda Normas', getter: (m) => m?.concordaNormas },
+        { header: 'Idade', getter: (m) => m?.idade },
+        { header: 'Pertence a Porciuncula', getter: (m) => m?.pertencePorciuncula },
+        { header: 'Status Aniversario', getter: (m) => m?.statusAniv },
+        { header: 'WhatsApp', getter: (m) => m?.whatsapp },
+        { header: 'Aniversario Sim/Nao', getter: (m) => m?.anivSimNao },
+        { header: 'Status Envio Comunicado', getter: (m) => m?.statusEnvioCom },
+        { header: 'Status Envio Semanal', getter: (m) => m?.statusEnvioSem },
+      ];
+
+      const headers = columnDefs.map((c) => c.header);
+      const escapeCell = (value: any) => {
+        const s = String(value ?? '');
+        const safe = s.replace(/"/g, '""').replace(/\r?\n/g, ' ');
+        return `"${safe}"`;
+      };
+      const sep = ';';
+
+      const csvLines = [
+        headers.map((h) => escapeCell(h)).join(sep),
+        ...base.map((item) =>
+          columnDefs.map((col) => escapeCell(toCleanString(col.getter(item)))).join(sep)
+        ),
+      ];
+
+      const csv = '\ufeff' + csvLines.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const filename = `cadastro_encontrista_${yyyy}-${mm}-${dd}.csv`;
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      alert(e?.message || 'Não foi possível exportar o CSV.');
+    } finally {
+      setIsExportingMembersCsv(false);
+    }
+  };
+
   const exportNonEnrolledCsv = () => {
     try {
       // Exporta TODAS as colunas da aba "Não inscritos" (A a O)
@@ -3039,6 +3114,15 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
 
             <button onClick={handleNewRegistry} className="px-6 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm whitespace-nowrap">
               Novo
+            </button>
+
+            <button
+              onClick={exportMembersCsv}
+              disabled={isExportingMembersCsv}
+              className="px-6 py-4 bg-white text-slate-700 border border-slate-200 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm hover:bg-slate-50 disabled:opacity-60 whitespace-nowrap"
+              title="Exporta todos os campos da base de encontristas"
+            >
+              {isExportingMembersCsv ? 'Exportando...' : 'Exportar CSV'}
             </button>
 
             <button onClick={fetchData} disabled={isLoading} className="px-6 py-4 bg-white text-slate-500 border-2 rounded-2xl font-black text-[10px] uppercase shadow-sm disabled:opacity-60 whitespace-nowrap">
