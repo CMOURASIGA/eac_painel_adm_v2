@@ -112,6 +112,24 @@ export const INITIAL_DISPATCHES: Dispatch[] = [
       '<div style="text-align:center;"><h1 style="color:#044372; margin-top: 0;">🎈 Feliz Aniversário!</h1><p>Parabéns, <strong>[NOME DO ADOLESCENTE]</strong>! 🎂</p><p>A família EAC celebra sua vida com muita alegria!</p><p>Que Deus te abençoe imensamente neste novo ciclo.</p></div>',
   },
   {
+    id: "d9",
+    name: "Emergência Pós Montagem - Período de Cadastro",
+    type: "emergencia_nov2025",
+    endpoint: "google_script",
+    method: "POST",
+    shortDescription:
+      "Envia um comunicado emergencial por intervalo de cadastro (mês inicial até data final).",
+    detailedDescription:
+      "Dispara para registros cuja data de cadastro (coluna A / Timestamp ou Data Cadastro) esteja dentro do período selecionado: mês inicial até data final. O conteúdo pode ser editado antes do envio e a origem dos dados pode ser escolhida entre Encontreiros e Cadastro de Encontrista.",
+    rules:
+      "### Protocolo de Emergência\n- **Período:** Mês inicial + Data final definidos na execução.\n- **Referência:** Coluna A (Timestamp/Data Cadastro).\n- **Conteúdo:** Texto customizável antes do disparo.\n- **Origem:** Encontreiros ou Cadastro de Encontrista.\n- **Lote:** Máximo de 50 envios por execução.",
+    parameters: ["targetSheet", "message", "startMonth", "endDate"],
+    status: "active",
+    tags: ["Emergência", "Encontreiro", "E-mail"],
+    emailPreview:
+      '<div style="text-align:center;"><h1 style="color:#B91C1C; margin-top: 0;">⚠️ COMUNICADO EMERGENCIAL</h1><p>Olá, [NOME]</p><p>Este é um aviso importante para os inscritos de Novembro/2025. Verifique sua caixa e responda se necessário.</p></div>',
+  },
+  {
     id: "d3",
     name: "Eventos da Semana",
     type: "eventos",

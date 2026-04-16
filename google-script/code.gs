@@ -1081,6 +1081,12 @@ if (action === "GET_MEMBERS") {
       registrarLog("d6", "Aniversariantes", "Operador EAC", info.message, status);
       return responder(true, { message: info.message, count: info.count });
     }
+    else if (action === "EXECUTE_EMERGENCIA_NOV2025") {
+      const info = enviarEmergenciaNov2025(finalPayload);
+      const status = info.count > 0 ? "SUCCESS" : "NO_DATA";
+      registrarLog("d9", "Emergência por Período de Cadastro", "Operador EAC", info.message, status);
+      return responder(true, { message: info.message, count: info.count });
+    }
     else if (action === "EXECUTE_EVENTOS") {
       const info = enviarEventosSemana();
       const status = info.count > 0 ? "SUCCESS" : "NO_DATA";
@@ -4676,6 +4682,83 @@ function enviarAniversariantes() {
     }
     return { count: enviados, message: enviados > 0 ? `Sucesso: ${enviados} aniversariantes.` : "Nenhum novo para hoje." };
   } catch (err) { return { count: 0, message: "Erro: " + err.message }; }
+}
+
+function enviarEmergenciaNov2025(payload) {
+  try {
+    const targetSheet = payload && payload.targetSheet === 'cadastro' ? 'cadastro' : 'encontreiros';
+    const mensagem = String(payload && payload.message ? payload.message : '').trim();
+    const startMonthInput = String(payload && payload.startMonth ? payload.startMonth : '2025-11').trim();
+    const endDateInput = String(payload && payload.endDate ? payload.endDate : '').trim();
+    const texto = mensagem || 'Olá!\n\nEste é um comunicado emergencial para os inscritos no período selecionado. Por favor, leia com atenção e responda se necessário.';
+    const htmlBody = molduraEmail(texto.replace(/\n/g, '<br>'));
+    const sheet = targetSheet === 'cadastro'
+      ? getSheetResiliente(SpreadsheetApp.openById(SPREADSHEET_ID_CADASTRO), 'Cadastro Oficial')
+      : getEncontreirosSheet();
+
+    const data = sheet.getDataRange().getValues();
+    if (!data || data.length < 2) return { count: 0, message: 'Planilha sem dados.' };
+
+    const headers = data[0];
+    const idxTimestamp = targetSheet === 'cadastro'
+      ? getColIndex(headers, 'Data Cadastro', getColIndex(headers, 'Timestamp', 0))
+      : getColIndex(headers, 'Timestamp', 0);
+    const idxEmail = getColIndex(headers, 'E-mail', targetSheet === 'cadastro' ? 7 : 4);
+    const startMatch = startMonthInput.match(/^(\d{4})-(\d{2})$/);
+    let startDate = new Date(2025, 10, 1, 0, 0, 0, 0); // fallback: 01/11/2025
+    if (startMatch) {
+      const year = Number(startMatch[1]);
+      const month = Number(startMatch[2]);
+      if (isFinite(year) && isFinite(month) && month >= 1 && month <= 12) {
+        startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
+      }
+    }
+
+    let endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0, 23, 59, 59, 999);
+    if (endDateInput) {
+      const endParsed = parseDateResiliente(endDateInput);
+      if (endParsed) {
+        endDate = new Date(
+          endParsed.getFullYear(),
+          endParsed.getMonth(),
+          endParsed.getDate(),
+          23, 59, 59, 999
+        );
+      }
+    }
+
+    if (endDate.getTime() < startDate.getTime()) {
+      return { count: 0, message: 'Intervalo inválido: a data final deve ser igual ou posterior ao mês inicial.' };
+    }
+
+    const periodoLabel = Utilities.formatDate(startDate, "GMT-3", "dd/MM/yyyy") + " até " + Utilities.formatDate(endDate, "GMT-3", "dd/MM/yyyy");
+    let enviados = 0;
+
+    for (let i = 1; i < data.length; i++) {
+      const registro = data[i];
+      const tsRaw = registro[idxTimestamp];
+      const email = String(registro[idxEmail] || '').trim();
+      const tsDate = parseDateResiliente(tsRaw);
+      if (!email || !email.includes('@') || !tsDate) continue;
+      if (tsDate.getTime() < startDate.getTime() || tsDate.getTime() > endDate.getTime()) continue;
+      try {
+        MailApp.sendEmail({ to: email, subject: '⚠️ Comunicado Emergencial EAC - Novembro 2025', htmlBody });
+        enviados++;
+      } catch (e) {
+        // continue on failures
+      }
+      if (enviados >= 50) break;
+    }
+
+    return {
+      count: enviados,
+      message: enviados > 0
+        ? `Sucesso: ${enviados} envios emergenciais no período ${periodoLabel}.`
+        : `Nenhum registro elegível no período ${periodoLabel}.`
+    };
+  } catch (err) {
+    return { count: 0, message: 'Erro: ' + err.message };
+  }
 }
 
 function enviarEventosSemana() {

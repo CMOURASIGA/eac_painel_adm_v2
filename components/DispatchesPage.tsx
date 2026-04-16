@@ -8,17 +8,26 @@ import { showAppConfirm } from '../utils/appDialog.ts';
 
 interface DispatchesPageProps {
   dispatches: Dispatch[];
-  onExecute: (dispatch: Dispatch) => void;
+  onExecute: (dispatch: Dispatch, payload?: Record<string, any>) => void;
   onClearStatus: (dispatch: Dispatch) => void | Promise<void>;
   operator: string;
   hasEventsThisWeek?: boolean;
 }
 
 const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, onClearStatus, operator, hasEventsThisWeek = false }) => {
+  const toLocalInputDate = (date: Date) => {
+    const tzOffsetMs = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - tzOffsetMs).toISOString().slice(0, 10);
+  };
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDispatch, setSelectedDispatch] = useState<Dispatch | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [executingDispatch, setExecutingDispatch] = useState<Dispatch | null>(null);
+  const [customMessage, setCustomMessage] = useState('');
+  const [customSource, setCustomSource] = useState<'encontreiros' | 'cadastro'>('encontreiros');
+  const [customStartMonth, setCustomStartMonth] = useState('2025-11');
+  const [customEndDate, setCustomEndDate] = useState(() => toLocalInputDate(new Date()));
 
   const filtered = dispatches.filter(d => 
     d.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -28,16 +37,45 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
 
   const handleOpenDetails = (d: Dispatch) => {
     setSelectedDispatch(d);
+    if (d.type === 'emergencia_nov2025') {
+      setCustomSource('encontreiros');
+      setCustomStartMonth('2025-11');
+      setCustomEndDate(toLocalInputDate(new Date()));
+      setCustomMessage(
+        d.emailPreview
+          ? d.emailPreview.replace(/<[^>]+>/g, '').trim()
+          : 'Olá, [NOME]!\n\nEste é um comunicado emergencial para o período selecionado. Por favor, leia com atenção e confirme seu recebimento.'
+      );
+    }
     setIsDrawerOpen(true);
   };
 
   const handleStartExecution = (d: Dispatch) => {
+    if (d.type === 'emergencia_nov2025' && !customMessage) {
+      setCustomMessage(
+        d.emailPreview
+          ? d.emailPreview.replace(/<[^>]+>/g, '').trim()
+          : 'Olá, [NOME]!\n\nEste é um comunicado emergencial para o período selecionado. Por favor, leia com atenção e confirme seu recebimento.'
+      );
+      if (!customStartMonth) setCustomStartMonth('2025-11');
+      if (!customEndDate) setCustomEndDate(toLocalInputDate(new Date()));
+    }
     setExecutingDispatch(d);
   };
 
   const handleConfirmExecution = async () => {
     if (!executingDispatch) return;
-    await onExecute(executingDispatch);
+    if (executingDispatch.type === 'emergencia_nov2025') {
+      const startDate = `${customStartMonth || '2025-11'}-01`;
+      if (customEndDate && customEndDate < startDate) {
+        alert('A data final deve ser igual ou posterior ao mês inicial.');
+        return;
+      }
+    }
+    const payload = executingDispatch.type === 'emergencia_nov2025'
+      ? { message: customMessage, targetSheet: customSource, startMonth: customStartMonth, endDate: customEndDate }
+      : {};
+    await onExecute(executingDispatch, payload);
     setExecutingDispatch(null);
   };
 
@@ -75,11 +113,12 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
         {filtered.map(d => {
           const isEventos = d.type === 'eventos';
+          const isEmergency = d.tags?.includes('Emergência');
           const isPriority = isEventos && hasEventsThisWeek;
           
           return (
-            <div key={d.id} className={`bg-white rounded-[2rem] border overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col group ${isPriority ? 'border-amber-400 shadow-lg shadow-amber-50' : 'border-slate-200'}`}>
-              <div className={`h-2 ${isPriority ? 'bg-amber-400 animate-pulse' : (d.status === 'active' ? 'blue-gradient' : 'bg-slate-300')}`}></div>
+            <div key={d.id} className={`bg-white rounded-[2rem] border overflow-hidden hover:shadow-2xl transition-all duration-300 flex flex-col group ${isEmergency ? 'border-red-400 shadow-lg shadow-red-50' : isPriority ? 'border-amber-400 shadow-lg shadow-amber-50' : 'border-slate-200'}`}>
+              <div className={`h-2 ${isEmergency ? 'bg-red-500 animate-pulse' : isPriority ? 'bg-amber-400 animate-pulse' : (d.status === 'active' ? 'blue-gradient' : 'bg-slate-300')}`}></div>
               <div className="p-6 md:p-8 flex-grow">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex gap-2">
@@ -128,7 +167,7 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
                       : 'bg-slate-200 text-slate-400 cursor-not-allowed'
                   } uppercase tracking-widest hover:-translate-y-1 active:translate-y-0`}
                 >
-                  {isEventos ? 'ENVIAR AGENDA' : 'EXECUTAR DISPARO'}
+                  {isEventos ? 'ENVIAR AGENDA' : isEmergency ? 'EXECUTAR EMERGÊNCIA' : 'EXECUTAR DISPARO'}
                 </button>
               </div>
             </div>
@@ -175,6 +214,68 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
               </section>
             )}
 
+            {selectedDispatch?.type === 'emergencia_nov2025' && (
+              <section className="bg-red-50/60 p-6 rounded-[2rem] border border-red-200 mb-6">
+                <div className="flex items-center justify-between gap-3 mb-5">
+                  <div>
+                    <h4 className="text-[10px] font-black text-red-800 uppercase tracking-[0.2em] mb-2 flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                      Disparo Emergencial
+                    </h4>
+                    <p className="text-sm font-bold text-red-700">Este disparo está destacado para casos de emergência. Edite a mensagem e escolha a origem dos dados antes de executar.</p>
+                  </div>
+                </div>
+                <div className="grid gap-4">
+                  <label className="block text-sm font-black uppercase tracking-[0.2em] text-slate-500">Fonte de dados</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setCustomSource('encontreiros')}
+                      className={`py-3 rounded-2xl font-bold text-sm transition ${customSource === 'encontreiros' ? 'bg-red-600 text-white' : 'bg-white text-slate-700 border border-red-200 hover:bg-red-50'}`}
+                    >
+                      Encontreiros
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCustomSource('cadastro')}
+                      className={`py-3 rounded-2xl font-bold text-sm transition ${customSource === 'cadastro' ? 'bg-red-600 text-white' : 'bg-white text-slate-700 border border-red-200 hover:bg-red-50'}`}
+                    >
+                      Cadastro de Encontrista
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Mês inicial</label>
+                      <input
+                        type="month"
+                        value={customStartMonth}
+                        onChange={(e) => setCustomStartMonth(e.target.value)}
+                        className="w-full rounded-2xl border border-red-200 bg-white p-3 text-sm text-slate-700 shadow-sm focus:border-red-400 focus:ring-4 focus:ring-red-100 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-black uppercase tracking-[0.2em] text-slate-500 mb-2">Data final</label>
+                      <input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="w-full rounded-2xl border border-red-200 bg-white p-3 text-sm text-slate-700 shadow-sm focus:border-red-400 focus:ring-4 focus:ring-red-100 outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <label className="block text-sm font-black uppercase tracking-[0.2em] text-slate-500">Mensagem de emergência</label>
+                  <textarea
+                    value={customMessage}
+                    onChange={(e) => setCustomMessage(e.target.value)}
+                    rows={8}
+                    className="w-full rounded-[1.5rem] border border-red-200 bg-white p-4 text-sm text-slate-700 shadow-sm focus:border-red-400 focus:ring-4 focus:ring-red-100 outline-none"
+                  />
+                  <p className="text-xs text-slate-500">O texto acima será enviado em HTML simples com a moldura padrão do EAC.</p>
+                </div>
+              </section>
+            )}
             <section className="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100">
               <h4 className="text-[10px] font-black text-blue-800 uppercase tracking-[0.2em] mb-4 flex items-center">
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
