@@ -162,6 +162,7 @@ function getActionTimeoutMs(action: string) {
     'EXECUTE_WAITLIST_NON_ENROLLED',
     'EXECUTE_CONFIRM_NAO_INSCRITOS',
     'EXECUTE_INTEREST_CONFIRMATION',
+    'EXECUTE_EMERGENCIA_NOV2025',
   ]);
 
   return heavyActions.has(action) ? 120000 : 30000;
@@ -220,9 +221,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (action === 'EXECUTE_INTEREST_CONFIRMATION') {
       // 1) APP_URL (env) -> 2) origin do request -> 3) fallback
       const origin = normalizeUrl(req.headers?.origin as string | undefined);
+      const forwardedHost = normalizeUrl((req.headers?.['x-forwarded-host'] as string | undefined) || (req.headers?.host as string | undefined));
+      const forwardedProto = normalizeUrl(req.headers?.['x-forwarded-proto'] as string | undefined) || 'https';
+      const inferredByHeaders = forwardedHost ? `${forwardedProto}://${forwardedHost}` : '';
       const inferredAppUrl =
         normalizeUrl(process.env.APP_URL) ||
         origin ||
+        inferredByHeaders ||
         'http://localhost:3000';
 
       if (!payload.appUrl) {

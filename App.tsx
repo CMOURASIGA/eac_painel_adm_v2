@@ -311,7 +311,7 @@ const App: React.FC = () => {
     }
   }, [currentView, user]);
 
-  const handleExecuteDispatch = async (d: Dispatch) => {
+  const handleExecuteDispatch = async (d: Dispatch, payload: any = {}) => {
     setIsLoadingSheet(true);
     let action = '';
     if (d.type === 'comunicado_99_cadastro') action = 'EXECUTE_COMUNICADO_99';
@@ -320,9 +320,15 @@ const App: React.FC = () => {
     else if (d.type === 'waitlist_non_enrolled') action = 'EXECUTE_WAITLIST_NON_ENROLLED';
     else if (d.type === 'confirmacao_interesse_espera') action = 'EXECUTE_INTEREST_CONFIRMATION';
     else if (d.type === 'confirm_nao_inscritos') action = 'EXECUTE_CONFIRM_NAO_INSCRITOS';
+    else if (d.type === 'emergencia_nov2025') action = 'EXECUTE_EMERGENCIA_NOV2025';
 
     if (action) {
-      const r = await callApiProxy(action, {});
+      const finalPayload = { ...(payload || {}) };
+      if (action === 'EXECUTE_INTEREST_CONFIRMATION' && !finalPayload.appUrl && typeof window !== 'undefined') {
+        finalPayload.appUrl = window.location.origin;
+      }
+
+      const r = await callApiProxy(action, finalPayload);
       if (r.success) { showToast(r.message, 'success'); fetchSpreadsheetData(); }
       else showToast(r.error, 'error');
     }

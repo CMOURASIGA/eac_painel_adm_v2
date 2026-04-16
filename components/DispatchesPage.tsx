@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dispatch, Log, LogStatus } from '../types';
 import Drawer from './Drawer';
 import ExecutionModal from './ExecutionModal';
@@ -15,6 +15,7 @@ interface DispatchesPageProps {
 }
 
 const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, onClearStatus, operator, hasEventsThisWeek = false }) => {
+  const EMERGENCY_MESSAGE_STORAGE_KEY = 'eac_dispatch_emergency_message';
   const toLocalInputDate = (date: Date) => {
     const tzOffsetMs = date.getTimezoneOffset() * 60000;
     return new Date(date.getTime() - tzOffsetMs).toISOString().slice(0, 10);
@@ -28,7 +29,15 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
   const [selectedDispatch, setSelectedDispatch] = useState<Dispatch | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [executingDispatch, setExecutingDispatch] = useState<Dispatch | null>(null);
-  const [customMessage, setCustomMessage] = useState('');
+  const [executionPayload, setExecutionPayload] = useState<Record<string, any>>({});
+  const [customMessage, setCustomMessage] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      return localStorage.getItem(EMERGENCY_MESSAGE_STORAGE_KEY) || '';
+    } catch (_err) {
+      return '';
+    }
+  });
   const [customSource, setCustomSource] = useState<'encontreiros' | 'cadastro'>('encontreiros');
   const [customStartMonth, setCustomStartMonth] = useState('2025-11');
   const [customEndDate, setCustomEndDate] = useState(() => toLocalInputDate(new Date()));
@@ -47,22 +56,42 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
     d.tags.some(t => t.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (customMessage) localStorage.setItem(EMERGENCY_MESSAGE_STORAGE_KEY, customMessage);
+      else localStorage.removeItem(EMERGENCY_MESSAGE_STORAGE_KEY);
+    } catch (_err) {}
+  }, [customMessage]);
+
   const handleOpenDetails = (d: Dispatch) => {
     setSelectedDispatch(d);
     if (d.type === 'emergencia_nov2025') {
       setCustomSource('encontreiros');
       setCustomStartMonth('2025-11');
       setCustomEndDate(toLocalInputDate(new Date()));
-      setCustomMessage(getEmergencyDefaultMessage(d));
+      if (!String(customMessage || '').trim()) {
+        setCustomMessage(getEmergencyDefaultMessage(d));
+      }
     }
     setIsDrawerOpen(true);
   };
 
   const handleStartExecution = (d: Dispatch) => {
-    if (d.type === 'emergencia_nov2025' && !customMessage) {
-      setCustomMessage(getEmergencyDefaultMessage(d));
-      if (!customStartMonth) setCustomStartMonth('2025-11');
-      if (!customEndDate) setCustomEndDate(toLocalInputDate(new Date()));
+    if (d.type === 'emergencia_nov2025') {
+      const startMonth = customStartMonth || '2025-11';
+      const startDate = `${startMonth}-01`;
+      const endDate = (!customEndDate || customEndDate < startDate) ? startDate : customEndDate;
+      const message = String(customMessage || '').trim() || getEmergencyDefaultMessage(d);
+      if (!String(customMessage || '').trim()) setCustomMessage(message);
+      if (!customStartMonth) setCustomStartMonth(startMonth);
+      if (!customEndDate || customEndDate < startDate) setCustomEndDate(endDate);
+      setExecutionPayload({ message, targetSheet: customSource, startMonth, endDate });
+    } else if (d.type === 'confirmacao_interesse_espera') {
+      const appUrl = typeof window !== 'undefined' ? window.location.origin : '';
+      setExecutionPayload(appUrl ? { appUrl } : {});
+    } else {
+      setExecutionPayload({});
     }
     setExecutingDispatch(d);
   };
@@ -79,22 +108,29 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
 
   const handleConfirmExecution = async () => {
     if (!executingDispatch) return;
-    let startMonth = customStartMonth || '2025-11';
-    let endDate = customEndDate || toLocalInputDate(new Date());
+    const payload: Record<string, any> = { ...(executionPayload || {}) };
 
     if (executingDispatch.type === 'emergencia_nov2025') {
+      let startMonth = String(payload.startMonth || customStartMonth || '2025-11');
+      let endDate = String(payload.endDate || customEndDate || toLocalInputDate(new Date()));
       const startDate = `${startMonth}-01`;
       if (!endDate || endDate < startDate) {
         endDate = startDate;
         setCustomEndDate(startDate);
       }
+      payload.startMonth = startMonth;
+      payload.endDate = endDate;
+      payload.targetSheet = payload.targetSheet || customSource;
+      payload.message = payload.message !== undefined ? payload.message : customMessage;
     }
 
-    const payload = executingDispatch.type === 'emergencia_nov2025'
-      ? { message: customMessage, targetSheet: customSource, startMonth, endDate }
-      : {};
+    if (executingDispatch.type === 'confirmacao_interesse_espera' && !payload.appUrl && typeof window !== 'undefined') {
+      payload.appUrl = window.location.origin;
+    }
+
     await onExecute(executingDispatch, payload);
     setExecutingDispatch(null);
+    setExecutionPayload({});
   };
 
   const handleClear = async (d: Dispatch) => {
@@ -354,7 +390,7 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
       {executingDispatch && (
         <ExecutionModal 
           dispatch={executingDispatch}
-          onClose={() => setExecutingDispatch(null)}
+          onClose={() => { setExecutingDispatch(null); setExecutionPayload({}); }}
           onConfirm={handleConfirmExecution}
           operator={operator}
         />
