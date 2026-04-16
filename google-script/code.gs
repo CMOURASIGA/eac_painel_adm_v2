@@ -4700,10 +4700,27 @@ function enviarEmergenciaNov2025(payload) {
     if (!data || data.length < 2) return { count: 0, message: 'Planilha sem dados.' };
 
     const headers = data[0];
-    const idxTimestamp = targetSheet === 'cadastro'
+    const idxTimestampPrincipal = targetSheet === 'cadastro'
       ? getColIndex(headers, 'Data Cadastro', getColIndex(headers, 'Timestamp', 0))
       : getColIndex(headers, 'Timestamp', 0);
-    const idxEmail = getColIndex(headers, 'E-mail', targetSheet === 'cadastro' ? 7 : 4);
+    const idxTimestampAlternativo = getColIndex(headers, 'Carimbo de data/hora', idxTimestampPrincipal);
+    const idxEmailPrincipal = getColIndex(headers, 'E-mail', targetSheet === 'cadastro' ? 7 : 4);
+    const idxEmailAlternativo = getColIndex(headers, 'Email', idxEmailPrincipal);
+
+    function parseTimestampFromRow(registro) {
+      const candA = registro[idxTimestampPrincipal];
+      const candB = registro[idxTimestampAlternativo];
+      return parseDateResiliente(candA) || parseDateResiliente(candB) || null;
+    }
+
+    function pickEmailFromRow(registro) {
+      const candA = String(registro[idxEmailPrincipal] || '').trim();
+      if (candA && candA.includes('@')) return candA;
+      const candB = String(registro[idxEmailAlternativo] || '').trim();
+      if (candB && candB.includes('@')) return candB;
+      return '';
+    }
+
     const startMatch = startMonthInput.match(/^(\d{4})-(\d{2})$/);
     let startDate = new Date(2025, 10, 1, 0, 0, 0, 0); // fallback: 01/11/2025
     if (startMatch) {
@@ -4733,28 +4750,49 @@ function enviarEmergenciaNov2025(payload) {
 
     const periodoLabel = Utilities.formatDate(startDate, "GMT-3", "dd/MM/yyyy") + " até " + Utilities.formatDate(endDate, "GMT-3", "dd/MM/yyyy");
     let enviados = 0;
+    let semData = 0;
+    let foraDoPeriodo = 0;
+    let semEmail = 0;
+    let falhasEnvio = 0;
+    const emailsEnviados = {};
 
     for (let i = 1; i < data.length; i++) {
       const registro = data[i];
-      const tsRaw = registro[idxTimestamp];
-      const email = String(registro[idxEmail] || '').trim();
-      const tsDate = parseDateResiliente(tsRaw);
-      if (!email || !email.includes('@') || !tsDate) continue;
-      if (tsDate.getTime() < startDate.getTime() || tsDate.getTime() > endDate.getTime()) continue;
+      const tsDate = parseTimestampFromRow(registro);
+      if (!tsDate) {
+        semData++;
+        continue;
+      }
+      if (tsDate.getTime() < startDate.getTime() || tsDate.getTime() > endDate.getTime()) {
+        foraDoPeriodo++;
+        continue;
+      }
+
+      const email = pickEmailFromRow(registro);
+      if (!email) {
+        semEmail++;
+        continue;
+      }
+
+      const emailKey = String(email).trim().toLowerCase();
+      if (emailsEnviados[emailKey]) continue;
+
       try {
-        MailApp.sendEmail({ to: email, subject: '⚠️ Comunicado Emergencial EAC - Novembro 2025', htmlBody });
+        MailApp.sendEmail({ to: email, subject: '⚠️ Comunicado Emergencial EAC - Período Selecionado', htmlBody });
+        emailsEnviados[emailKey] = true;
         enviados++;
       } catch (e) {
-        // continue on failures
+        falhasEnvio++;
       }
       if (enviados >= 50) break;
     }
 
+    const diagnostico = `Diagnóstico: enviados=${enviados}, semData=${semData}, foraPeriodo=${foraDoPeriodo}, semEmail=${semEmail}, falhas=${falhasEnvio}.`;
     return {
       count: enviados,
       message: enviados > 0
-        ? `Sucesso: ${enviados} envios emergenciais no período ${periodoLabel}.`
-        : `Nenhum registro elegível no período ${periodoLabel}.`
+        ? `Sucesso: ${enviados} envios emergenciais no período ${periodoLabel}. ${diagnostico}`
+        : `Nenhum registro elegível no período ${periodoLabel}. ${diagnostico}`
     };
   } catch (err) {
     return { count: 0, message: 'Erro: ' + err.message };
