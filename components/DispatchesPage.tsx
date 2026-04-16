@@ -19,6 +19,10 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
     const tzOffsetMs = date.getTimezoneOffset() * 60000;
     return new Date(date.getTime() - tzOffsetMs).toISOString().slice(0, 10);
   };
+  const getEmergencyDefaultMessage = (dispatch?: Dispatch | null) =>
+    dispatch?.emailPreview
+      ? dispatch.emailPreview.replace(/<[^>]+>/g, '').trim()
+      : 'Olá, [NOME]!\n\nEste é um comunicado emergencial para o período selecionado. Por favor, leia com atenção e confirme seu recebimento.';
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDispatch, setSelectedDispatch] = useState<Dispatch | null>(null);
@@ -28,6 +32,14 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
   const [customSource, setCustomSource] = useState<'encontreiros' | 'cadastro'>('encontreiros');
   const [customStartMonth, setCustomStartMonth] = useState('2025-11');
   const [customEndDate, setCustomEndDate] = useState(() => toLocalInputDate(new Date()));
+  const isEmergencySelected = selectedDispatch?.type === 'emergencia_nov2025';
+  const dynamicEmergencyPreviewHtml = (
+    String(customMessage || '').trim() ||
+    'Olá!\n\nEste é um comunicado emergencial para o período selecionado. Por favor, leia com atenção e responda se necessário.'
+  ).replace(/\n/g, '<br>');
+  const activePreviewHtml = isEmergencySelected
+    ? dynamicEmergencyPreviewHtml
+    : (selectedDispatch?.emailPreview || '');
 
   const filtered = dispatches.filter(d => 
     d.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -41,26 +53,28 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
       setCustomSource('encontreiros');
       setCustomStartMonth('2025-11');
       setCustomEndDate(toLocalInputDate(new Date()));
-      setCustomMessage(
-        d.emailPreview
-          ? d.emailPreview.replace(/<[^>]+>/g, '').trim()
-          : 'Olá, [NOME]!\n\nEste é um comunicado emergencial para o período selecionado. Por favor, leia com atenção e confirme seu recebimento.'
-      );
+      setCustomMessage(getEmergencyDefaultMessage(d));
     }
     setIsDrawerOpen(true);
   };
 
   const handleStartExecution = (d: Dispatch) => {
     if (d.type === 'emergencia_nov2025' && !customMessage) {
-      setCustomMessage(
-        d.emailPreview
-          ? d.emailPreview.replace(/<[^>]+>/g, '').trim()
-          : 'Olá, [NOME]!\n\nEste é um comunicado emergencial para o período selecionado. Por favor, leia com atenção e confirme seu recebimento.'
-      );
+      setCustomMessage(getEmergencyDefaultMessage(d));
       if (!customStartMonth) setCustomStartMonth('2025-11');
       if (!customEndDate) setCustomEndDate(toLocalInputDate(new Date()));
     }
     setExecutingDispatch(d);
+  };
+
+  const handleUseDefaultEmergencyMessage = () => {
+    if (!isEmergencySelected) return;
+    setCustomMessage(getEmergencyDefaultMessage(selectedDispatch));
+  };
+
+  const handleClearEmergencyMessage = () => {
+    if (!isEmergencySelected) return;
+    setCustomMessage('');
   };
 
   const handleConfirmExecution = async () => {
@@ -188,11 +202,11 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
             </section>
             
             {/* NOVO: Prévia do E-mail (Simulador de Moldura EAC) */}
-            {selectedDispatch.emailPreview && (
+            {activePreviewHtml && (
               <section className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center">
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
-                  Visualização do E-mail
+                  {isEmergencySelected ? 'Visualização Dinâmica do E-mail' : 'Visualização do E-mail'}
                 </h4>
                 <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-2xl ring-1 ring-slate-100">
                    {/* Cabeçalho do E-mail */}
@@ -201,7 +215,7 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
                    </div>
                    {/* Corpo do E-mail */}
                    <div className="p-8 text-sm text-slate-700 leading-relaxed font-medium bg-white">
-                      <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: selectedDispatch.emailPreview }}></div>
+                      <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: activePreviewHtml }}></div>
                    </div>
                    {/* Rodapé do E-mail */}
                    <div className="p-6 bg-slate-50 text-center border-t border-slate-100">
@@ -210,7 +224,9 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
                       </div>
                    </div>
                 </div>
-                <p className="text-[8px] text-center text-slate-400 font-bold uppercase mt-3 tracking-widest italic">* A visualização acima é uma representação aproximada do layout final.</p>
+                <p className="text-[8px] text-center text-slate-400 font-bold uppercase mt-3 tracking-widest italic">
+                  * A visualização acima é uma representação aproximada do layout final.
+                </p>
               </section>
             )}
 
@@ -272,6 +288,22 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
                     rows={8}
                     className="w-full rounded-[1.5rem] border border-red-200 bg-white p-4 text-sm text-slate-700 shadow-sm focus:border-red-400 focus:ring-4 focus:ring-red-100 outline-none"
                   />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={handleUseDefaultEmergencyMessage}
+                      className="py-3 rounded-2xl font-bold text-sm bg-white text-red-700 border border-red-200 hover:bg-red-50 transition"
+                    >
+                      Usar mensagem padrão
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearEmergencyMessage}
+                      className="py-3 rounded-2xl font-bold text-sm bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 transition"
+                    >
+                      Limpar mensagem
+                    </button>
+                  </div>
                   <p className="text-xs text-slate-500">O texto acima será enviado em HTML simples com a moldura padrão do EAC.</p>
                 </div>
               </section>
