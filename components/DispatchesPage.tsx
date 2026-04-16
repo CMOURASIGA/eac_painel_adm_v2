@@ -79,15 +79,19 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
 
   const handleConfirmExecution = async () => {
     if (!executingDispatch) return;
+    let startMonth = customStartMonth || '2025-11';
+    let endDate = customEndDate || toLocalInputDate(new Date());
+
     if (executingDispatch.type === 'emergencia_nov2025') {
-      const startDate = `${customStartMonth || '2025-11'}-01`;
-      if (customEndDate && customEndDate < startDate) {
-        alert('A data final deve ser igual ou posterior ao mês inicial.');
-        return;
+      const startDate = `${startMonth}-01`;
+      if (!endDate || endDate < startDate) {
+        endDate = startDate;
+        setCustomEndDate(startDate);
       }
     }
+
     const payload = executingDispatch.type === 'emergencia_nov2025'
-      ? { message: customMessage, targetSheet: customSource, startMonth: customStartMonth, endDate: customEndDate }
+      ? { message: customMessage, targetSheet: customSource, startMonth, endDate }
       : {};
     await onExecute(executingDispatch, payload);
     setExecutingDispatch(null);
