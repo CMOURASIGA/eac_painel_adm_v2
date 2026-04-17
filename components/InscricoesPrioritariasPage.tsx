@@ -77,20 +77,6 @@ const hasMeaningfulValue = (value: any) => {
   return normalized !== '-' && normalized !== 'null' && normalized !== 'undefined' && normalized !== 'nao informado';
 };
 
-const VISITADO_FALLBACK_KEYS = [
-  'statusEnvio',
-  'status envio',
-  'interesseConfirmado',
-  'interesse confirmado',
-  'dataResposta',
-  'data resposta',
-  'statusValidacao',
-  'status da validacao',
-  'status da validação',
-  'confirmacao',
-  'confirmação',
-];
-
 const hasVisitado = (item: Prioritario) => {
   if (!item || typeof item !== 'object') return false;
 
@@ -105,11 +91,6 @@ const hasVisitado = (item: Prioritario) => {
       return true;
     }
   }
-
-  for (const key of VISITADO_FALLBACK_KEYS) {
-    if (hasMeaningfulValue((item as any)[key])) return true;
-  }
-
   return false;
 };
 const parseAgeNumber = (value: any) => {
@@ -1299,3 +1280,4 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
 };
 
 export default InscricoesPrioritariasPage;
+

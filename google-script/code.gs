@@ -2425,7 +2425,11 @@ function listarInscricoesPrioritarias() {
       idade: idadeFinal,
       sexo: sexo,
       pertencePorciuncula: pertencePorciuncula,
-      statusValidacao: statusValidacao
+      statusValidacao: statusValidacao,
+      U: row.length > 20 ? row[20] : "",
+      V: row.length > 21 ? row[21] : "",
+      W: row.length > 22 ? row[22] : "",
+      X: row.length > 23 ? row[23] : ""
     });
   }
 
