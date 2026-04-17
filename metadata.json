@@ -1,0 +1,5 @@
+{
+  "name": "EAC - Painel de Operação Segura",
+  "description": "Painel administrativo moderno para execução manual de disparos, auditoria e controle operacional com identidade corporativa EAC.",
+  "requestFramePermissions": []
+}
