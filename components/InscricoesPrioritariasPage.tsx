@@ -270,10 +270,10 @@ const PRIORITARIO_PDF_EXCLUDED_COLUMNS = new Set([
 ]);
 
 const PRIORITARIO_PDF_LABELS: Record<string, string> = {
-  U: 'Confirmacao 1',
-  V: 'Confirmacao 2',
-  W: 'Confirmacao 3',
-  X: 'Confirmacao 4',
+  U: 'Tamanho camisa',
+  V: 'Alergico',
+  W: 'Observacao Alergico',
+  X: 'Nome Social',
 };
 
 const getPrioritarioPdfColumnLabel = (key: string) => {
