@@ -259,6 +259,36 @@ const getPrioritarioColumnLabel = (key: string) => {
   return withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1);
 };
 
+const PRIORITARIO_PDF_EXCLUDED_COLUMNS = new Set([
+  'id',
+  'linhaOrigem',
+  'status',
+  'statusEnvio',
+  'jaFezEac',
+  'dataCadastro',
+  'statusValidacao',
+]);
+
+const PRIORITARIO_PDF_LABELS: Record<string, string> = {
+  U: 'Confirmacao 1',
+  V: 'Confirmacao 2',
+  W: 'Confirmacao 3',
+  X: 'Confirmacao 4',
+};
+
+const getPrioritarioPdfColumnLabel = (key: string) => {
+  const raw = String(key || '').trim();
+  if (!raw) return raw;
+
+  if (PRIORITARIO_PDF_LABELS[raw]) return PRIORITARIO_PDF_LABELS[raw];
+  const upper = raw.toUpperCase();
+  if (PRIORITARIO_PDF_LABELS[upper]) return PRIORITARIO_PDF_LABELS[upper];
+  return getPrioritarioColumnLabel(raw);
+};
+
+const getPrioritarioPdfColumns = (records: Prioritario[]) =>
+  getPrioritarioExportColumns(records).filter((col) => !PRIORITARIO_PDF_EXCLUDED_COLUMNS.has(col));
+
 const getPrioritarioExportColumns = (records: Prioritario[]) => {
   const keys = new Set<string>();
   (Array.isArray(records) ? records : []).forEach((record) => {
@@ -694,12 +724,12 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
       return;
     }
 
-    const columns = getPrioritarioExportColumns(filtered);
+    const columns = getPrioritarioPdfColumns(filtered);
     const generatedAt = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 
     const headerHtml = [
       '<th>#</th>',
-      ...columns.map((col) => `<th>${escapeHtml(getPrioritarioColumnLabel(col))}</th>`),
+      ...columns.map((col) => `<th>${escapeHtml(getPrioritarioPdfColumnLabel(col))}</th>`),
     ].join('');
 
     const bodyHtml = filtered
