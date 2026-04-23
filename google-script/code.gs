@@ -2325,6 +2325,19 @@ function listarInscricoesPrioritarias() {
   if (!data || data.length < 2) return [];
 
   const headers = data[0] || [];
+  const sheetHeaders = [];
+  const headerCount = {};
+  for (let h = 0; h < headers.length; h++) {
+    const rawHeader = String(headers[h] || "").trim();
+    const baseHeader = rawHeader || ("Coluna " + (h + 1));
+    if (headerCount[baseHeader]) {
+      headerCount[baseHeader] += 1;
+      sheetHeaders.push(baseHeader + " (" + headerCount[baseHeader] + ")");
+    } else {
+      headerCount[baseHeader] = 1;
+      sheetHeaders.push(baseHeader);
+    }
+  }
   const idxNome = getColIndex(headers, "Nome completo", getColIndex(headers, "Nome", 0));
   const idxEmail = getColIndex(headers, "E-mail", getColIndex(headers, "Email", 1));
   const idxStatus = getColIndex(headers, "Status", -1);
@@ -2404,6 +2417,11 @@ function listarInscricoesPrioritarias() {
     );
     const linhaOrigem = String(linhaOrigemByKey[keyPrior] || linhaOrigemByKey[keyFallback] || "").trim();
 
+    const rowByHeader = {};
+    for (let c = 0; c < sheetHeaders.length; c++) {
+      rowByHeader[sheetHeaders[c]] = c < row.length ? row[c] : "";
+    }
+
     items.push({
       id: "pri-" + (i + 1),
       linhaOrigem: linhaOrigem,
@@ -2429,7 +2447,9 @@ function listarInscricoesPrioritarias() {
       U: row.length > 20 ? row[20] : "",
       V: row.length > 21 ? row[21] : "",
       W: row.length > 22 ? row[22] : "",
-      X: row.length > 23 ? row[23] : ""
+      X: row.length > 23 ? row[23] : "",
+      __sheetHeaders: sheetHeaders,
+      __sheetRow: rowByHeader
     });
   }
 

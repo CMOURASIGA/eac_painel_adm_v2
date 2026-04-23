@@ -293,7 +293,7 @@ const getPrioritarioExportColumns = (records: Prioritario[]) => {
   const keys = new Set<string>();
   (Array.isArray(records) ? records : []).forEach((record) => {
     Object.keys(record || {}).forEach((k) => {
-      if (k) keys.add(k);
+      if (k && !String(k).startsWith('__')) keys.add(k);
     });
   });
 
@@ -303,6 +303,36 @@ const getPrioritarioExportColumns = (records: Prioritario[]) => {
     .sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
   return [...preferred, ...extra];
+};
+
+const getPrioritarioSheetColumns = (records: Prioritario[]) => {
+  const ordered: string[] = [];
+  const seen = new Set<string>();
+
+  (Array.isArray(records) ? records : []).forEach((record) => {
+    const explicitHeaders = Array.isArray((record as any)?.__sheetHeaders)
+      ? (record as any).__sheetHeaders
+      : [];
+
+    explicitHeaders.forEach((header: any) => {
+      const label = toCleanString(header);
+      if (!label || seen.has(label)) return;
+      seen.add(label);
+      ordered.push(label);
+    });
+
+    const rowMap = (record as any)?.__sheetRow;
+    if (rowMap && typeof rowMap === 'object') {
+      Object.keys(rowMap).forEach((header) => {
+        const label = toCleanString(header);
+        if (!label || seen.has(label)) return;
+        seen.add(label);
+        ordered.push(label);
+      });
+    }
+  });
+
+  return ordered;
 };
 
 const formatPrioritarioExportValue = (columnKey: string, value: any) => {
@@ -679,11 +709,20 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     }
 
     try {
-      const columns = getPrioritarioExportColumns(filtered);
-      const headers = columns.map((col) => getPrioritarioColumnLabel(col));
-      const rows = filtered.map((item) =>
-        columns.map((col) => formatPrioritarioExportValue(col, (item as any)?.[col]))
-      );
+      const sheetColumns = getPrioritarioSheetColumns(items);
+      const hasSheetRows =
+        sheetColumns.length > 0 &&
+        filtered.some((item) => (item as any)?.__sheetRow && typeof (item as any).__sheetRow === 'object');
+
+      const columns = hasSheetRows ? sheetColumns : getPrioritarioExportColumns(filtered);
+      const headers = hasSheetRows ? columns : columns.map((col) => getPrioritarioColumnLabel(col));
+      const rows = filtered.map((item) => {
+        if (hasSheetRows) {
+          const rowMap = (item as any)?.__sheetRow || {};
+          return columns.map((col) => formatPrioritarioExportValue(col, rowMap[col]));
+        }
+        return columns.map((col) => formatPrioritarioExportValue(col, (item as any)?.[col]));
+      });
 
       const sep = ';';
       const csvLines = [
@@ -711,7 +750,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     } catch (err: any) {
       setError(err?.message || 'Nao foi possivel exportar o CSV.');
     }
-  }, [filtered, showInfo]);
+  }, [filtered, items, showInfo]);
 
   const handleExportPdfReport = useCallback(() => {
     if (filtered.length === 0) {
