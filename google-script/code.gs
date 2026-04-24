@@ -1105,6 +1105,12 @@ if (action === "GET_MEMBERS") {
       registrarLog("d8", "Confirmação Não Inscritos", "Operador EAC", JSON.stringify(info), status);
       return responder(true, { info, message: `Disparo concluído. Enviados: ${info.enviados}, Processados: ${info.processados}, Ignorados: ${info.ignorados}.` });
     }
+    else if (action === "EXECUTE_COMUNICACAO_NAO_PARTICIPACAO_EAC") {
+      const info = enviarComunicacaoNaoParticipacaoEAC();
+      const status = info.enviados > 0 ? "SUCCESS" : "NO_DATA";
+      registrarLog("d10", "Comunicação não participação EAC", "Operador EAC", JSON.stringify(info), status);
+      return responder(true, { info, message: `Disparo concluído. Enviados: ${info.enviados}, Processados: ${info.processados}, Ignorados: ${info.ignorados}.` });
+    }
 
     // Se nenhuma ação corresponder
     throw new Error(`A action "${action}" não é reconhecida pelo motor.`);
@@ -5001,6 +5007,77 @@ function enviarConfirmacaoNaoInscritos() {
     return { enviados: enviados, processados: processados, ignorados: ignorados };
   } catch (err) {
     throw new Error("Erro no disparo de confirmação para Não Inscritos: " + err.message);
+  }
+}
+
+function enviarComunicacaoNaoParticipacaoEAC() {
+  try {
+    const sheetNao = getNaoInscritosSheet();
+    const data = sheetNao.getDataRange().getValues();
+
+    if (!data || data.length < 2) {
+      return { enviados: 0, processados: 0, ignorados: 0 };
+    }
+
+    const IDX_NOME = 1;   // Coluna B
+    const IDX_EMAIL = 2;  // Coluna C
+    const IDX_H = 7;      // Coluna H
+    const IDX_P = 15;     // Coluna P
+    const IDX_Q = 16;     // Coluna Q (Status Priorização)
+    const LIMITE = 50;
+
+    let enviados = 0;
+    let processados = 0;
+    let ignorados = 0;
+
+    for (let i = 1; i < data.length; i++) {
+      processados++;
+
+      const row = data[i];
+      const nome = String(row[IDX_NOME] || "").trim();
+      const email = String(row[IDX_EMAIL] || "").trim();
+      const condicaoH = String(row[IDX_H] || "").trim();
+      const statusP = String(row[IDX_P] || "").trim();
+      const statusPriorizacaoQ = String(row[IDX_Q] || "").trim().toUpperCase();
+
+      const isPrioritario = statusPriorizacaoQ === "SIM";
+      const podeEnviar = !condicaoH && email.includes("@") && !statusP && !isPrioritario;
+      if (!podeEnviar) {
+        ignorados++;
+        continue;
+      }
+
+      const htmlBody = `
+        <h2 style="color: #044372;">Olá, ${nome || "jovem"}!</h2>
+        <p>Agradecemos seu interesse em participar do EAC.</p>
+        <p>Neste momento, você <strong>não foi selecionado para o EAC atual</strong>.</p>
+        <p>Seu cadastro permanece em nossa base e você será convocado para o <strong>EAC do próximo semestre</strong>.</p>
+        <p>Fique atento ao seu E-mail e WhatsApp para os próximos comunicados.</p>
+        <br>
+        <p>Fraternalmente,<br><strong>Coordenação EAC</strong></p>
+      `;
+
+      try {
+        MailApp.sendEmail({
+          to: email,
+          subject: "EAC: Comunicação sobre sua Inscrição",
+          htmlBody: molduraEmail(htmlBody)
+        });
+
+        const ts = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd/MM/yyyy HH:mm");
+        const status = "Enviado_Nao_Participacao - " + ts;
+        sheetNao.getRange(i + 1, IDX_P + 1).setValue(status);
+
+        enviados++;
+        if (enviados >= LIMITE) break;
+      } catch (e) {
+        ignorados++;
+      }
+    }
+
+    return { enviados: enviados, processados: processados, ignorados: ignorados };
+  } catch (err) {
+    throw new Error("Erro no disparo de comunicação de não participação EAC: " + err.message);
   }
 }
 

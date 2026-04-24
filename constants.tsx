@@ -76,6 +76,24 @@ export const INITIAL_DISPATCHES: Dispatch[] = [
       '<h2 style="color: #044372; margin-top: 0;">Olá, [NOME]!</h2><p>Recebemos sua inscrição para o EAC e gostaríamos de informar que seu cadastro está em nossa <strong>lista de verificação</strong>.</p><p>Estamos organizando as vagas para o próximo encontro e em breve entraremos em contato para confirmar sua participação.</p><p>Fique atento ao seu E-mail e WhatsApp!</p><br><p>Fraternalmente,<br><strong>Coordenação EAC</strong></p>',
   },
   {
+    id: "d10",
+    name: "Comunicação não participação EAC",
+    type: "comunicacao_nao_participacao_eac",
+    endpoint: "google_script",
+    method: "POST",
+    shortDescription:
+      "Comunica aos não inscritos sem priorização (Q != SIM) que não foram selecionados para o EAC atual.",
+    detailedDescription:
+      "Percorre a aba **Não Inscritos** da planilha de inscrições e envia e-mail apenas para quem tem **H vazia**, **C com e-mail válido**, **P vazia** e **Q (Status Priorização) diferente de SIM**.",
+    rules:
+      "### Protocolo de Comunicação\n- **Origem:** Planilha de Inscrições, aba `Não Inscritos`.\n- **Filtro:** `H` vazia + `C` com `@` + `P` vazia + `Q != SIM`.\n- **Assunto:** `EAC: Comunicação sobre sua Inscrição`.\n- **Status (Coluna P):** `Enviado_Nao_Participacao - DD/MM/AAAA HH:mm`.\n- **Lote:** Máximo de 50 envios por execução.",
+    parameters: [],
+    status: "active",
+    tags: ["E-mail", "Não Inscritos", "Batch"],
+    emailPreview:
+      '<h2 style="color: #044372; margin-top: 0;">Olá, [NOME]!</h2><p>Agradecemos seu interesse em participar do EAC.</p><p>Neste momento, você <strong>não foi selecionado para o EAC atual</strong>. Seu cadastro permanece em nossa base e você será convocado para o <strong>EAC do próximo semestre</strong>.</p><p>Fique atento ao seu E-mail e WhatsApp para os próximos comunicados.</p><br><p>Fraternalmente,<br><strong>Coordenação EAC</strong></p>',
+  },
+  {
     id: "d5",
     name: "Comunicado 99 → Cadastro de Encontrista",
     type: "comunicado_99_cadastro",

@@ -320,6 +320,7 @@ const App: React.FC = () => {
     else if (d.type === 'waitlist_non_enrolled') action = 'EXECUTE_WAITLIST_NON_ENROLLED';
     else if (d.type === 'confirmacao_interesse_espera') action = 'EXECUTE_INTEREST_CONFIRMATION';
     else if (d.type === 'confirm_nao_inscritos') action = 'EXECUTE_CONFIRM_NAO_INSCRITOS';
+    else if (d.type === 'comunicacao_nao_participacao_eac') action = 'EXECUTE_COMUNICACAO_NAO_PARTICIPACAO_EAC';
     else if (d.type === 'emergencia_nov2025') action = 'EXECUTE_EMERGENCIA_NOV2025';
 
     if (action) {
