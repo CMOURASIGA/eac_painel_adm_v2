@@ -69,7 +69,9 @@ Painel administrativo do EAC com integração ao Google Apps Script/Google Sheet
 ## Como rodar
 
 1. Instale dependências: `npm install`
-2. Configure `.env.local` (URL do Web App do Apps Script)
+2. Configure `.env.local`
+   - `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` (leitura operacional via Supabase)
+   - Opcional (legado): `VITE_GOOGLE_WEBAPP_URL` / `GOOGLE_WEBAPP_URL` (operações ainda dependentes do Apps Script)
 3. Rode em desenvolvimento: `npm run dev`
 4. Build de produção: `npm run build`
 

@@ -1,4 +1,4 @@
-
+﻿
 import React, { useState } from 'react';
 import { Log, LogStatus } from '../types';
 import Badge from './Badge';
@@ -11,6 +11,10 @@ interface LogsPageProps {
 const LogsPage: React.FC<LogsPageProps> = ({ logs }) => {
   const [filter, setFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | LogStatus>('ALL');
+  const [moduleFilter, setModuleFilter] = useState<string>('ALL');
+  const [dispatchIdFilter, setDispatchIdFilter] = useState<string>('');
+  const [fromDate, setFromDate] = useState<string>('');
+  const [toDate, setToDate] = useState<string>('');
   const [selectedLog, setSelectedLog] = useState<Log | null>(null);
 
   const filteredLogs = logs.filter(log => {
@@ -19,12 +23,19 @@ const LogsPage: React.FC<LogsPageProps> = ({ logs }) => {
     const query = toCleanString(filter).toLowerCase();
     const matchesText = logDispatch.includes(query) || logOperator.includes(query);
     const matchesStatus = statusFilter === 'ALL' || log.status === statusFilter;
-    return matchesText && matchesStatus;
+    const logModule = toCleanString((log as any).modulo || 'geral').toLowerCase();
+    const matchesModule = moduleFilter === 'ALL' || logModule === moduleFilter.toLowerCase();
+    const matchesDispatchId = !dispatchIdFilter || toCleanString(log.dispatchId) === toCleanString(dispatchIdFilter);
+    const ts = new Date(log.timestamp);
+    const isoDay = !Number.isNaN(ts.getTime()) ? ts.toISOString().slice(0, 10) : '';
+    const matchesFrom = !fromDate || (isoDay && isoDay >= fromDate);
+    const matchesTo = !toDate || (isoDay && isoDay <= toDate);
+    return matchesText && matchesStatus && matchesModule && matchesDispatchId && matchesFrom && matchesTo;
   });
 
   const handleExport = () => {
     const headers = 'ID,Disparo,Operador,Data,Status,Duracao,Resumo\n';
-    const csv = logs
+    const csv = filteredLogs
       .map((l) => `${toCleanString(l.id)},${toCleanString(l.dispatchName)},${toCleanString(l.operator)},${toCleanString(l.timestamp)},${toCleanString(l.status)},${l.duration}ms,"${toCleanString(l.responseSummary).replace(/"/g, '""')}"`)
       .join('\n');
     const blob = new Blob([headers + csv], { type: 'text/csv;charset=utf-8;' });
@@ -86,6 +97,40 @@ const LogsPage: React.FC<LogsPageProps> = ({ logs }) => {
             <option value={LogStatus.NO_DATA}>SEM REGISTROS</option>
             <option value={LogStatus.FAILURE}>FALHA SISTEMA</option>
           </select>
+          <select
+            className="border-2 border-slate-200 rounded-2xl px-6 py-3 bg-white text-sm text-slate-900 font-bold focus:border-blue-600 outline-none transition-all shadow-sm"
+            value={moduleFilter}
+            onChange={(e) => setModuleFilter(e.target.value)}
+          >
+            <option value="ALL">TODOS MÓDULOS</option>
+            <option value="dispatches">DISPAROS</option>
+            <option value="calendar">CALENDÁRIO</option>
+            <option value="comunicados">COMUNICADOS</option>
+            <option value="logs">LOGS</option>
+            <option value="users">USUÁRIOS</option>
+            <option value="members">CADASTRO</option>
+            <option value="presence">PRESENÇA</option>
+            <option value="geral">GERAL</option>
+          </select>
+          <input
+            type="text"
+            placeholder="dispatchId"
+            className="border-2 border-slate-200 rounded-2xl px-4 py-3 bg-white text-sm text-slate-900 font-bold focus:border-blue-600 outline-none transition-all shadow-sm w-40"
+            value={dispatchIdFilter}
+            onChange={(e) => setDispatchIdFilter(e.target.value)}
+          />
+          <input
+            type="date"
+            className="border-2 border-slate-200 rounded-2xl px-4 py-3 bg-white text-sm text-slate-900 font-bold focus:border-blue-600 outline-none transition-all shadow-sm"
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+          />
+          <input
+            type="date"
+            className="border-2 border-slate-200 rounded-2xl px-4 py-3 bg-white text-sm text-slate-900 font-bold focus:border-blue-600 outline-none transition-all shadow-sm"
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+          />
         </div>
 
         <div className="overflow-x-auto">
@@ -184,3 +229,4 @@ const LogsPage: React.FC<LogsPageProps> = ({ logs }) => {
 };
 
 export default LogsPage;
+

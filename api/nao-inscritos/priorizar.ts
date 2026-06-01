@@ -1,15 +1,20 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
+﻿import type { NextApiRequest, NextApiResponse } from 'next';
+
+function sendError(res: NextApiResponse, status: number, error: string, extra?: Record<string, any>) {
+  return res.status(status).json({ success: false, error, message: error, ...(extra || {}) });
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, error: 'Método não permitido.' });
+    return sendError(res, 405, 'Metodo nao permitido.');
   }
 
   try {
     const linhaOrigem = String(req.body?.linhaOrigem || req.body?.linha_origem || '').trim();
+    const id = String(req.body?.id || req.body?.prioritarioId || req.body?.inscricao_prioritaria_id || '').trim();
     const priorizar = req.body?.priorizar;
-    if (!linhaOrigem) {
-      return res.status(400).json({ success: false, error: 'linhaOrigem é obrigatória.' });
+    if (!linhaOrigem && !id) {
+      return sendError(res, 400, 'linhaOrigem ou id e obrigatorio.');
     }
 
     const protocol = (req.headers['x-forwarded-proto'] as string) || 'http';
@@ -21,28 +26,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'PRIORITIZE_NON_ENROLLED',
-        data: priorizar === undefined ? { linhaOrigem } : { linhaOrigem, priorizar }
-      })
+        data: priorizar === undefined
+          ? { linhaOrigem, id }
+          : { linhaOrigem, id, priorizar },
+      }),
     });
 
     const text = await proxyResponse.text();
     let payload: any = {};
     try {
       payload = text ? JSON.parse(text) : {};
-    } catch (e) {
-      return res.status(502).json({
-        success: false,
-        error: 'Resposta inválida do backend.',
-        sample: (text || '').slice(0, 300)
-      });
+    } catch {
+      return sendError(res, 502, 'Resposta invalida do backend.', { sample: (text || '').slice(0, 300) });
     }
 
     res.setHeader('X-EAC-Endpoint', 'nao-inscritos/priorizar');
     return res.status(proxyResponse.status).json(payload);
   } catch (error: any) {
-    return res.status(500).json({
-      success: false,
-      error: error?.message || 'Erro interno.'
-    });
+    return sendError(res, 500, error?.message || 'Erro interno.');
   }
 }

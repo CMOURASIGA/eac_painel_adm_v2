@@ -1,6 +1,7 @@
 ﻿
 import React, { useState } from 'react';
 import { User, View } from '../types';
+import { NAVIGATION_ROADMAP } from '../utils/navigationRoadmap.ts';
 
 interface HeaderProps {
   user: User;
@@ -12,20 +13,9 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ user, onLogout, onNavigate, currentView }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const navItems: { label: string, view: View }[] = [
-    { label: 'Início', view: 'dashboard' },
-    { label: 'Cadastro de Encontrista', view: 'members' },
-    { label: 'Inscrições Prioritárias', view: 'inscricoes_prioritarias' },
-    { label: 'Cadastro de Encontreiro', view: 'encontreiros' },
-    { label: 'Presença', view: 'presence' },
-    { label: 'Disparos', view: 'dispatches' },
-    { label: 'Calendário', view: 'calendar' },
-    { label: 'Comunicados', view: 'comunicados' },
-    { label: 'Logs', view: 'logs' },
-    { label: 'Usuários', view: 'users' },
-    { label: 'Ajustes', view: 'settings' },
-    { label: 'Ajuda', view: 'help' },
-  ];
+  const navItems: { label: string, view: View }[] = NAVIGATION_ROADMAP
+    .filter((item) => item.enabled)
+    .map((item) => ({ label: item.label, view: item.view }));
 
   const filteredNav = navItems.filter(item => {
     if (user.role === 'ADMIN') return true;
@@ -33,6 +23,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onNavigate, currentView
     if (item.view === 'dashboard') return true;
     if (item.view === 'members') return allowed.includes('members');
     if (item.view === 'inscricoes_prioritarias') return allowed.includes('inscricoes_prioritarias');
+    if (item.view === 'inscricoes_review') return allowed.includes('inscricoes_review');
     if (item.view === 'encontreiros') return allowed.includes('encontreiros');
     if (item.view === 'presence') return allowed.includes('presence');
     if (item.view === 'dispatches') return allowed.includes('dispatches');
@@ -79,7 +70,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onNavigate, currentView
         <div className="flex items-center space-x-3 md:space-x-4">
           <div className="text-right hidden sm:block">
             <p className="text-xs md:text-sm font-black leading-none mb-1 truncate max-w-[100px]">{user.name}</p>
-            <p className={`text-[8px] md:text-[9px] uppercase tracking-widest font-black ${user.role === 'ADMIN' ? 'text-amber-400' : 'text-blue-200'}`}>{user.role === 'ADMIN' ? 'Administrador' : 'UsuÃ¡rio'}</p>
+            <p className={`text-[8px] md:text-[9px] uppercase tracking-widest font-black ${user.role === 'ADMIN' ? 'text-amber-400' : 'text-blue-200'}`}>{user.role === 'ADMIN' ? 'Administrador' : 'Usuário'}</p>
           </div>
           <button onClick={onLogout} className="bg-red-500/20 hover:bg-red-600 border border-red-500/30 md:px-4 px-3 py-1.5 rounded-lg text-[10px] md:text-xs font-black uppercase tracking-widest transition-all">Sair</button>
         </div>
@@ -112,3 +103,5 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onNavigate, currentView
 };
 
 export default Header;
+
+

@@ -1,8 +1,9 @@
-
+﻿
 import React, { useState } from 'react';
 import { Comunicado, User } from '../types';
 import Badge from './Badge';
 import { toCleanString } from '../utils/textEncoding.ts';
+import DataOriginAudit from './DataOriginAudit.tsx';
 
 interface ComunicadosPageProps {
   comunicados: Comunicado[];
@@ -165,6 +166,8 @@ const ComunicadosPage: React.FC<ComunicadosPageProps> = ({ comunicados, onSave, 
                   </div>
                 </div>
 
+                <DataOriginAudit record={formData} />
+
                 <div className="space-y-1">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Assunto do E-mail</label>
                   <input 
@@ -235,3 +238,4 @@ const ComunicadosPage: React.FC<ComunicadosPageProps> = ({ comunicados, onSave, 
 };
 
 export default ComunicadosPage;
+

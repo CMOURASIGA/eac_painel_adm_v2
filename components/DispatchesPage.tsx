@@ -1,4 +1,4 @@
-
+﻿
 import React, { useEffect, useState } from 'react';
 import { Dispatch, Log, LogStatus } from '../types';
 import Drawer from './Drawer';
@@ -13,6 +13,48 @@ interface DispatchesPageProps {
   operator: string;
   hasEventsThisWeek?: boolean;
 }
+
+const DISPATCH_MIGRATION_STATUS: Record<string, { implemented: string; pending: string; newRule?: string }> = {
+  agradecimento_inscricao: {
+    implemented: 'Fluxo legado ativo (Google Script).',
+    pending: 'Migrar regra e envio para Supabase/API nativa.',
+  },
+  confirmacao_interesse_espera: {
+    implemented: 'Fluxo legado ativo (Google Script).',
+    pending: 'Migrar emissão de link e envio para rotina nativa com auditoria única.',
+  },
+  waitlist_non_enrolled: {
+    implemented: 'Fluxo legado ativo (Google Script).',
+    pending: 'Migrar seleção de público e disparo para Supabase.',
+  },
+  confirm_nao_inscritos: {
+    implemented: 'Regra nova implementada no backend para montar público via Supabase (`vw_inscricoes_completas`).',
+    pending: 'Configurar provedor de e-mail no backend para envio nativo (hoje retorna público elegível).',
+    newRule: 'Status INSCRITO/CONFIRMADO + coalesce(email_responsavel, email) válido + deduplicação por e-mail + exclusão de SUCCESS já enviado.',
+  },
+  comunicacao_nao_participacao_eac: {
+    implemented: 'Fluxo legado ativo (Google Script).',
+    pending: 'Migrar para regras nativas com base relacional.',
+  },
+  comunicado_99_cadastro: {
+    implemented: 'Regra nova implementada no backend para montar público via Supabase (`vw_cadastro_oficial`), carregar template dinâmico do ID 99 e enviar via SMTP.',
+    pending: 'Opcional: criar trava temporal de reenvio por janela (hoje bloqueia por histórico SUCCESS).',
+    newRule: 'Email válido em `vw_cadastro_oficial` + deduplicação por e-mail + exclusão de SUCCESS já enviado + conteúdo dinâmico da tabela de comunicados (ID 99).',
+  },
+  aniversariantes_dia: {
+    implemented: 'Regra nova implementada no backend para montar público via Supabase (`vw_cadastro_oficial`) e enviar via SMTP.',
+    pending: 'Opcional: persistir status anual por pessoa em coluna dedicada (hoje usa histórico de `disparo_destinatarios`).',
+    newRule: 'Nascimento (dia/mês) igual a hoje + email válido + deduplicação por email + bloqueio de reenvio no mesmo ano para SUCCESS.',
+  },
+  emergencia_nov2025: {
+    implemented: 'Fluxo legado ativo (Google Script) com parâmetros na UI.',
+    pending: 'Migrar disparo paramétrico para rotina nativa com origem única Supabase.',
+  },
+  eventos: {
+    implemented: 'Fluxo legado ativo (Google Script).',
+    pending: 'Migrar montagem da agenda e envio semanal para backend nativo.',
+  },
+};
 
 const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, onClearStatus, operator, hasEventsThisWeek = false }) => {
   const EMERGENCY_MESSAGE_STORAGE_KEY = 'eac_dispatch_emergency_message';
@@ -240,6 +282,23 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
               <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Descrição Detalhada</h4>
               <MarkdownViewer content={selectedDispatch.detailedDescription} />
             </section>
+
+            <section className="bg-amber-50/70 p-6 rounded-[2rem] border border-amber-200">
+              <h4 className="text-[10px] font-black text-amber-800 uppercase tracking-[0.2em] mb-4">Status de Migração</h4>
+              {(() => {
+                const info = DISPATCH_MIGRATION_STATUS[selectedDispatch.type] || {
+                  implemented: 'Mapeamento de migração ainda não documentado.',
+                  pending: 'Definir regra e implementação na arquitetura nova.',
+                };
+                return (
+                  <div className="space-y-3 text-sm text-slate-700">
+                    <p><strong>Implementado:</strong> {info.implemented}</p>
+                    <p><strong>Pendente:</strong> {info.pending}</p>
+                    {info.newRule && <p><strong>Regra (novo sistema):</strong> {info.newRule}</p>}
+                  </div>
+                );
+              })()}
+            </section>
             
             {/* NOVO: Prévia do E-mail (Simulador de Moldura EAC) */}
             {activePreviewHtml && (
@@ -400,3 +459,5 @@ const DispatchesPage: React.FC<DispatchesPageProps> = ({ dispatches, onExecute, 
 };
 
 export default DispatchesPage;
+
+

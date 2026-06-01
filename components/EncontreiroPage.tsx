@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { EncontreiroRecord, User } from '../types.ts';
 import { showAppConfirm } from '../utils/appDialog.ts';
 import PersonCard from './PersonCard.tsx';
-import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
+import { toCleanString } from '../utils/textEncoding.ts';
+import DataOriginAudit from './DataOriginAudit.tsx';
+import { encontreirosService } from '../services/encontreirosService.ts';
 
 interface EncontreiroPageProps {
   user: User;
@@ -90,29 +92,12 @@ const FIELD_DEFS: Array<{ key: keyof EncontreiroFormData; label: string; multili
   { key: 'dicaPosEncontro', label: 'Dica para pos-encontro', multiline: true },
   { key: 'classificacao', label: 'Classificacao' },
 ];
-
-async function callApiProxy(action: string, googleWebAppUrl: string, payload: any = {}) {
-  const response = await fetch('/api/comunicados', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, data: payload, googleWebAppUrl })
-  });
-  const raw = await response.text();
-  if (!raw) {
-    return { success: false, error: `Resposta vazia da API (HTTP ${response.status}).` };
-  }
-  try {
-    const parsed = sanitizeTextDeep(JSON.parse(raw));
-    if (!response.ok) return { success: false, ...parsed };
-    return parsed;
-  } catch (err: any) {
-    return {
-      success: false,
-      error: `Resposta inválida da API (/api/comunicados): ${err?.message || 'JSON malformado.'}`,
-      sample: raw.slice(0, 300)
-    };
-  }
-}
+const REQUIRED_FIELDS = new Set<keyof EncontreiroFormData>(['nomeCompleto', 'celularWhatsapp', 'bairro']);
+const SENSITIVE_FIELDS = new Set<keyof EncontreiroFormData>([
+  'possuiAlergia',
+  'tomaRemedio',
+  'alimentacaoEspecial',
+]);
 
 const toClean = (value: any) => toCleanString(value);
 
@@ -261,6 +246,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
   const [bairroFilter, setBairroFilter] = useState('');
   const [frequentaMissasFilter, setFrequentaMissasFilter] = useState('');
   const [participaMovimentoFilter, setParticipaMovimentoFilter] = useState('');
+  const [classificacaoFilter, setClassificacaoFilter] = useState('');
   const [dataInicioFilter, setDataInicioFilter] = useState('');
   const [dataFimFilter, setDataFimFilter] = useState('');
   // Filtros aplicados: só mudam ao clicar em "Pesquisar".
@@ -269,6 +255,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
     bairroFilter: '',
     frequentaMissasFilter: '',
     participaMovimentoFilter: '',
+    classificacaoFilter: '',
     dataInicioFilter: '',
     dataFimFilter: '',
   });
@@ -280,11 +267,14 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
 
   const [selectedRecord, setSelectedRecord] = useState<EncontreiroRecord | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [equipes, setEquipes] = useState<Array<{ id: string; nome: string }>>([]);
+  const [selectedEquipeIds, setSelectedEquipeIds] = useState<string[]>([]);
 
   const modulePerm = user.permissions?.modulePermissions?.encontreiros;
   const canCreate = user.role === 'ADMIN' || Boolean(modulePerm?.canCreate ?? user.permissions?.canCreate);
   const canEdit = user.role === 'ADMIN' || Boolean(modulePerm?.canEdit ?? user.permissions?.canEdit);
   const canDelete = user.role === 'ADMIN' || Boolean(modulePerm?.canDelete ?? user.permissions?.canDelete);
+  const canViewSensitiveData = user.role === 'ADMIN' || Boolean((modulePerm as any)?.canViewSensitive);
 
   const uniqueBairros = useMemo(() => {
     return [...new Set((records || []).map(r => toClean(r.bairro)).filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -293,7 +283,13 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
   const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const result = await callApiProxy('GET_ENCONTREIROS', googleWebAppUrl);
+      const r = await encontreirosService.listar(
+        { classificacao: appliedFilters.classificacaoFilter || '', includeSensitive: canViewSensitiveData },
+        { googleWebAppUrl }
+      );
+      const result: any = r.success
+        ? { success: true, encontreiros: r.data.items, indicators: r.data.indicators, bairroStats: r.data.bairroStats }
+        : { success: false, error: r.error };
       if (!result?.success) throw new Error(result?.error || 'Falha ao carregar cadastro de encontreiros.');
 
       setRecords(Array.isArray(result.encontreiros) ? result.encontreiros : []);
@@ -307,11 +303,30 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
     } finally {
       setIsLoading(false);
     }
+  }, [googleWebAppUrl, appliedFilters.classificacaoFilter, canViewSensitiveData]);
+
+  const fetchEquipes = useCallback(async () => {
+    try {
+      const r = await encontreirosService.listarEquipes({ googleWebAppUrl });
+      if (!r.success) return;
+      const list = Array.isArray(r.data?.equipes) ? r.data.equipes : [];
+      setEquipes(
+        list
+          .map((e: any) => ({ id: toClean(e.id), nome: toClean(e.nome) || toClean(e.descricao) || '-' }))
+          .filter((e: any) => e.id)
+      );
+    } catch {
+      // sem bloqueio da tela
+    }
   }, [googleWebAppUrl]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    fetchEquipes();
+  }, [fetchEquipes]);
 
   const filteredRecords = useMemo(() => {
     let list = [...records];
@@ -345,6 +360,10 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
 
     if (appliedFilters.participaMovimentoFilter) {
       list = list.filter(r => toClean(r.participaMovimento).toLowerCase() === appliedFilters.participaMovimentoFilter.toLowerCase());
+    }
+
+    if (appliedFilters.classificacaoFilter) {
+      list = list.filter(r => toClean(r.classificacao).toLowerCase() === appliedFilters.classificacaoFilter.toLowerCase());
     }
 
     const inicio = parseDateInputBoundary(appliedFilters.dataInicioFilter, false);
@@ -383,6 +402,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
       bairroFilter,
       frequentaMissasFilter,
       participaMovimentoFilter,
+      classificacaoFilter,
       dataInicioFilter,
       dataFimFilter,
     });
@@ -398,6 +418,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
     setBairroFilter('');
     setFrequentaMissasFilter('');
     setParticipaMovimentoFilter('');
+    setClassificacaoFilter('');
     setDataInicioFilter('');
     setDataFimFilter('');
     setAppliedFilters({
@@ -405,6 +426,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
       bairroFilter: '',
       frequentaMissasFilter: '',
       participaMovimentoFilter: '',
+      classificacaoFilter: '',
       dataInicioFilter: '',
       dataFimFilter: '',
     });
@@ -473,9 +495,9 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
         toClean(r.jaTrabalhouEac),
         toClean(r.jaCoordenouEquipe),
         toClean(r.paisFizeramEncontro),
-        toClean(r.possuiAlergia),
-        toClean(r.tomaRemedio),
-        toClean(r.alimentacaoEspecial),
+        canViewSensitiveData ? toClean(r.possuiAlergia) : 'SEM PERMISSAO',
+        canViewSensitiveData ? toClean(r.tomaRemedio) : 'SEM PERMISSAO',
+        canViewSensitiveData ? toClean(r.alimentacaoEspecial) : 'SEM PERMISSAO',
         toClean(r.sugestaoUltimoEncontro),
         toClean(r.dicaPosEncontro),
         toClean(r.classificacao),
@@ -507,6 +529,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
 
   const openNewForm = () => {
     setFormData(EMPTY_FORM);
+    setSelectedEquipeIds([]);
     setShowForm(true);
   };
 
@@ -537,12 +560,27 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
       dicaPosEncontro: toClean(record.dicaPosEncontro),
       classificacao: toClean(record.classificacao),
     });
+    setSelectedEquipeIds([]);
     setShowForm(true);
+    void (async () => {
+      const r = await encontreirosService.listarEquipesDoEncontreiro({ encontreiroId: record.id }, { googleWebAppUrl });
+      if (r.success) {
+        setSelectedEquipeIds(Array.isArray(r.data?.equipeIds) ? r.data.equipeIds : []);
+      }
+    })();
   };
 
   const handleSave = async () => {
     if (!toClean(formData.nomeCompleto)) {
-      alert('Nome completo é obrigatório.');
+      alert('Nome completo e obrigatorio.');
+      return;
+    }
+    if (!toClean(formData.celularWhatsapp)) {
+      alert('Celular / WhatsApp e obrigatorio.');
+      return;
+    }
+    if (!toClean(formData.bairro)) {
+      alert('Bairro e obrigatorio.');
       return;
     }
 
@@ -553,8 +591,18 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
 
     setIsSaving(true);
     try {
-      const result = await callApiProxy('SAVE_ENCONTREIRO', googleWebAppUrl, payload);
-      if (!result?.success) throw new Error(result?.error || 'Não foi possível salvar.');
+      const apiRes = await encontreirosService.salvar(payload, { googleWebAppUrl });
+      if (!apiRes.success) throw new Error(apiRes.error || 'Nao foi possivel salvar.');
+      const savedId = toClean((apiRes.data as any)?.data?.id) || toClean(formData.id);
+      if (savedId) {
+        const vinculoRes = await encontreirosService.salvarEquipesDoEncontreiro(
+          { encontreiroId: savedId, equipeIds: selectedEquipeIds },
+          { googleWebAppUrl }
+        );
+        if (!vinculoRes.success) {
+          throw new Error(vinculoRes.error || 'Nao foi possivel salvar vinculos de equipe.');
+        }
+      }
       setShowForm(false);
       await fetchData();
     } catch (err: any) {
@@ -577,8 +625,8 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
 
     setIsLoading(true);
     try {
-      const result = await callApiProxy('DELETE_ENCONTREIRO', googleWebAppUrl, { id: record.id });
-      if (!result?.success) throw new Error(result?.error || 'Não foi possível excluir.');
+      const apiRes = await encontreirosService.excluir({ id: record.id }, { googleWebAppUrl });
+      if (!apiRes.success) throw new Error(apiRes.error || 'Nao foi possivel excluir.');
       await fetchData();
     } catch (err: any) {
       alert(err?.message || 'Erro ao excluir cadastro.');
@@ -589,8 +637,9 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
   const handleOpenWhatsapp = async (record: EncontreiroRecord) => {
     setNormalizingId(record.id);
     try {
-      const result = await callApiProxy('NORMALIZE_ENCONTREIRO_WHATSAPP', googleWebAppUrl, { id: record.id });
-      if (!result?.success) throw new Error(result?.error || 'Não foi possível normalizar o WhatsApp.');
+      const apiRes = await encontreirosService.normalizarWhatsapp({ id: record.id }, { googleWebAppUrl });
+      const result: any = apiRes.success ? { success: true, ...(apiRes.data as any) } : { success: false, error: apiRes.error };
+      if (!result?.success) throw new Error(result?.error || 'Nao foi possivel normalizar o WhatsApp.');
 
       const link = result?.whatsappLink;
       const celularWhatsapp = result?.celularWhatsapp;
@@ -602,7 +651,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
       if (link) {
         window.open(link, '_blank', 'noopener,noreferrer');
       } else {
-        alert('WhatsApp normalizado, mas o link não foi gerado.');
+        alert('WhatsApp normalizado, mas o link nao foi gerado.');
       }
     } catch (err: any) {
       alert(err?.message || 'Erro ao abrir WhatsApp.');
@@ -620,7 +669,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
       <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
           <h2 className="text-3xl md:text-4xl font-black tracking-tight text-slate-900 leading-none">Cadastro de Encontreiros</h2>
-          <p className="text-slate-500 font-bold mt-2 text-sm">Gestão completa de encontreiros com indicadores e filtros.</p>
+          <p className="text-slate-500 font-bold mt-2 text-sm">Gestao completa de encontreiros com indicadores e filtros.</p>
         </div>
         <div className="flex flex-wrap gap-3 w-full md:w-auto">
           {canCreate && (
@@ -756,7 +805,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
                 >
                   <option value="">Todos</option>
                   <option value="Sim">Sim</option>
-                  <option value="Não">Não</option>
+                  <option value="Nao">Nao</option>
                   <option value="Nao">Nao</option>
                 </select>
               </div>
@@ -770,13 +819,27 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
                 >
                   <option value="">Todos</option>
                   <option value="Sim">Sim</option>
-                  <option value="Não">Não</option>
+                  <option value="Nao">Nao</option>
                   <option value="Nao">Nao</option>
                 </select>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Classificacao</label>
+                <select
+                  className="w-full px-4 py-3 mt-1 rounded-2xl border-2 border-slate-100 bg-slate-50 font-bold text-slate-800 outline-none focus:border-blue-500"
+                  value={classificacaoFilter}
+                  onChange={(e) => setClassificacaoFilter(e.target.value)}
+                >
+                  <option value="">Todas</option>
+                  <option value="Adulto">Adulto</option>
+                  <option value="Adolescente">Adolescente</option>
+                  <option value="Outro">Outro</option>
+                </select>
+              </div>
+
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Data inicio</label>
                 <input
@@ -836,7 +899,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
                   ageLabel={formatAgeLabel(record)}
                   ageClassName={getAgeBadgeClass(record)}
                   nome={toClean(record.nomeCompleto) || '-'}
-                  bairro={toClean(record.bairro) || 'Bairro não informado'}
+                  bairro={toClean(record.bairro) || 'Bairro nao informado'}
                   cadastroText={`Cadastro: ${formatDate(record.timestamp)}`}
                   badges={[
                     {
@@ -912,7 +975,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
         {filteredRecords.length > 0 && (
           <div className="px-4 md:px-6 py-4 border-t bg-slate-50 flex items-center justify-between gap-3">
             <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">
-              Página {safePage} de {totalPages}
+              Pagina {safePage} de {totalPages}
             </p>
             <div className="flex items-center gap-2">
               <button
@@ -949,7 +1012,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-[10px] font-black uppercase tracking-widest text-slate-600 disabled:opacity-50"
               >
-                Próximo
+                Proximo
               </button>
             </div>
           </div>
@@ -974,10 +1037,16 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
             </div>
 
             <div className="p-6 md:p-8 overflow-y-auto max-h-[calc(92vh-170px)]">
+              <div className="mb-4 p-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-xs font-bold">
+                Campos obrigatorios marcados com <span className="text-rose-600">*</span>.
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {FIELD_DEFS.map((field) => (
+                {FIELD_DEFS.filter((field) => canViewSensitiveData || !SENSITIVE_FIELDS.has(field.key)).map((field) => (
                   <div key={String(field.key)} className={field.multiline ? 'md:col-span-2' : ''}>
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{field.label}</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                      {field.label}
+                      {REQUIRED_FIELDS.has(field.key) ? <span className="text-rose-600 ml-1">*</span> : null}
+                    </label>
                     {field.multiline ? (
                       <textarea
                         rows={3}
@@ -989,11 +1058,41 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
                       <input
                         className="w-full px-4 py-3 mt-1 rounded-2xl border-2 border-slate-100 bg-slate-50 font-bold text-slate-800 outline-none focus:border-blue-500"
                         value={formData[field.key] || ''}
+                        placeholder={REQUIRED_FIELDS.has(field.key) ? 'Obrigatorio' : 'Opcional'}
                         onChange={(e) => setFormData(prev => ({ ...prev, [field.key]: e.target.value }))}
                       />
                     )}
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-6">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Equipes vinculadas</label>
+                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {equipes.length === 0 ? (
+                    <p className="text-xs font-bold text-slate-500">Nenhuma equipe cadastrada.</p>
+                  ) : (
+                    equipes.map((eq) => {
+                      const checked = selectedEquipeIds.includes(eq.id);
+                      return (
+                        <label key={eq.id} className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedEquipeIds((prev) => Array.from(new Set([...prev, eq.id])));
+                              } else {
+                                setSelectedEquipeIds((prev) => prev.filter((id) => id !== eq.id));
+                              }
+                            }}
+                          />
+                          <span className="text-sm font-bold text-slate-700">{eq.nome}</span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
 
@@ -1023,7 +1122,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
           <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-hidden">
             <div className="px-6 md:px-8 py-5 border-b flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Visualização completa</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Visualizacao completa</p>
                 <h3 className="text-xl md:text-2xl font-black text-slate-900">{toClean(selectedRecord.nomeCompleto) || 'Cadastro de encontreiro'}</h3>
               </div>
               <button
@@ -1036,8 +1135,13 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
             </div>
 
             <div className="p-6 md:p-8 overflow-y-auto max-h-[calc(92vh-120px)]">
+              {!canViewSensitiveData && (
+                <div className="mb-4 p-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-xs font-bold">
+                  Dados medicos/alimentares ocultos para o seu perfil.
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {FIELD_DEFS.map((field) => {
+                {FIELD_DEFS.filter((field) => canViewSensitiveData || !SENSITIVE_FIELDS.has(field.key)).map((field) => {
                   const value = toClean((selectedRecord as any)[field.key]);
                   return (
                     <div key={String(field.key)} className="p-4 rounded-2xl border border-slate-100 bg-slate-50">
@@ -1056,6 +1160,10 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">WhatsApp normalizado</p>
                   <p className="mt-2 text-sm font-bold text-slate-700">{toClean(selectedRecord.whatsappNormalizado) || '-'}</p>
                 </div>
+
+                <div className="md:col-span-2">
+                  <DataOriginAudit record={selectedRecord} />
+                </div>
               </div>
             </div>
           </div>
@@ -1066,3 +1174,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
 };
 
 export default EncontreiroPage;
+
+
+
+

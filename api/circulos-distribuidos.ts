@@ -1,8 +1,12 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
+﻿import type { NextApiRequest, NextApiResponse } from 'next';
+
+function sendError(res: NextApiResponse, status: number, error: string, extra?: Record<string, any>) {
+  return res.status(status).json({ success: false, error, message: error, ...(extra || {}) });
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') {
-    return res.status(405).json({ success: false, error: 'Método não permitido.' });
+    return sendError(res, 405, 'Metodo nao permitido.');
   }
 
   try {
@@ -17,28 +21,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       body: JSON.stringify({
         action: 'GET_CIRCULOS_DISTRIBUIDOS',
         data: {},
-        ...(googleWebAppUrl ? { googleWebAppUrl } : {})
-      })
+        ...(googleWebAppUrl ? { googleWebAppUrl } : {}),
+      }),
     });
 
     const text = await proxyResponse.text();
     let payload: any = {};
     try {
       payload = text ? JSON.parse(text) : {};
-    } catch (e) {
-      return res.status(502).json({
-        success: false,
-        error: 'Resposta inválida do backend.',
-        sample: (text || '').slice(0, 300)
-      });
+    } catch {
+      return sendError(res, 502, 'Resposta invalida do backend.', { sample: (text || '').slice(0, 300) });
     }
 
     res.setHeader('X-EAC-Endpoint', 'circulos-distribuidos');
     return res.status(proxyResponse.status).json(payload);
   } catch (error: any) {
-    return res.status(500).json({
-      success: false,
-      error: error?.message || 'Erro interno.'
-    });
+    return sendError(res, 500, error?.message || 'Erro interno.');
   }
 }

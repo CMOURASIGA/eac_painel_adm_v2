@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, User, Dispatch, Log, Comunicado, LogStatus, SystemSettings, CalendarEvent } from './types.ts';
 import { INITIAL_DISPATCHES } from './constants.tsx';
 import LoginPage from './components/LoginPage.tsx';
@@ -13,19 +13,26 @@ import CalendarPage from './components/CalendarPage.tsx';
 import UserManagementPage from './components/UserManagementPage.tsx';
 import MembersPage from './components/MembersPage.tsx';
 import InscricoesPrioritariasPage from './components/InscricoesPrioritariasPage.tsx';
+import InscricoesReviewPage from './components/InscricoesReviewPage.tsx';
 import CirculosDistribuidosPage from './components/CirculosDistribuidosPage.tsx';
 import EncontreiroPage from './components/EncontreiroPage.tsx';
 import PresencePage from './components/PresencePage.tsx';
 import PublicInterestForm from './components/PublicInterestForm.tsx';
+import PublicInscricaoForm from './components/PublicInscricaoForm.tsx';
+import PublicEncontreiroForm from './components/PublicEncontreiroForm.tsx';
+import PublicPresenceForm from './components/PublicPresenceForm.tsx';
 import Toast from './components/Toast.tsx';
 import AppDialog from './components/AppDialog.tsx';
 import { AppDialogRequest, installWindowAlertBridge, registerAppDialogHandler } from './utils/appDialog.ts';
 import { sanitizeTextDeep } from './utils/textEncoding.ts';
+import { getJson, postComunicadosAction } from './services/eacApiClient.ts';
+import { NAVIGATION_ROADMAP, isViewEnabledInRoadmap } from './utils/navigationRoadmap.ts';
 
 const viewPathMap: Partial<Record<View, string>> = {
   members: '/cadastro',
   presence: '/cadastro/presenca',
   inscricoes_prioritarias: '/prioritarios',
+  inscricoes_review: '/inscricoes/revisao',
   inscricoes_prioritarias_circulos: '/distribuicao-circulos',
   encontreiros: '/encontreiros',
 };
@@ -34,6 +41,7 @@ const pathViewMap: Record<string, View> = {
   '/cadastro': 'members',
   '/cadastro/presenca': 'presence',
   '/prioritarios': 'inscricoes_prioritarias',
+  '/inscricoes/revisao': 'inscricoes_review',
   '/distribuicao-circulos': 'inscricoes_prioritarias_circulos',
   '/encontreiros': 'encontreiros',
 };
@@ -54,6 +62,12 @@ const App: React.FC = () => {
     preConfirmadasCount: 0,
     interesseCount: 0,
     interesseNoCount: 0,
+  });
+  const [dashboardInsights, setDashboardInsights] = useState({
+    encontreirosCount: 0,
+    triagemStatusCounts: { inscrito: 0, priorizado: 0, confirmado: 0 },
+    ageDistributionByStatus: { INSCRITO: {}, PRIORIZADO: {}, CONFIRMADO: {} } as Record<string, Record<string, number>>,
+    monthlyInscricoesCurrentYear: [] as Array<{ mes: string; mesIndex: number; total: number }>,
   });
   const [lastSync, setLastSync] = useState<string>('');
   
@@ -77,7 +91,7 @@ const App: React.FC = () => {
   const [dialogQueue, setDialogQueue] = useState<PendingDialog[]>([]);
   const [activeDialog, setActiveDialog] = useState<PendingDialog | null>(null);
 
-  const [queryParams, setQueryParams] = useState({ mode: '', email: '', name: '' });
+  const [queryParams, setQueryParams] = useState({ mode: '', email: '', name: '', token: '' });
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -86,6 +100,7 @@ const App: React.FC = () => {
       mode: params.get('mode') || '',
       email: params.get('email') || '',
       name: params.get('name') || '',
+      token: params.get('token') || '',
     });
 
     const pathView = pathViewMap[pathname];
@@ -96,7 +111,8 @@ const App: React.FC = () => {
 
     // Se houver view na URL, aplica como view inicial (ex: ?view=members)
     const urlView = params.get('view') as View | null;
-    const allowedViews: View[] = ['dashboard','members','inscricoes_prioritarias','inscricoes_prioritarias_circulos','encontreiros','presence','dispatches','calendar','comunicados','logs','users','settings','help'];
+    const enabledViews = NAVIGATION_ROADMAP.filter((item) => item.enabled).map((item) => item.view);
+    const allowedViews: View[] = Array.from(new Set<View>([...enabledViews, 'inscricoes_prioritarias_circulos']));
     if (urlView && allowedViews.includes(urlView)) {
       setCurrentView(urlView);
     }
@@ -138,38 +154,60 @@ const App: React.FC = () => {
     return installWindowAlertBridge();
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const w = window as any;
+    if (w.__eacFetchWrapped) return;
+
+    const originalFetch = window.fetch.bind(window);
+    w.__eacFetchWrapped = true;
+    w.__eacFetchOriginal = originalFetch;
+
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      try {
+        const url = typeof input === 'string'
+          ? input
+          : (input instanceof URL ? input.toString() : String((input as Request).url || ''));
+
+        const isApiCall =
+          url.startsWith('/api/') ||
+          url.includes('/api/');
+
+        if (!isApiCall) {
+          return originalFetch(input, init);
+        }
+
+        const savedUserRaw = window.localStorage.getItem('eac_user');
+        const savedUser = savedUserRaw ? JSON.parse(savedUserRaw) : null;
+        const email = String(savedUser?.email || '').trim().toLowerCase();
+
+        const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
+        if (email && !headers.has('x-eac-user-email')) {
+          headers.set('x-eac-user-email', email);
+        }
+
+        return originalFetch(input, { ...(init || {}), headers });
+      } catch {
+        return originalFetch(input, init);
+      }
+    };
+  }, []);
+
   const callApiProxy = useCallback(async (action: string, payload: any) => {
     const localUrl = effectiveGoogleWebAppUrl;
-    try {
-      const response = await fetch('/api/comunicados', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, data: payload, googleWebAppUrl: localUrl })
-      });
-      const raw = await response.text();
-      if (!raw) {
-        return { success: false, error: `Resposta vazia da API (HTTP ${response.status}).` };
-      }
-      try {
-        const parsed = sanitizeTextDeep(JSON.parse(raw));
-        if (!response.ok) return { success: false, ...parsed };
-        return {
-          ...parsed,
-          success: Boolean(parsed?.success ?? parsed?.ok ?? false),
-        };
-      } catch (err: any) {
-        return {
-          success: false,
-          error: `Resposta inválida da API (/api/comunicados): ${err?.message || 'JSON malformado.'}`,
-          sample: raw.slice(0, 300)
-        };
-      }
-    } catch (err: any) {
-      return { success: false, error: err.message };
+    const r = await postComunicadosAction<any>(action, payload, { googleWebAppUrl: localUrl });
+    if (!r.success) {
+      return { success: false, error: r.error, sample: r.sample, status: r.status };
     }
+    return { ...(r.data as any), success: true };
   }, [effectiveGoogleWebAppUrl]);
 
   const handleNavigate = useCallback((view: View) => {
+    if (!isViewEnabledInRoadmap(view) && view !== 'inscricoes_prioritarias_circulos') {
+      showToast('Este módulo ainda não foi liberado no menu desta fase.', 'info');
+      return;
+    }
+
     setCurrentView(view);
     if (typeof window === 'undefined') return;
 
@@ -191,19 +229,45 @@ const App: React.FC = () => {
     syncInProgress.current = true;
     setIsLoadingSheet(true);
     try {
-      const [comRes, calRes, logRes, memRes, nonRes] = await Promise.all([
+      const [syncRes, comRes, calRes, logRes, memRes, nonRes, dashboardSummaryRes] = await Promise.all([
+        callApiProxy('GET_SYNC_STATUS', {}),
         callApiProxy('GET_COMUNICADOS', {}),
         callApiProxy('GET_EVENTS', {}),
-        callApiProxy('GET_LOGS', {}),
+        callApiProxy('GET_OPERATIONAL_LOGS', {}),
         callApiProxy('GET_MEMBERS', {}),
-        callApiProxy('GET_NON_ENROLLED', {})
+        callApiProxy('GET_NON_ENROLLED', {}),
+        getJson<any>('/api/dashboard/resumo')
       ]);
       
       if (comRes.success) setComunicados(comRes.comunicados || []);
       if (calRes.success) setCalendarEvents(calRes.events || []);
       if (logRes.success) setLogs(logRes.logs || []);
-      if (memRes.success) setMembersCount(memRes.members?.length || 0);
-      if (nonRes.success) {
+      if (dashboardSummaryRes.success) {
+        const summary = (dashboardSummaryRes.data as any)?.summary || {};
+        setMembersCount(Number(summary.membersCount) || 0);
+        setNonEnrolledCount(Number(summary.nonEnrolledCount) || 0);
+        setNonEnrolledIndicators({
+          preConfirmadasCount: Number(summary?.nonEnrolledIndicators?.preConfirmadasCount) || 0,
+          interesseCount: Number(summary?.nonEnrolledIndicators?.interesseCount) || 0,
+          interesseNoCount: Number(summary?.nonEnrolledIndicators?.interesseNoCount) || 0,
+        });
+        setDashboardInsights({
+          encontreirosCount: Number(summary?.encontreirosCount) || 0,
+          triagemStatusCounts: {
+            inscrito: Number(summary?.triagemStatusCounts?.inscrito) || 0,
+            priorizado: Number(summary?.triagemStatusCounts?.priorizado) || 0,
+            confirmado: Number(summary?.triagemStatusCounts?.confirmado) || 0,
+          },
+          ageDistributionByStatus: (summary?.ageDistributionByStatus && typeof summary.ageDistributionByStatus === 'object')
+            ? summary.ageDistributionByStatus
+            : { INSCRITO: {}, PRIORIZADO: {}, CONFIRMADO: {} },
+          monthlyInscricoesCurrentYear: Array.isArray(summary?.monthlyInscricoesCurrentYear) ? summary.monthlyInscricoesCurrentYear : [],
+        });
+      } else {
+        if (memRes.success) setMembersCount(memRes.members?.length || 0);
+      }
+
+      if (nonRes.success && !dashboardSummaryRes.success) {
         const list = Array.isArray(nonRes.nonEnrolled) ? nonRes.nonEnrolled : [];
         setNonEnrolledCount(list.length);
 
@@ -217,7 +281,7 @@ const App: React.FC = () => {
           return '';
         };
         const isYes = (v: any) => ['sim', 's', 'yes', 'y', '1', 'true', 'verdadeiro', 'x'].includes(toClean(v));
-        const isNo = (v: any) => ['não', 'nao', 'n', 'no', '0', 'false', 'falso'].includes(toClean(v));
+        const isNo = (v: any) => ['nÃ£o', 'nao', 'n', 'no', '0', 'false', 'falso'].includes(toClean(v));
         const isSimStrict = (v: any) => toClean(v) === 'sim';
 
         const computedInteresseCount = list.filter((ne: any) =>
@@ -253,9 +317,18 @@ const App: React.FC = () => {
         });
       }
       
-      setLastSync(new Date().toLocaleTimeString('pt-BR'));
+      const rawLastUpdate = (syncRes && syncRes.success) ? (syncRes.lastUpdate || syncRes.last_update || '') : '';
+      if (rawLastUpdate) {
+        const dt = new Date(String(rawLastUpdate));
+        setLastSync(!isNaN(dt.getTime())
+          ? dt.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+          : String(rawLastUpdate)
+        );
+      } else {
+        setLastSync(new Date().toLocaleTimeString('pt-BR'));
+      }
     } catch (e: any) { 
-      showToast('Sincroniza��o offline.', 'error');
+      showToast('Sincronizaï¿½ï¿½o offline.', 'error');
     } finally {
       setIsLoadingSheet(false);
       syncInProgress.current = false;
@@ -268,18 +341,17 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (user && effectiveGoogleWebAppUrl) fetchSpreadsheetData();
-  }, [user, effectiveGoogleWebAppUrl, fetchSpreadsheetData]);
+    if (user) fetchSpreadsheetData();
+  }, [user, fetchSpreadsheetData]);
 
-  // Sempre que o usuário navegar para uma tela operacional, força nova sincronização
+  // Sempre que o usuÃ¡rio navegar para uma tela operacional, forÃ§a nova sincronizaÃ§Ã£o
   useEffect(() => {
     if (!user) return;
-    if (!effectiveGoogleWebAppUrl) return;
     const viewsThatNeedSync: View[] = ['dashboard', 'members', 'inscricoes_prioritarias', 'inscricoes_prioritarias_circulos', 'encontreiros', 'presence', 'dispatches', 'calendar', 'comunicados', 'logs'];
     if (viewsThatNeedSync.includes(currentView)) {
       fetchSpreadsheetData();
     }
-  }, [currentView, user, effectiveGoogleWebAppUrl, fetchSpreadsheetData]);
+  }, [currentView, user, fetchSpreadsheetData]);
 
   useEffect(() => {
     if (!user || user.role === 'ADMIN') return;
@@ -287,49 +359,163 @@ const App: React.FC = () => {
     const isPrioritariasView = currentView === 'inscricoes_prioritarias';
     if (isPrioritariasView && !allowed.includes('inscricoes_prioritarias')) {
       setCurrentView('dashboard');
-      showToast('Seu usuário não possui acesso ao módulo Inscrições Prioritárias.', 'error');
+      showToast('Seu usuÃ¡rio nÃ£o possui acesso ao mÃ³dulo InscriÃ§Ãµes PrioritÃ¡rias.', 'error');
       return;
     }
     if (currentView === 'inscricoes_prioritarias_circulos' && !allowed.includes('inscricoes_prioritarias_circulos')) {
       setCurrentView('dashboard');
-      showToast('Seu usuário não possui acesso à subtela de Distribuição de Círculos.', 'error');
+      showToast('Seu usuÃ¡rio nÃ£o possui acesso Ã  subtela de DistribuiÃ§Ã£o de CÃ­rculos.', 'error');
+      return;
+    }
+    if (currentView === 'inscricoes_review' && !allowed.includes('inscricoes_review')) {
+      setCurrentView('dashboard');
+      showToast('Seu usuÃ¡rio nÃ£o possui acesso ao mÃ³dulo RevisÃ£o de InscriÃ§Ãµes.', 'error');
       return;
     }
     if (currentView === 'members' && !allowed.includes('members')) {
       setCurrentView('dashboard');
-      showToast('Seu usuário não possui acesso ao módulo Cadastro de Encontrista.', 'error');
+      showToast('Seu usuÃ¡rio nÃ£o possui acesso ao mÃ³dulo Cadastro de Encontrista.', 'error');
       return;
     }
     if (currentView === 'presence' && !allowed.includes('presence')) {
       setCurrentView('dashboard');
-      showToast('Seu usuário não possui acesso ao módulo Controle de Presença.', 'error');
+      showToast('Seu usuÃ¡rio nÃ£o possui acesso ao mÃ³dulo Controle de PresenÃ§a.', 'error');
       return;
     }
     if (currentView === 'encontreiros' && !allowed.includes('encontreiros')) {
       setCurrentView('dashboard');
-      showToast('Seu usuário não possui acesso ao módulo Cadastro de Encontreiro.', 'error');
+      showToast('Seu usuÃ¡rio nÃ£o possui acesso ao mÃ³dulo Cadastro de Encontreiro.', 'error');
     }
   }, [currentView, user]);
 
   const handleExecuteDispatch = async (d: Dispatch, payload: any = {}) => {
+    const getWeekId = (date: Date) => {
+      const dt = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      const day = dt.getUTCDay() || 7;
+      dt.setUTCDate(dt.getUTCDate() + 4 - day);
+      const yearStart = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil((((dt.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+      return `${dt.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+    };
+
+    if (d.type === 'aniversariantes_dia') {
+      const currentYear = new Date().getFullYear();
+      const alreadyExecutedThisYear = (Array.isArray(logs) ? logs : []).some((entry: any) => {
+        const dispatchId = String((entry as any)?.dispatchId || (entry as any)?.dispatch_id || '');
+        const status = String((entry as any)?.status || '').toUpperCase();
+        const tsRaw = String((entry as any)?.timestamp || '');
+        if (dispatchId !== d.id) return false;
+        if (status !== 'SUCCESS') return false;
+        const ts = new Date(tsRaw);
+        if (Number.isNaN(ts.getTime())) return false;
+        return ts.getFullYear() === currentYear;
+      });
+
+      if (alreadyExecutedThisYear) {
+        showToast(`Disparo de aniversariantes já executado em ${currentYear}. Reenvio anual bloqueado.`, 'info');
+        return;
+      }
+    }
+
     setIsLoadingSheet(true);
+    const startedAt = Date.now();
     let action = '';
     if (d.type === 'comunicado_99_cadastro') action = 'EXECUTE_COMUNICADO_99';
     else if (d.type === 'aniversariantes_dia') action = 'EXECUTE_ANIVERSARIANTES';
     else if (d.type === 'eventos') action = 'EXECUTE_EVENTOS';
     else if (d.type === 'waitlist_non_enrolled') action = 'EXECUTE_WAITLIST_NON_ENROLLED';
     else if (d.type === 'confirmacao_interesse_espera') action = 'EXECUTE_INTEREST_CONFIRMATION';
-    else if (d.type === 'confirm_nao_inscritos') action = 'EXECUTE_CONFIRM_NAO_INSCRITOS';
+    else if (d.type === 'confirm_nao_inscritos') action = 'EXECUTE_CONFIRM_INSCRITOS';
     else if (d.type === 'comunicacao_nao_participacao_eac') action = 'EXECUTE_COMUNICACAO_NAO_PARTICIPACAO_EAC';
     else if (d.type === 'emergencia_nov2025') action = 'EXECUTE_EMERGENCIA_NOV2025';
+    const semanaId = action === 'EXECUTE_EVENTOS' ? getWeekId(new Date()) : '';
+
+    if (action === 'EXECUTE_EVENTOS') {
+      const alreadyExecutedThisWeek = (Array.isArray(logs) ? logs : []).some((entry: any) => {
+        const dispatchId = String((entry as any)?.dispatchId || (entry as any)?.dispatch_id || '').trim();
+        const status = String((entry as any)?.status || '').toUpperCase();
+        const tsRaw = String((entry as any)?.timestamp || '');
+        if (dispatchId !== d.id) return false;
+        if (status !== 'SUCCESS') return false;
+        const ts = new Date(tsRaw);
+        if (Number.isNaN(ts.getTime())) return false;
+        return getWeekId(ts) === semanaId;
+      });
+
+      if (alreadyExecutedThisWeek) {
+        showToast(`Disparo de agenda semanal já executado na semana ${semanaId}.`, 'info');
+        return;
+      }
+    }
 
     if (action) {
       const finalPayload = { ...(payload || {}) };
+      let preselectedRecipients: any[] = [];
       if (action === 'EXECUTE_INTEREST_CONFIRMATION' && !finalPayload.appUrl && typeof window !== 'undefined') {
         finalPayload.appUrl = window.location.origin;
       }
+      if (action === 'EXECUTE_WAITLIST_NON_ENROLLED' || action === 'EXECUTE_COMUNICACAO_NAO_PARTICIPACAO_EAC') {
+        const audienceTipo = action === 'EXECUTE_WAITLIST_NON_ENROLLED' ? 'waitlist' : 'nao_participacao';
+        const audienceRes = await callApiProxy('BUILD_NON_ENROLLED_DISPATCH_AUDIENCE', { tipo: audienceTipo });
+        if (audienceRes.success) {
+          preselectedRecipients = Array.isArray(audienceRes.recipients) ? audienceRes.recipients : [];
+          finalPayload.recipients = preselectedRecipients;
+        }
+      }
 
       const r = await callApiProxy(action, finalPayload);
+      const duration = Date.now() - startedAt;
+      await callApiProxy('LOG_DISPATCH_EXECUTION', {
+        dispatchId: d.id,
+        dispatchName: d.name,
+        operator: user?.name || user?.email || 'Sistema',
+        status: r.success ? 'SUCCESS' : 'ERROR',
+        responseSummary: r.success ? (r.message || 'Disparo executado com sucesso.') : (r.error || 'Falha no disparo.'),
+        duration,
+        semanaId: semanaId || undefined,
+      });
+
+      const toRecipientItems = (result: any) => {
+        const items: Array<{ destinatario: string; status: string; detalhe?: string }> = [];
+        const pushMany = (arr: any[], status: string) => {
+          (Array.isArray(arr) ? arr : []).forEach((entry: any) => {
+            const destinatario =
+              String(entry?.destinatario || entry?.email || entry?.telefone || entry?.nome || entry || '').trim();
+            if (!destinatario) return;
+            items.push({
+              destinatario,
+              status,
+              detalhe: String(entry?.detalhe || entry?.message || '').trim(),
+            });
+          });
+        };
+        pushMany(result?.destinatarios, 'PROCESSADO');
+        pushMany(result?.enviados, 'ENVIADO');
+        pushMany(result?.errors || result?.erros, 'ERRO');
+        pushMany(result?.ignorados, 'IGNORADO');
+        return items;
+      };
+
+      const recipientItems = toRecipientItems(r);
+      const fallbackRecipientItems =
+        recipientItems.length === 0 && preselectedRecipients.length > 0
+          ? preselectedRecipients.map((entry: any) => ({
+              destinatario: String(entry?.email || entry?.telefone || entry?.nome || '').trim(),
+              status: r.success ? 'PROCESSADO' : 'ERRO',
+              detalhe: r.success ? 'Público pré-selecionado no Supabase.' : (r.error || 'Falha no disparo.'),
+            })).filter((entry: any) => entry.destinatario)
+          : [];
+      const recipientItemsFinal = recipientItems.length > 0 ? recipientItems : fallbackRecipientItems;
+      if (recipientItemsFinal.length > 0) {
+        await callApiProxy('LOG_DISPATCH_DESTINATARIOS', {
+          dispatchId: d.id,
+          dispatchName: d.name,
+          operator: user?.name || user?.email || 'Sistema',
+          itens: recipientItemsFinal,
+          semanaId: semanaId || undefined,
+        });
+      }
+
       if (r.success) { showToast(r.message, 'success'); fetchSpreadsheetData(); }
       else showToast(r.error, 'error');
     }
@@ -352,9 +538,40 @@ const App: React.FC = () => {
         <PublicInterestForm
           email={queryParams.email}
           nome={queryParams.name}
+          token={queryParams.token}
           googleWebAppUrl={effectiveUrl}
           onSuccess={handleSuccess}
         />
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        {dialogNode}
+      </div>
+    );
+  }
+
+  if (queryParams.mode === 'inscricao_form') {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <PublicInscricaoForm />
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        {dialogNode}
+      </div>
+    );
+  }
+
+  if (queryParams.mode === 'encontreiro_form') {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <PublicEncontreiroForm />
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        {dialogNode}
+      </div>
+    );
+  }
+
+  if (queryParams.mode === 'presenca_form') {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <PublicPresenceForm />
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         {dialogNode}
       </div>
@@ -373,12 +590,11 @@ const App: React.FC = () => {
     <div className="min-h-screen flex flex-col text-slate-900 overflow-x-hidden">
       <Header user={user} onLogout={() => { setUser(null); localStorage.removeItem('eac_user'); }} onNavigate={handleNavigate} currentView={currentView} />
       <main className="flex-grow pt-16 bg-slate-50 relative">
-        {currentView === 'dashboard' && <Dashboard user={user} logs={logs} calendarEvents={calendarEvents} comunicados={comunicados} membersCount={membersCount} nonEnrolledCount={nonEnrolledCount} nonEnrolledPreConfirmadasCount={nonEnrolledIndicators.preConfirmadasCount} nonEnrolledInteresseCount={nonEnrolledIndicators.interesseCount} nonEnrolledInteresseNoCount={nonEnrolledIndicators.interesseNoCount} onNavigate={handleNavigate} lastSync={lastSync} onRefresh={fetchSpreadsheetData} isLoading={isLoadingSheet} />}
+        {currentView === 'dashboard' && <Dashboard user={user} logs={logs} calendarEvents={calendarEvents} comunicados={comunicados} membersCount={membersCount} nonEnrolledCount={nonEnrolledCount} nonEnrolledPreConfirmadasCount={nonEnrolledIndicators.preConfirmadasCount} nonEnrolledInteresseCount={nonEnrolledIndicators.interesseCount} nonEnrolledInteresseNoCount={nonEnrolledIndicators.interesseNoCount} dashboardInsights={dashboardInsights} onNavigate={handleNavigate} lastSync={lastSync} onRefresh={fetchSpreadsheetData} isLoading={isLoadingSheet} />}
         {currentView === 'members' && (
           <MembersPage
             user={user}
             googleWebAppUrl={effectiveGoogleWebAppUrl}
-            onOpenPresence={() => handleNavigate('presence')}
           />
         )}
         {currentView === 'inscricoes_prioritarias' && (
@@ -387,6 +603,7 @@ const App: React.FC = () => {
             onOpenCirculos={() => handleNavigate('inscricoes_prioritarias_circulos')}
           />
         )}
+        {currentView === 'inscricoes_review' && <InscricoesReviewPage />}
         {currentView === 'inscricoes_prioritarias_circulos' && (
           <CirculosDistribuidosPage
             googleWebAppUrl={effectiveGoogleWebAppUrl}
@@ -410,3 +627,5 @@ const App: React.FC = () => {
 };
 
 export default App;
+
+

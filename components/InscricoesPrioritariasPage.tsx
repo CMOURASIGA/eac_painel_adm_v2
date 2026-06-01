@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Drawer from './Drawer.tsx';
 import PersonCard from './PersonCard.tsx';
 import { showAppAlert, showAppConfirm } from '../utils/appDialog.ts';
 import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
+import DataOriginAudit from './DataOriginAudit.tsx';
+import { inscricoesService } from '../services/inscricoesService.ts';
 
 type Prioritario = {
   id?: string;
@@ -62,6 +64,11 @@ const formatDate = (value: any) => {
 };
 
 const normalize = (value: any) => toCleanString(value).toLowerCase();
+const hasIdentity = (item: any) => {
+  const nome = toCleanString(item?.nome || item?.nome_completo || item?.nome_adolescente);
+  const telefone = toCleanString(item?.telefone || item?.telefone_normalizado).replace(/\D/g, '');
+  return Boolean(nome || telefone);
+};
 const normalizeHeaderLite = (value: any) =>
   toCleanString(value)
     .toLowerCase()
@@ -466,40 +473,66 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     setLoading(true);
     setError('');
     try {
-      const qs = googleWebAppUrl ? `?googleWebAppUrl=${encodeURIComponent(googleWebAppUrl)}` : '';
-      let response = await fetch(`/api/inscricoes-prioritarias${qs}`, { method: 'GET' });
-      let json: any;
-      let usedFallback = false;
+      const [rPrior, rAdmin] = await Promise.all([
+        inscricoesService.listarPrioritarias({ googleWebAppUrl }),
+        inscricoesService.listarInscricoesAdmin({ status: 'PRIORIZADO', page: 1, page_size: 1000 }),
+      ]);
 
-      try {
-        json = await readJsonResponseSafe(response, '/api/inscricoes-prioritarias');
-      } catch (_primaryErr) {
-        usedFallback = true;
-        response = await fetch('/api/comunicados', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'GET_INSCRICOES_PRIORITARIAS',
-            data: {},
-            ...(googleWebAppUrl ? { googleWebAppUrl } : {})
-          })
-        });
-        json = await readJsonResponseSafe(response, '/api/comunicados (fallback)');
+      if (!rPrior.success && !rAdmin.success) {
+        throw new Error(rPrior.error || rAdmin.error || 'Falha ao listar inscrições prioritárias.');
       }
 
-      if (!response.ok || !(json?.success ?? json?.ok)) {
-        throw new Error(json?.error || 'Falha ao listar inscrições prioritárias.');
-      }
+      const fromPriorRaw = Array.isArray((rPrior as any)?.data?.items) ? (rPrior as any).data.items : [];
+      const fromPrior = fromPriorRaw.map((row: any) => ({
+        ...row,
+        id: String(row?.inscricao_prioritaria_id || row?.id || row?.inscricao_id || ''),
+        linhaOrigem: String(row?.linhaOrigem || row?.origem_linha || row?.inscricao_id || ''),
+        inscricao_id: String(row?.inscricao_id || row?.linhaOrigem || row?.origem_linha || ''),
+        nome: String(row?.nome || row?.nome_completo || row?.nome_snapshot || ''),
+        email: String(row?.email || ''),
+        status: String(row?.status || row?.status_prioritaria || 'PRIORIZADO'),
+        telefone: String(row?.telefone || row?.telefone_normalizado || ''),
+        bairro: String(row?.bairro || row?.bairro_snapshot || ''),
+        dataCadastro: row?.dataCadastro || row?.criado_em || '',
+        dataNascimento: row?.dataNascimento || row?.data_nascimento || '',
+        idade: row?.idade ?? row?.idade_calculada ?? row?.idade_snapshot ?? '',
+        sexo: String(row?.sexo || row?.sexo_snapshot || ''),
+        encontro: row?.encontro || row?.nome_encontro || '',
+        origem: row?.origem || '',
+      }));
+      const fromAdminRaw = Array.isArray((rAdmin as any)?.data?.data) ? (rAdmin as any).data.data : [];
+      const fromAdmin = fromAdminRaw.map((row: any) => ({
+        id: String(row?.inscricao_id || ''),
+        linhaOrigem: String(row?.inscricao_id || ''),
+        inscricao_id: String(row?.inscricao_id || ''),
+        nome: String(row?.nome_adolescente || ''),
+        email: '',
+        status: String(row?.status_inscricao || 'PRIORIZADO'),
+        telefone: String(row?.telefone_adolescente || ''),
+        bairro: String(row?.bairro || ''),
+        dataCadastro: row?.data_inscricao || row?.criado_em || '',
+        dataNascimento: row?.data_nascimento || '',
+        idade: row?.idade_calculada ?? '',
+        sexo: '',
+        encontro: row?.encontro_nome || '',
+        origem: row?.origem_inscricao || '',
+      }));
 
-      const list = Array.isArray(json?.inscricoesPrioritarias)
-        ? json.inscricoesPrioritarias
-        : (Array.isArray(json?.items) ? json.items : []);
+      const canonical = rPrior.success ? fromPrior : fromAdmin;
+      const normalizedPriorizados = canonical
+        .filter(hasIdentity)
+        .filter((item: any) => normalize(item?.status) === 'priorizado');
 
-      setItems(list);
-      if (usedFallback) {
-        setInfo('Endpoint alternativo acionado para carregar inscrições prioritárias.');
-        setTimeout(() => setInfo(''), 3200);
-      }
+      const deduped = new Map<string, any>();
+      normalizedPriorizados.forEach((item: any) => {
+        const keyByInscricao = toCleanString(item?.inscricao_id || item?.linhaOrigem || '').trim();
+        const keyByIdentity = `${normalize(item?.nome)}|${toCleanString(item?.telefone || '').replace(/\D/g, '')}`;
+        const key = keyByInscricao || keyByIdentity;
+        if (!key) return;
+        if (!deduped.has(key)) deduped.set(key, item);
+      });
+
+      setItems(Array.from(deduped.values()));
     } catch (err: any) {
       setItems([]);
       setError(err?.message || 'Erro ao carregar inscrições prioritárias.');
@@ -547,37 +580,11 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     setIsDistributing(true);
     setError('');
     try {
-      let response = await fetch('/api/inscricoes-prioritarias/distribuir', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ googleWebAppUrl, minAge, maxAge })
-      });
+      const r = await inscricoesService.executarDistribuicaoCirculos({ minAge, maxAge }, { googleWebAppUrl });
 
-      let json: any;
-      let usedFallback = false;
-      try {
-        json = await readJsonResponseSafe(response, '/api/inscricoes-prioritarias/distribuir');
-      } catch (_primaryErr) {
-        usedFallback = true;
-        response = await fetch('/api/comunicados', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'EXECUTE_DISTRIBUICAO_CIRCULOS',
-            data: { minAge, maxAge },
-            ...(googleWebAppUrl ? { googleWebAppUrl } : {})
-          })
-        });
-        json = await readJsonResponseSafe(response, '/api/comunicados (fallback)');
-      }
+      if (!r.success) throw new Error(r.error || 'Não foi possível executar a distribuição de círculos.');
 
-      if (!response.ok || !(json?.success ?? json?.ok)) {
-        throw new Error(json?.error || 'Não foi possível executar a distribuição de círculos.');
-      }
-
-      const successMessage = usedFallback
-        ? `Distribuição feita com sucesso (endpoint alternativo). Faixa aplicada: ${faixaLabel}.`
-        : `Distribuição feita com sucesso. Faixa aplicada: ${faixaLabel}.`;
+      const successMessage = `Distribuição feita com sucesso. Faixa aplicada: ${faixaLabel}.`;
       showInfo(successMessage);
       await showAppAlert({
         title: 'Distribuição finalizada',
@@ -673,22 +680,19 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     setError('');
     setUpdatingDeprioritizeId(linhaOrigem);
     try {
-      const response = await fetch('/api/nao-inscritos/priorizar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ linhaOrigem, priorizar: false }),
+      const r = await inscricoesService.priorizarNaoInscrito({
+        linhaOrigem,
+        id: String(item?.id || '').trim(),
+        priorizar: false,
       });
-      const json = await readJsonResponseSafe(response, '/api/nao-inscritos/priorizar');
-      if (!response.ok || !(json?.success ?? json?.ok)) {
-        throw new Error(json?.error || 'Nao foi possivel despriorizar o registro.');
-      }
+      if (!r.success) throw new Error(r.error || 'Nao foi possivel despriorizar o registro.');
 
       if (selectedItem && String(selectedItem?.linhaOrigem || '').trim() === linhaOrigem) {
         setSelectedItem(null);
         setShowDrawer(false);
       }
 
-      showInfo(json?.message || 'Registro despriorizado com sucesso.');
+      showInfo((r.data as any)?.message || 'Registro despriorizado com sucesso.');
       await fetchData();
     } catch (err: any) {
       setError(err?.message || 'Erro ao despriorizar registro.');
@@ -850,115 +854,11 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     setIsGeneratingSecretaryReport(true);
     setError('');
     try {
-      const qs = googleWebAppUrl ? `?googleWebAppUrl=${encodeURIComponent(googleWebAppUrl)}` : '';
-      const response = await fetch(`/api/circulos-distribuidos${qs}`, { method: 'GET' });
-      const json = await readJsonResponseSafe(response, '/api/circulos-distribuidos');
-      if (!response.ok || !(json?.success ?? json?.ok)) {
-        throw new Error(json?.error || 'Falha ao carregar distribuicao de circulos para o relatorio da secretaria.');
+      const r = await inscricoesService.listarPrioritarias({ googleWebAppUrl });
+      if (!r.success) {
+        throw new Error(r.error || 'Falha ao listar inscrições prioritárias.');
       }
-
-      const circulos = normalizeSecretaryCirculosPayload(json?.circulos);
-      const generatedAt = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-      const total = SECRETARY_CIRCLE_NAMES.reduce((acc, groupName) => acc + ((circulos[groupName] || []).length), 0);
-
-      const bodyHtml = SECRETARY_CIRCLE_NAMES.map((groupName) => {
-        const list = sortSecretaryByNome(circulos[groupName] || []);
-        const meninos = list.filter((item) => getSecretarySexoKey(item?.sexo) === 'masculino');
-        const meninas = list.filter((item) => getSecretarySexoKey(item?.sexo) === 'feminino');
-        const outros = list.filter((item) => getSecretarySexoKey(item?.sexo) === 'outro');
-        const totalGrupo = list.length;
-
-        const renderPersonLine = (item: PessoaCirculoReport) => {
-          const nome = toCleanString(item?.nome) || '-';
-          const nomeKey = getNomeKey(nome);
-          const isVisitado = Boolean(secretaryVisitadoByNome.get(nomeKey));
-          const nomeComSinal = `${isVisitado ? '✓ ' : ''}${nome}`;
-          const idade = toCleanString(item?.idade) || '-';
-          const bairro = toCleanString(item?.bairro) || '-';
-          return `<li><strong>${escapeHtml(nomeComSinal)}</strong><span>${escapeHtml(`${idade} anos • ${bairro}`)}</span></li>`;
-        };
-
-        return `
-          <article class="card">
-            <h2>${escapeHtml(groupName)}</h2>
-            <p class="meta">${totalGrupo} ${totalGrupo === 1 ? 'adolescente' : 'adolescentes'}</p>
-            <div class="cols">
-              <section>
-                <h3>Meninos (${meninos.length})</h3>
-                ${
-                  meninos.length
-                    ? `<ul>${meninos.map(renderPersonLine).join('')}</ul>`
-                    : '<p class="empty">Nenhum</p>'
-                }
-              </section>
-              <section>
-                <h3>Meninas (${meninas.length})</h3>
-                ${
-                  meninas.length
-                    ? `<ul>${meninas.map(renderPersonLine).join('')}</ul>`
-                    : '<p class="empty">Nenhuma</p>'
-                }
-              </section>
-            </div>
-            ${
-              outros.length
-                ? `<div class="other"><h3>Nao informado (${outros.length})</h3><ul>${outros.map(renderPersonLine).join('')}</ul></div>`
-                : ''
-            }
-          </article>
-        `;
-      }).join('');
-
-      const reportWindow = window.open('', '_blank');
-      if (!reportWindow) {
-        throw new Error('Nao foi possivel abrir a janela de impressao. Verifique se o navegador bloqueou pop-up.');
-      }
-
-      const html = `<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8" />
-  <title>Relatorio da Secretaria - Distribuicao de Circulos</title>
-  <style>
-    @page { size: A4 landscape; margin: 10mm; }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: Arial, sans-serif; color: #0f172a; background: #f8fafc; }
-    .wrap { padding: 8px; }
-    h1 { margin: 0; font-size: 20px; }
-    .sub { margin: 4px 0 10px 0; color: #475569; font-size: 11px; font-weight: 700; }
-    .legend { margin: 0 0 12px 0; font-size: 11px; color: #065f46; font-weight: 700; }
-    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
-    .card { background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px; break-inside: avoid; }
-    .card h2 { margin: 0; font-size: 13px; }
-    .meta { margin: 4px 0 10px 0; font-size: 10px; color: #475569; font-weight: 700; text-transform: uppercase; }
-    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    h3 { margin: 0 0 6px 0; font-size: 10px; color: #334155; text-transform: uppercase; letter-spacing: .05em; }
-    ul { margin: 0; padding-left: 16px; }
-    li { margin: 0 0 6px 0; font-size: 10px; line-height: 1.35; }
-    li span { display: block; color: #475569; font-weight: 700; }
-    .empty { margin: 0; color: #94a3b8; font-size: 10px; font-weight: 700; }
-    .other { margin-top: 8px; border-top: 1px dashed #cbd5e1; padding-top: 8px; }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <h1>Relatorio da Secretaria</h1>
-    <p class="sub">Distribuicao de circulos | Gerado em ${escapeHtml(generatedAt)} | Total: ${total}</p>
-    <p class="legend">✓ indica inscricao prioritaria com confirmacao/registro nas colunas U, V, W ou X.</p>
-    <div class="grid">${bodyHtml}</div>
-  </div>
-  <script>
-    window.addEventListener('load', function () {
-      setTimeout(function () { window.print(); }, 250);
-    });
-  </script>
-</body>
-</html>`;
-
-      reportWindow.document.open();
-      reportWindow.document.write(html);
-      reportWindow.document.close();
-      showInfo('Relatorio da secretaria aberto para impressao.');
+      setItems(Array.isArray(r.data.items) ? r.data.items : []);
     } catch (err: any) {
       setError(err?.message || 'Erro ao gerar relatorio da secretaria.');
     } finally {
@@ -1341,6 +1241,10 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
                 <p className="text-sm font-black text-slate-800 mt-1 whitespace-pre-wrap">{selectedItem.recado || '-'}</p>
               </div>
             </div>
+
+            <div className="pt-2">
+              <DataOriginAudit record={selectedItem} />
+            </div>
           </div>
         )}
       </Drawer>
@@ -1349,4 +1253,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
 };
 
 export default InscricoesPrioritariasPage;
+
+
+
 

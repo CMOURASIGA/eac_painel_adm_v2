@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import html2canvas from 'html2canvas';
 import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
 
 type PessoaCirculo = {
+  id?: string;
   nome?: string;
   idade?: string | number;
   bairro?: string;
@@ -123,6 +124,7 @@ function normalizeCirculosPayload(input: any) {
     const rows = Array.isArray(input[groupName]) ? input[groupName] : [];
     rows.forEach((row: any) => {
       grouped[target].push({
+        id: toCleanString(row?.id || row?.uuid || row?.linhaOrigem || row?.linha_origem),
         nome: toCleanString(row?.nome),
         idade: toCleanString(row?.idade ?? ''),
         bairro: toCleanString(row?.bairro),
@@ -159,10 +161,25 @@ function formatIdadeBairro(idade: any, bairro: any) {
   return `${ageLabel} • ${bairroRaw}`;
 }
 
+function escapeCsvCell(value: any) {
+  const s = String(value ?? '');
+  return `"${s.replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`;
+}
+
+function escapeHtml(value: any) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ googleWebAppUrl, onBack }) => {
   const [loading, setLoading] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isUpdatingDistribution, setIsUpdatingDistribution] = useState(false);
+  const [movingParticipantId, setMovingParticipantId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [circulos, setCirculos] = useState<Record<string, PessoaCirculo[]>>(createEmptyGroups());
 
@@ -228,6 +245,96 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
     }
   }
 
+  const exportarCsv = useCallback(() => {
+    const headers = ['Circulo', 'Nome', 'Sexo', 'Idade', 'Bairro'];
+    const rows: string[] = [];
+
+    CIRCLE_NAMES.forEach((circleName) => {
+      const list = sortByNome(circulos[circleName] || []);
+      list.forEach((item) => {
+        rows.push(
+          [
+            circleName,
+            toCleanString(item.nome),
+            toCleanString(item.sexo),
+            toCleanString(item.idade),
+            toCleanString(item.bairro),
+          ]
+            .map(escapeCsvCell)
+            .join(';')
+        );
+      });
+    });
+
+    const csv = '\ufeff' + [headers.map(escapeCsvCell).join(';'), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const fileName = `distribuicao_circulos_${yyyy}-${mm}-${dd}.csv`;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, [circulos]);
+
+  const exportarHtmlImpressao = useCallback(() => {
+    const generatedAt = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const sections = CIRCLE_NAMES.map((circleName) => {
+      const list = sortByNome(circulos[circleName] || []);
+      const body = list.length
+        ? list
+            .map(
+              (item) =>
+                `<tr><td>${escapeHtml(item.nome)}</td><td>${escapeHtml(item.sexo)}</td><td>${escapeHtml(item.idade)}</td><td>${escapeHtml(item.bairro)}</td></tr>`
+            )
+            .join('')
+        : '<tr><td colspan="4">Sem adolescentes neste circulo.</td></tr>';
+
+      return `<section><h2>${escapeHtml(circleName)} (${list.length})</h2><table><thead><tr><th>Nome</th><th>Sexo</th><th>Idade</th><th>Bairro</th></tr></thead><tbody>${body}</tbody></table></section>`;
+    }).join('');
+
+    const html = `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Distribuicao de Circulos</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #0f172a; margin: 12px; }
+    h1 { margin: 0 0 6px 0; font-size: 20px; }
+    .meta { margin: 0 0 14px 0; color: #475569; font-size: 12px; }
+    section { margin-bottom: 14px; page-break-inside: avoid; }
+    h2 { margin: 0 0 6px 0; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th, td { border: 1px solid #cbd5e1; padding: 5px; text-align: left; }
+    thead th { background: #f1f5f9; }
+  </style>
+</head>
+<body>
+  <h1>Distribuicao de Circulos - EAC</h1>
+  <p class="meta">Gerado em ${escapeHtml(generatedAt)} | Total: ${total}</p>
+  ${sections}
+  <script>
+    window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 250); });
+  </script>
+</body>
+</html>`;
+
+    const win = window.open('', '_blank');
+    if (!win) {
+      setError('Nao foi possivel abrir a janela de impressao.');
+      return;
+    }
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  }, [circulos, total]);
+
   const atualizarDistribuicao = useCallback(async () => {
     setIsUpdatingDistribution(true);
     setError('');
@@ -259,6 +366,64 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
       setIsUpdatingDistribution(false);
     }
   }, [fetchData, googleWebAppUrl]);
+
+  const moverParticipante = useCallback(async (item: PessoaCirculo, fromCirculo: string) => {
+    const participantId = toCleanString(item?.id);
+    if (!participantId) {
+      setError('Nao foi possivel mover: identificador do participante nao encontrado.');
+      return;
+    }
+
+    const options = CIRCLE_NAMES.map((name, idx) => `${idx + 1}. ${name}`).join('\n');
+    const chosen = window.prompt(`Mover para qual circulo?\n${options}`, '');
+    if (!chosen) return;
+
+    let toCirculo = '';
+    const asIndex = Number(chosen);
+    if (Number.isFinite(asIndex) && asIndex >= 1 && asIndex <= CIRCLE_NAMES.length) {
+      toCirculo = CIRCLE_NAMES[asIndex - 1];
+    } else {
+      const normalized = chosen.trim().toLowerCase();
+      toCirculo =
+        CIRCLE_NAMES.find((name) => name.toLowerCase() === normalized) ||
+        CIRCLE_NAMES.find((name) => name.toLowerCase().includes(normalized)) ||
+        '';
+    }
+
+    if (!toCirculo) {
+      setError('Circulo de destino invalido.');
+      return;
+    }
+    if (toCirculo === fromCirculo) return;
+
+    setMovingParticipantId(participantId);
+    setError('');
+    try {
+      const response = await fetch('/api/circulos-distribuidos/mover', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: participantId,
+          fromCirculo,
+          toCirculo,
+          operator: 'PAINEL_CIRCULOS',
+        }),
+      });
+
+      const raw = await response.text();
+      if (!raw) throw new Error(`Resposta vazia da API (HTTP ${response.status}).`);
+      const json = sanitizeTextDeep(JSON.parse(raw));
+      if (!response.ok || !(json?.success ?? json?.ok)) {
+        throw new Error(json?.error || 'Nao foi possivel mover participante.');
+      }
+
+      await fetchData();
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao mover participante.');
+    } finally {
+      setMovingParticipantId(null);
+    }
+  }, [fetchData]);
 
   return (
     <section className="max-w-7xl mx-auto px-4 md:px-6 py-6">
@@ -295,6 +460,22 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
               className="px-4 py-3 rounded-2xl bg-violet-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-violet-700 disabled:opacity-60"
             >
               {isGeneratingImage ? 'Gerando imagem...' : 'Gerar imagem da distribuição'}
+            </button>
+            <button
+              type="button"
+              onClick={exportarCsv}
+              disabled={loading || isUpdatingDistribution}
+              className="px-4 py-3 rounded-2xl bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 disabled:opacity-60"
+            >
+              Exportar CSV
+            </button>
+            <button
+              type="button"
+              onClick={exportarHtmlImpressao}
+              disabled={loading || isUpdatingDistribution}
+              className="px-4 py-3 rounded-2xl bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-800 disabled:opacity-60"
+            >
+              Exportar HTML
             </button>
           </div>
         </div>
@@ -375,10 +556,18 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
                               <ul className="space-y-2">
                                 {meninos.map((item, idx) => (
                                   <li key={`${groupName}-m-${idx}`} className="text-xs">
-                                    <p className="font-black text-slate-900 leading-tight">🔵 {item.nome || '-'}</p>
+                                    <p className="font-black text-slate-900 leading-tight">ðŸ”µ {item.nome || '-'}</p>
                                     <p className="font-bold text-slate-600 mt-0.5">
                                       {formatIdadeBairro(item.idade, item.bairro)}
                                     </p>
+                                    <button
+                                      type="button"
+                                      onClick={() => { void moverParticipante(item, groupName); }}
+                                      disabled={movingParticipantId === toCleanString(item?.id)}
+                                      className="mt-1 text-[10px] font-black uppercase tracking-widest text-blue-700 hover:text-blue-900 disabled:opacity-60"
+                                    >
+                                      {movingParticipantId === toCleanString(item?.id) ? 'Movendo...' : 'Mover'}
+                                    </button>
                                   </li>
                                 ))}
                               </ul>
@@ -395,10 +584,18 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
                               <ul className="space-y-2">
                                 {meninas.map((item, idx) => (
                                   <li key={`${groupName}-f-${idx}`} className="text-xs">
-                                    <p className="font-black text-slate-900 leading-tight">🟣 {item.nome || '-'}</p>
+                                    <p className="font-black text-slate-900 leading-tight">ðŸŸ£ {item.nome || '-'}</p>
                                     <p className="font-bold text-slate-600 mt-0.5">
                                       {formatIdadeBairro(item.idade, item.bairro)}
                                     </p>
+                                    <button
+                                      type="button"
+                                      onClick={() => { void moverParticipante(item, groupName); }}
+                                      disabled={movingParticipantId === toCleanString(item?.id)}
+                                      className="mt-1 text-[10px] font-black uppercase tracking-widest text-blue-700 hover:text-blue-900 disabled:opacity-60"
+                                    >
+                                      {movingParticipantId === toCleanString(item?.id) ? 'Movendo...' : 'Mover'}
+                                    </button>
                                   </li>
                                 ))}
                               </ul>
@@ -415,6 +612,14 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
                               {outros.map((item, idx) => (
                                 <li key={`${groupName}-o-${idx}`} className="text-xs font-bold text-slate-700">
                                   {item.nome || '-'} • {formatIdadeBairro(item.idade, item.bairro)}
+                                  <button
+                                    type="button"
+                                    onClick={() => { void moverParticipante(item, groupName); }}
+                                    disabled={movingParticipantId === toCleanString(item?.id)}
+                                    className="ml-2 text-[10px] font-black uppercase tracking-widest text-blue-700 hover:text-blue-900 disabled:opacity-60"
+                                  >
+                                    {movingParticipantId === toCleanString(item?.id) ? 'Movendo...' : 'Mover'}
+                                  </button>
                                 </li>
                               ))}
                             </ul>
@@ -434,3 +639,6 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
 };
 
 export default CirculosDistribuidosPage;
+
+
+

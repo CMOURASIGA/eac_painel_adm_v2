@@ -1,10 +1,11 @@
-import React, { useState, useCallback } from 'react';
+﻿import React, { useState, useCallback } from 'react';
 import Toast from './Toast';
 import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
 
 interface PublicInterestFormProps {
   email: string;
   nome?: string;
+  token?: string;
   googleWebAppUrl: string;
   onSuccess: () => void;
 }
@@ -14,6 +15,7 @@ type ToastState = { message: string; type: 'success' | 'error' | 'info' } | null
 const PublicInterestForm: React.FC<PublicInterestFormProps> = ({
   email,
   nome,
+  token,
   googleWebAppUrl,
   onSuccess
 }) => {
@@ -30,6 +32,7 @@ const PublicInterestForm: React.FC<PublicInterestFormProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
+  const [tokenValidated, setTokenValidated] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info') => {
     setToast({ message, type });
@@ -66,6 +69,34 @@ const PublicInterestForm: React.FC<PublicInterestFormProps> = ({
     [googleWebAppUrl]
   );
 
+  const validateToken = useCallback(async () => {
+    if (!token) {
+      setError('Token de acesso ausente.');
+      return false;
+    }
+    try {
+      const res = await fetch('/api/public-interest/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'VALIDATE_TOKEN', token }),
+      });
+      const out = sanitizeTextDeep(await res.json());
+      if (!out.success) {
+        setError(out.error || 'Token invalido.');
+        return false;
+      }
+      setTokenValidated(true);
+      return true;
+    } catch (e: any) {
+      setError(e?.message || 'Falha ao validar token.');
+      return false;
+    }
+  }, [token]);
+
+  React.useEffect(() => {
+    validateToken();
+  }, [validateToken]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -91,6 +122,28 @@ const PublicInterestForm: React.FC<PublicInterestFormProps> = ({
       answers
     };
 
+    if (!tokenValidated) {
+      const ok = await validateToken();
+      if (!ok) return;
+    }
+
+    const consumeRes = await fetch('/api/public-interest/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'CONSUME_TOKEN',
+        token,
+        payload: { email, answeredAt: new Date().toISOString() },
+      }),
+    });
+    const consumeOut = sanitizeTextDeep(await consumeRes.json());
+    if (!consumeOut.success) {
+      const msg = consumeOut.error || 'Token invalido ou expirado.';
+      setError(msg);
+      showToast(msg, 'error');
+      return;
+    }
+
     const result = await callApiProxy('SUBMIT_INTEREST_ANSWERS', payload);
 
     if (result.success) {
@@ -99,6 +152,17 @@ const PublicInterestForm: React.FC<PublicInterestFormProps> = ({
       onSuccess();
     }
   };
+
+  if (!tokenValidated && !submitted) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-100 p-4">
+        <div className="w-full max-w-lg text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">Acesso inválido</h1>
+          <p className="text-slate-700 text-base">{error || 'Token inválido ou expirado.'}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (submitted) {
     return (
@@ -253,3 +317,4 @@ const PublicInterestForm: React.FC<PublicInterestFormProps> = ({
 };
 
 export default PublicInterestForm;
+

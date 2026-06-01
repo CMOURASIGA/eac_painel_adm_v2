@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Adolescente, User, NonEnrolledMember } from '../types.ts';
 import Badge from './Badge.tsx';
 import Drawer from './Drawer.tsx';
@@ -7,6 +7,8 @@ import NonEnrolledCard from './NonEnrolledCard.tsx';
 import { calculateAgeFromBirthDate, getMemberAgeInfo } from './memberAge.ts';
 import { showAppConfirm } from '../utils/appDialog.ts';
 import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
+import DataOriginAudit from './DataOriginAudit.tsx';
+import { getJson, patchJson, postComunicadosAction } from '../services/eacApiClient.ts';
 
 // =========================
 // Helpers ..
@@ -17,30 +19,19 @@ async function callApiProxy(
   payload: any = {},
   options: { signal?: AbortSignal } = {}
 ) {
-  const res = await fetch('/api/comunicados', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, data: payload, googleWebAppUrl }),
-    signal: options.signal
-  });
-  const raw = await res.text();
-  if (!raw) {
-    return { success: false, error: `Resposta vazia da API (HTTP ${res.status}).` };
-  }
-  try {
-    const parsed = sanitizeTextDeep(JSON.parse(raw));
-    if (!res.ok) return { success: false, ...parsed };
-    return {
-      ...parsed,
-      success: Boolean(parsed?.success ?? parsed?.ok ?? false),
-    };
-  } catch (err: any) {
+  const r = await postComunicadosAction<any>(action, payload, { googleWebAppUrl, signal: options.signal });
+  if (!r.success) {
     return {
       success: false,
-      error: `Resposta inválida da API (/api/comunicados): ${err?.message || 'JSON malformado.'}`,
-      sample: raw.slice(0, 300)
+      error: r.error,
+      sample: r.sample,
+      status: r.status,
     };
   }
+  return {
+    ...(r.data as any),
+    success: true,
+  };
 }
 
 const normalizeBairroStats = (raw: any): Array<{ nome: string; quantidade: number }> => {
@@ -80,6 +71,68 @@ const isNo = (v: any) => {
 const isPrioritizedStatus = (v: any) => {
   const s = toCleanString(v).toLowerCase();
   return s === 'sim' || s === 's' || s === 'yes' || s === 'y' || s === 'true' || s === '1';
+};
+
+const normalizeStatusToken = (v: any) =>
+  toCleanString(v)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+
+const isTruthyFlag = (v: any) => {
+  const s = normalizeStatusToken(v);
+  return s === 'sim' || s === 's' || s === 'yes' || s === 'y' || s === 'true' || s === '1';
+};
+
+const resolveMemberOperationalStatus = (member: any): 'inscrito' | 'priorizado' | 'confirmado' | 'nao_selecionado' | 'desistente' | 'cancelado' => {
+  const status = normalizeStatusToken(
+    member?.statusOperacional ||
+      member?.status_inscricao ||
+      member?.statusInscricao ||
+      member?.status ||
+      member?.situacao
+  );
+
+  if (
+    status.includes('cancel') ||
+    status === 'cancelado' ||
+    isTruthyFlag(member?.cancelado)
+  ) {
+    return 'cancelado';
+  }
+  if (
+    status.includes('desist') ||
+    status === 'desistente' ||
+    isTruthyFlag(member?.desistente)
+  ) {
+    return 'desistente';
+  }
+  if (
+    status.includes('nao_selecion') ||
+    status.includes('nao_inclu') ||
+    status === 'nao_selecionado' ||
+    isTruthyFlag(member?.naoSelecionado)
+  ) {
+    return 'nao_selecionado';
+  }
+  if (
+    status.includes('confirm') ||
+    status === 'confirmado' ||
+    status === 'encontrista' ||
+    isTruthyFlag(member?.confirmado)
+  ) {
+    return 'confirmado';
+  }
+  if (
+    status.includes('prioriz') ||
+    status === 'priorizado' ||
+    isTruthyFlag(member?.priorizado)
+  ) {
+    return 'priorizado';
+  }
+  return 'inscrito';
 };
 
 const getNonEnrolledField = (ne: any, keys: string[]) => {
@@ -398,7 +451,6 @@ const StatIndicator = ({ label, count, color, isActive, onClick }: any) => (
 interface MembersPageProps {
   user: User;
   googleWebAppUrl: string;
-  onOpenPresence?: () => void;
 }
 
 type BairroCardStat = { nome: string; quantidade: number };
@@ -528,7 +580,7 @@ const applyNonEnrolledDraftToItem = (item: any, draft: NonEnrolledEditDraft) => 
   statusPriorizacao: draft.statusPriorizacao,
 });
 
-const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl, onOpenPresence }) => {
+const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl }) => {
   const [members, setMembers] = useState<Adolescente[]>([]);
   const [nonEnrolled, setNonEnrolled] = useState<NonEnrolledMember[]>([]);
   const [bairroStats, setBairroStats] = useState<BairroCardStat[]>([]);
@@ -595,7 +647,7 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl, onOpen
   const [showEditor, setShowEditor] = useState(false);
   const [selectedMemberCard, setSelectedMemberCard] = useState<Adolescente | null>(null);
   const [showMemberDrawer, setShowMemberDrawer] = useState(false);
-  const [memberViewTab, setMemberViewTab] = useState<'pessoais' | 'responsaveis' | 'eac' | 'termos'>('pessoais');
+  const [memberViewTab, setMemberViewTab] = useState<'pessoais' | 'responsaveis' | 'eac' | 'termos' | 'auditoria'>('pessoais');
   const [nonEnrolledViewTab, setNonEnrolledViewTab] = useState<'pessoais' | 'responsaveis' | 'eac' | 'termos'>('pessoais');
   const [deletingMemberEmail, setDeletingMemberEmail] = useState<string | null>(null);
   const [isNonEnrolledSearching, setIsNonEnrolledSearching] = useState(false);
@@ -648,8 +700,9 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl, onOpen
       ]);
 
       if (mData?.success) {
-        setMembers(mData.members || []);
-        setMemberSearchTotal(null);
+        const loadedMembers = Array.isArray(mData.members) ? mData.members : [];
+        setMembers(loadedMembers);
+        setMemberSearchTotal(loadedMembers.length);
       }
 
       if (summaryData?.success) {
@@ -665,9 +718,30 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl, onOpen
   const handleSearchNonEnrolled = useCallback(async () => {
     setIsNonEnrolledSearching(true);
     try {
-      const neData = await callApiProxy('GET_NON_ENROLLED', googleWebAppUrl);
-      if (isApiSuccess(neData)) {
-        const payload = unwrapApiPayload(neData);
+      const [response, summaryResponse] = await Promise.all([
+        getJson<any>('/api/nao-inscritos'),
+        getJson<any>('/api/nao-inscritos/resumo'),
+      ]);
+      if (response.success) {
+        const payload: any = unwrapApiPayload(response.data);
+        if (summaryResponse.success) {
+          const summary = (summaryResponse.data as any)?.summary || {};
+          payload.interestStats = {
+            sim: Number(summary.interesse_sim) || 0,
+            nao: Number(summary.interesse_nao) || 0,
+            vazio: Number(summary.interesse_em_branco) || 0,
+          };
+          payload.contatoMudouStats = {
+            sim: Number(summary.contato_mudou_sim) || 0,
+            nao: 0,
+            vazio: 0,
+          };
+          payload.jaFezStats = {
+            sim: Number(summary.ja_fez_eac_sim) || 0,
+            nao: 0,
+            vazio: 0,
+          };
+        }
         const list = applyNonEnrolledDataset(payload);
         setNonEnrolledSearchDone(true);
         const totalFromApi =
@@ -676,14 +750,14 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl, onOpen
             : list.length;
         setNonEnrolledSearchTotal(totalFromApi);
       } else {
-        alert(neData?.error || 'Não foi possível pesquisar Não Inscritos.');
+        alert(response.error || 'Não foi possível pesquisar Não Inscritos.');
       }
     } catch (e) {
       alert('Erro ao pesquisar Não Inscritos.');
     } finally {
       setIsNonEnrolledSearching(false);
     }
-  }, [googleWebAppUrl, applyNonEnrolledDataset]);
+  }, [applyNonEnrolledDataset]);
 
   const handleRefreshNonEnrolledRecords = useCallback(async () => {
     setIsNonEnrolledRefreshing(true);
@@ -955,6 +1029,27 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl, onOpen
       return true;
     });
   }, [members, memberFiltersApplied, memberSearchTotal]);
+
+  const membersStatusIndicators = useMemo(() => {
+    const counters = {
+      inscrito: 0,
+      priorizado: 0,
+      confirmado: 0,
+      naoSelecionado: 0,
+      desistente: 0,
+      cancelado: 0,
+    };
+    (Array.isArray(members) ? members : []).forEach((member: any) => {
+      const resolved = resolveMemberOperationalStatus(member);
+      if (resolved === 'inscrito') counters.inscrito += 1;
+      else if (resolved === 'priorizado') counters.priorizado += 1;
+      else if (resolved === 'confirmado') counters.confirmado += 1;
+      else if (resolved === 'nao_selecionado') counters.naoSelecionado += 1;
+      else if (resolved === 'desistente') counters.desistente += 1;
+      else if (resolved === 'cancelado') counters.cancelado += 1;
+    });
+    return counters;
+  }, [members]);
 
   const memberBairroOptions = useMemo(() => {
     const set = new Set<string>();
@@ -1290,6 +1385,7 @@ const handleUpdateInterest = async (ne: any, selection: 'Sim' | 'Não' | 'Em bra
   }
 
   const target = selection === 'Em branco' ? '' : selection;
+  const email = toCleanString(ne?.email || ne?.Email || ne?.['Email']);
   const previousList = Array.isArray(nonEnrolled) ? [...nonEnrolled] : [];
 
   const optimistic = previousList.map((item) => {
@@ -1307,11 +1403,12 @@ const handleUpdateInterest = async (ne: any, selection: 'Sim' | 'Não' | 'Em bra
   setUpdatingInterestId(idPessoa);
 
   try {
-    const res = await callApiProxy('UPDATE_NON_ENROLLED_INTEREST', googleWebAppUrl, {
+    const response = await patchJson<any>('/api/nao-inscritos/interesse', {
       idPessoa,
       interesse: target,
       email,
     });
+    const res = response.success ? response.data : { success: false, error: response.error };
 
     if (!res?.success) {
       throw new Error(res?.error || 'Não foi possível atualizar o interesse.');
@@ -3097,21 +3194,10 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
         <header className="flex flex-col xl:flex-row justify-between gap-6 xl:items-end">
           <div>
             <h2 className="text-3xl font-black uppercase tracking-tighter text-slate-900 leading-none">Cadastro de Encontrista</h2>
-            <p className="text-slate-500 font-medium italic mt-3 text-sm">Gesto dos adolescentes cadastrados.</p>
+            <p className="text-slate-500 font-medium italic mt-3 text-sm">Gestão dos adolescentes cadastrados oficiais.</p>
           </div>
 
           <div className="flex flex-wrap gap-3 w-full xl:w-auto xl:justify-end">
-            <button onClick={openNonEnrolledView} className="px-6 py-4 bg-amber-50 text-amber-600 rounded-2xl font-black text-[10px] uppercase border-2 border-amber-100 shadow-sm flex items-center gap-2 whitespace-nowrap">
-              Ver Não inscritos <Badge type="gray">{nonEnrolledSearchTotal}</Badge>
-            </button>
-
-            <button
-              onClick={() => onOpenPresence && onOpenPresence()}
-              className="px-6 py-4 bg-emerald-50 text-emerald-700 rounded-2xl font-black text-[10px] uppercase border-2 border-emerald-100 shadow-sm whitespace-nowrap"
-            >
-              Controle de Presença
-            </button>
-
             <button onClick={handleNewRegistry} className="px-6 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm whitespace-nowrap">
               Novo
             </button>
@@ -3130,6 +3216,21 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
             </button>
           </div>
         </header>
+
+        <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-4 md:p-6">
+          <div className="mb-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Indicadores por status</p>
+            <h3 className="text-lg md:text-xl font-black text-slate-900">Status operacional do cadastro</h3>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+            <StatIndicator label="Inscrito" count={membersStatusIndicators.inscrito} color="text-slate-700" isActive={false} onClick={() => {}} />
+            <StatIndicator label="Priorizado" count={membersStatusIndicators.priorizado} color="text-amber-600" isActive={false} onClick={() => {}} />
+            <StatIndicator label="Confirmado" count={membersStatusIndicators.confirmado} color="text-emerald-600" isActive={false} onClick={() => {}} />
+            <StatIndicator label="Não selecionado" count={membersStatusIndicators.naoSelecionado} color="text-rose-600" isActive={false} onClick={() => {}} />
+            <StatIndicator label="Desistente" count={membersStatusIndicators.desistente} color="text-orange-600" isActive={false} onClick={() => {}} />
+            <StatIndicator label="Cancelado" count={membersStatusIndicators.cancelado} color="text-fuchsia-600" isActive={false} onClick={() => {}} />
+          </div>
+        </section>
 
         <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-4 md:p-6 space-y-4">
           <div className="flex items-center justify-between gap-3">
@@ -3334,6 +3435,7 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
                 { id: 'responsaveis', label: 'Responsáveis' },
                 { id: 'eac', label: 'EAC' },
                 { id: 'termos', label: 'Termos' },
+                { id: 'auditoria', label: 'Auditoria' },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -3446,6 +3548,12 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pertence à Porciúncula</div>
                   <div className="font-bold text-slate-700">{toCleanString((selectedMemberCard as any)?.pertencePorciuncula) || '-'}</div>
                 </div>
+              </div>
+            )}
+
+            {memberViewTab === 'auditoria' && (
+              <div className="space-y-3">
+                <DataOriginAudit record={selectedMemberCard} />
               </div>
             )}
 
@@ -3589,7 +3697,7 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
             <div className="space-y-8 animate-in fade-in duration-500">
               <RadioField label="Autoriza uso de imagem" currentValue={(formData as any).autorizaImagem} onChange={(v: string) => updateField('autorizaImagem', v)} options={['Sim', 'No']} />
               <RadioField label="Concorda com normas" currentValue={(formData as any).concordaNormas} onChange={(v: string) => updateField('concordaNormas', v)} options={['Sim', 'No']} />
-              <RadioField label="Pertence à Porcincula" currentValue={(formData as any).pertencePorciuncula} onChange={(v: string) => updateField('pertencePorciuncula', v)} options={['Sim', 'No']} />
+              <RadioField label="Pertence à Porciúncula" currentValue={(formData as any).pertencePorciuncula} onChange={(v: string) => updateField('pertencePorciuncula', v)} options={['Sim', 'Não']} />
             </div>
           )}
         </div>
@@ -3605,3 +3713,5 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
 };
 
 export default MembersPage;
+
+

@@ -1,4 +1,4 @@
-
+﻿
 import React, { useState } from "react";
 import type { User, View } from "../types"; // ajuste o caminho conforme sua estrutura
 import { sanitizeTextDeep, toCleanString } from "../utils/textEncoding.ts";
@@ -48,6 +48,18 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, googleWebAppUrl }) => {
         };
         onLogin(devUser);
         setLoading(false);
+        return;
+      }
+
+      const authResponse = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const authResult = sanitizeTextDeep(await authResponse.json());
+
+      if (authResult?.success && authResult?.user) {
+        onLogin(authResult.user as User);
         return;
       }
 
@@ -121,6 +133,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, googleWebAppUrl }) => {
                 canEdit: isAdmin || boolSim(u.encontreiro_alteracao) || (!toCleanString(u.encontreiro_alteracao) && boolSim(u.alteracao)),
                 canView: isAdmin || boolSim(u.encontreiro_visualizacao) || (!toCleanString(u.encontreiro_visualizacao) && boolSim(u.visualizacao)),
                 canDelete: isAdmin || boolSim(u.encontreiro_exclusao) || (!toCleanString(u.encontreiro_exclusao) && boolSim(u.exclusao)),
+                canViewSensitive: isAdmin || boolSim(u.encontreiro_dados_sensiveis) || (!toCleanString(u.encontreiro_dados_sensiveis) && (boolSim(u.encontreiro_visualizacao) || boolSim(u.visualizacao))),
               }
             }
           }
@@ -194,3 +207,4 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, googleWebAppUrl }) => {
 };
 
 export default LoginPage;
+

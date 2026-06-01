@@ -89,7 +89,7 @@ const PersonCard: React.FC<PersonCardProps> = ({
 
       <div className="space-y-1">
         <h4 className="font-black text-slate-900 text-sm leading-tight">{nome || '-'}</h4>
-        <p className="text-[12px] font-bold text-slate-500">{bairro || 'Bairro não informado'}</p>
+        <p className="text-[12px] font-bold text-slate-500">{bairro || 'Bairro nao informado'}</p>
         <p className="text-[11px] font-bold text-slate-500">{cadastroText || 'Cadastro: -'}</p>
       </div>
 
@@ -158,3 +158,4 @@ const PersonCard: React.FC<PersonCardProps> = ({
 };
 
 export default PersonCard;
+

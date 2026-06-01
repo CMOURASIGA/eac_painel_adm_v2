@@ -1,110 +1,110 @@
-
+﻿
 import type { Dispatch, Log } from "./types";
 import { LogStatus } from "./types";
 
 export const INITIAL_DISPATCHES: Dispatch[] = [
   {
     id: "d1",
-    name: "Agradecimento de Inscrição",
+    name: "Agradecimento de InscriÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o",
     type: "agradecimento_inscricao",
     endpoint: "/disparo?tipo=agradecimento_inscricao",
     method: "GET",
     shortDescription:
-      'Envia template para inscritos "não incluídos" na Planilha de Inscrições.',
+      'Envia template para inscritos "nÃƒÆ’Ã‚Â£o incluÃƒÆ’Ã‚Â­dos" na Planilha de InscriÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes.',
     detailedDescription:
-      "Este disparo varre a planilha [Inscrições Prioritárias] na aba Inscricoes_Prioritarias. Ele filtra contatos com status `nao_incluido` na coluna U.",
+      "Este disparo varre a planilha [InscriÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes PrioritÃƒÆ’Ã‚Â¡rias] na aba Inscricoes_Prioritarias. Ele filtra contatos com status `nao_incluido` na coluna U.",
     rules:
-      "### Regras Operacionais\n1. O status na coluna U deve ser exatamente `nao_incluido`.\n2. Não altera a planilha após o envio.",
+      "### Regras Operacionais\n1. O status na coluna U deve ser exatamente `nao_incluido`.\n2. NÃƒÆ’Ã‚Â£o altera a planilha apÃƒÆ’Ã‚Â³s o envio.",
     parameters: ["chave", "tipo"],
     status: "active",
-    tags: ["Inscrição", "WhatsApp"],
+    tags: ["InscriÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o", "WhatsApp"],
     emailPreview:
-      '<p>Olá, <strong>[NOME]</strong>!</p><p>Muito obrigado por se inscrever no EAC Porciúncula de Santana. Recebemos seus dados e estamos muito felizes com seu interesse!</p><p>Em breve enviaremos mais informações sobre o encontro.</p>',
+      '<p>OlÃƒÆ’Ã‚Â¡, <strong>[NOME]</strong>!</p><p>Muito obrigado por se inscrever no EAC PorciÃƒÆ’Ã‚Âºncula de Santana. Recebemos seus dados e estamos muito felizes com seu interesse!</p><p>Em breve enviaremos mais informaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes sobre o encontro.</p>',
   },
   {
     id: "d7",
-    name: "Confirmação de Interesse (Fila)",
+    name: "ConfirmaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o de Interesse (Fila)",
     type: "confirmacao_interesse_espera",
     endpoint: "google_script",
     method: "POST",
     shortDescription:
-      "Envia um formulário de confirmação para jovens na fila de espera.",
+      "Envia um formulÃƒÆ’Ã‚Â¡rio de confirmaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o para jovens na fila de espera.",
     detailedDescription:
-      "Dispara um e-mail com um link único para jovens na fila de espera confirmarem se ainda têm interesse em participar do próximo encontro.",
+      "Dispara um e-mail com um link ÃƒÆ’Ã‚Âºnico para jovens na fila de espera confirmarem se ainda tÃƒÆ’Ã‚Âªm interesse em participar do prÃƒÆ’Ã‚Â³ximo encontro.",
     rules:
-      "### Protocolo de Engajamento\n- **Público:** Apenas \"Fila de Espera\".\n- **Ação:** Envia e-mail com link para formulário público.\n- **Controle:** Registra o status do envio para evitar duplicidade.\n- **Reset de envio:** limpa apenas registros com `I` em branco e `P` em branco (se `P` estiver preenchida, não reseta).",
+      "### Protocolo de Engajamento\n- **PÃƒÆ’Ã‚Âºblico:** Apenas \"Fila de Espera\".\n- **AÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o:** Envia e-mail com link para formulÃƒÆ’Ã‚Â¡rio pÃƒÆ’Ã‚Âºblico.\n- **Controle:** Registra o status do envio para evitar duplicidade.\n- **Reset de envio:** limpa apenas registros com `I` em branco e `P` em branco (se `P` estiver preenchida, nÃƒÆ’Ã‚Â£o reseta).",
     parameters: [],
     status: "active",
     tags: ["E-mail", "Fila de Espera", "Engajamento"],
     emailPreview:
-      '<h2 style="color: #044372; margin-top: 0;">Olá, [NOME]!</h2><p>Temos boas notícias! Estamos reorganizando as fichas recebidas para o próximo <strong>EAC</strong>, que acontecerá nos dias <strong>23 e 24/05</strong>, e seu nome está em nossa <strong>fila de espera</strong>.</p><p>Pedimos que você <strong>confirme seu interesse em participar do EAC</strong> clicando no botão abaixo. Essa resposta nos ajudará na organização do encontro. A confirmação final da participação acontecerá em uma etapa posterior, por meio de <strong>convocação oficial</strong>.</p><a href="${link}" style="background-color: #044372; color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; display: inline-block; margin-top: 12px; font-weight: bold;">Confirmar Interesse</a><br></br><p>Fique atento ao seu <strong>E-mail</strong> e <strong>WhatsApp</strong>. Em breve entraremos em contato.</p><p>Fraternalmente,<br><strong>Coordenação EAC Porciúncula de SantAnna</strong></p>',
+      '<h2 style="color: #044372; margin-top: 0;">OlÃƒÆ’Ã‚Â¡, [NOME]!</h2><p>Temos boas notÃƒÆ’Ã‚Â­cias! Estamos reorganizando as fichas recebidas para o prÃƒÆ’Ã‚Â³ximo <strong>EAC</strong>, que acontecerÃƒÆ’Ã‚Â¡ nos dias <strong>23 e 24/05</strong>, e seu nome estÃƒÆ’Ã‚Â¡ em nossa <strong>fila de espera</strong>.</p><p>Pedimos que vocÃƒÆ’Ã‚Âª <strong>confirme seu interesse em participar do EAC</strong> clicando no botÃƒÆ’Ã‚Â£o abaixo. Essa resposta nos ajudarÃƒÆ’Ã‚Â¡ na organizaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o do encontro. A confirmaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o final da participaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o acontecerÃƒÆ’Ã‚Â¡ em uma etapa posterior, por meio de <strong>convocaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o oficial</strong>.</p><a href="${link}" style="background-color: #044372; color: white; padding: 12px 25px; text-decoration: none; border-radius: 8px; display: inline-block; margin-top: 12px; font-weight: bold;">Confirmar Interesse</a><br></br><p>Fique atento ao seu <strong>E-mail</strong> e <strong>WhatsApp</strong>. Em breve entraremos em contato.</p><p>Fraternalmente,<br><strong>CoordenaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o EAC PorciÃƒÆ’Ã‚Âºncula de SantAnna</strong></p>',
   },
   {
     id: "d4",
-    name: "Aviso Fila de Espera (Não Inscritos)",
+    name: "Aviso Fila de Espera (NÃƒÆ’Ã‚Â£o Inscritos)",
     type: "waitlist_non_enrolled",
     endpoint: "google_script",
     method: "POST",
     shortDescription:
-      "Informa aos que não estão no Cadastro de Encontrista que sua inscrição está em análise.",
+      "Informa aos que nÃƒÆ’Ã‚Â£o estÃƒÆ’Ã‚Â£o no Cadastro de Encontrista que sua inscriÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o estÃƒÆ’Ã‚Â¡ em anÃƒÆ’Ã‚Â¡lise.",
     detailedDescription:
-      "Identifica automaticamente quem se inscreveu mas não consta no Cadastro de Encontrista. Envia e-mail informando que o cadastro está sendo verificado para uma nova chamada.",
+      "Identifica automaticamente quem se inscreveu mas nÃƒÆ’Ã‚Â£o consta no Cadastro de Encontrista. Envia e-mail informando que o cadastro estÃƒÆ’Ã‚Â¡ sendo verificado para uma nova chamada.",
     rules:
-      "### Protocolo de Comunicação\n- **Público:** Apenas \"Não Inscritos\" (cruzamento de planilhas).\n- **Formatação:** Layout padrão EAC.\n- **Lote:** Máximo 50 envios por clique.\n- **Controle:** Registra status na aba de Inscrições para evitar reenvio.",
+      "### Protocolo de ComunicaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o\n- **PÃƒÆ’Ã‚Âºblico:** Apenas \"NÃƒÆ’Ã‚Â£o Inscritos\" (cruzamento de planilhas).\n- **FormataÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o:** Layout padrÃƒÆ’Ã‚Â£o EAC.\n- **Lote:** MÃƒÆ’Ã‚Â¡ximo 50 envios por clique.\n- **Controle:** Registra status na aba de InscriÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes para evitar reenvio.",
     parameters: [],
     status: "active",
     tags: ["E-mail", "Espera", "Batch"],
     emailPreview:
-      '<h2 style="color: #044372; margin-top: 0;">Olá, [NOME]!</h2><p>Recebemos sua inscrição para o EAC e gostaríamos de informar que seu cadastro está em nossa <strong>lista de verificação</strong>.</p><p>Estamos organizando as vagas para o próximo encontro e em breve entraremos em contato para confirmar sua participação.</p><p>Fique atento ao seu E-mail e WhatsApp!</p><br><p>Fraternalmente,<br><strong>Coordenação EAC</strong></p>',
+      '<h2 style="color:#044372; margin-top:0;">Ola, [NOME]!</h2><p>Recebemos sua inscricao para o EAC.</p><p>Seu cadastro foi registrado e em breve enviaremos os proximos passos.</p><p>Fique atento ao seu e-mail e WhatsApp.</p><br><p>Fraternalmente,<br><strong>Coordenacao EAC</strong></p>',
   },
   {
     id: "d8",
-    name: "Confirmação Não Inscritos (B/C/H/P)",
+    name: "Confirmacao de Inscricao (Supabase)",
     type: "confirm_nao_inscritos",
-    endpoint: "google_script",
+    endpoint: "supabase_api",
     method: "POST",
     shortDescription:
-      "Envia confirmação para a aba Não Inscritos usando filtros nas colunas H, C e P.",
+      "Monta publico por status de inscricao e prepara lote com deduplicacao no novo backend.",
     detailedDescription:
-      "Percorre a aba **Não Inscritos** da planilha de inscrições e envia e-mail apenas para quem tem **H vazia**, **C com e-mail válido** e **P vazia**.",
+      "Consulta a view `vw_inscricoes_completas` e seleciona registros com `status_inscricao` em INSCRITO. O email destino e `coalesce(email_responsavel, email)`.",
     rules:
-      "### Protocolo de Comunicação\n- **Origem:** Planilha de Inscrições, aba `Não Inscritos`.\n- **Filtro:** `H` vazia + `C` com `@` + `P` vazia.\n- **Assunto:** `EAC: Atualização sobre sua Inscrição`.\n- **Status (Coluna P):** `Enviado_Confirmacao - DD/MM/AAAA HH:mm`.\n- **Atualizações após envio:** `I = Sim`, `H = valor da P`, `M = data usada em P`.\n- **Lote:** Máximo de 50 envios por execução.",
+      "### Protocolo de Comunicacao (Novo Sistema)\n- **Origem:** `vw_inscricoes_completas`.\n- **Filtro:** `status_inscricao = 'INSCRITO'`.\n- **Email destino:** `coalesce(email_responsavel, email)`.\n- **Deduplicacao:** por email (case-insensitive).\n- **Anti-reenvio:** ignora destinatarios com `SUCCESS` em `disparo_destinatarios` no mesmo disparo.\n- **Lote:** padrao 50 por execucao.\n- **Envio efetivo:** SMTP Gmail configurado no backend.",
     parameters: [],
     status: "active",
-    tags: ["E-mail", "Não Inscritos", "Batch"],
+    tags: ["E-mail", "Inscritos", "Batch"],
     emailPreview:
-      '<h2 style="color: #044372; margin-top: 0;">Olá, [NOME]!</h2><p>Recebemos sua inscrição para o EAC e gostaríamos de informar que seu cadastro está em nossa <strong>lista de verificação</strong>.</p><p>Estamos organizando as vagas para o próximo encontro e em breve entraremos em contato para confirmar sua participação.</p><p>Fique atento ao seu E-mail e WhatsApp!</p><br><p>Fraternalmente,<br><strong>Coordenação EAC</strong></p>',
+      '<h2 style="color:#044372; margin-top:0;">Ola, [NOME]!</h2><p>Recebemos sua inscricao para o EAC.</p><p>Seu cadastro foi registrado e em breve enviaremos os proximos passos.</p><p>Fique atento ao seu e-mail e WhatsApp.</p><br><p>Fraternalmente,<br><strong>Coordenacao EAC</strong></p>',
   },
   {
     id: "d10",
-    name: "Comunicação não participação EAC",
+    name: "ComunicaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o nÃƒÆ’Ã‚Â£o participaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o EAC",
     type: "comunicacao_nao_participacao_eac",
     endpoint: "google_script",
     method: "POST",
     shortDescription:
-      "Comunica aos não inscritos sem priorização (Q != SIM) que não foram selecionados para o EAC atual.",
+      "Comunica aos nÃƒÆ’Ã‚Â£o inscritos sem priorizaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o (Q != SIM) que nÃƒÆ’Ã‚Â£o foram selecionados para o EAC atual.",
     detailedDescription:
-      "Percorre a aba **Não Inscritos** da planilha de inscrições e envia e-mail apenas para quem tem **H vazia**, **C com e-mail válido**, **P vazia** e **Q (Status Priorização) diferente de SIM**.",
+      "Percorre a aba **NÃƒÆ’Ã‚Â£o Inscritos** da planilha de inscriÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes e envia e-mail apenas para quem tem **H vazia**, **C com e-mail vÃƒÆ’Ã‚Â¡lido**, **P vazia** e **Q (Status PriorizaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o) diferente de SIM**.",
     rules:
-      "### Protocolo de Comunicação\n- **Origem:** Planilha de Inscrições, aba `Não Inscritos`.\n- **Filtro:** `H` vazia + `C` com `@` + `P` vazia + `Q != SIM`.\n- **Assunto:** `EAC: Comunicação sobre sua Inscrição`.\n- **Status (Coluna P):** `Enviado_Nao_Participacao - DD/MM/AAAA HH:mm`.\n- **Lote:** Máximo de 50 envios por execução.",
+      "### Protocolo de ComunicaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o\n- **Origem:** Planilha de InscriÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Âµes, aba `NÃƒÆ’Ã‚Â£o Inscritos`.\n- **Filtro:** `H` vazia + `C` com `@` + `P` vazia + `Q != SIM`.\n- **Assunto:** `EAC: ComunicaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o sobre sua InscriÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o`.\n- **Status (Coluna P):** `Enviado_Nao_Participacao - DD/MM/AAAA HH:mm`.\n- **Lote:** MÃƒÆ’Ã‚Â¡ximo de 50 envios por execuÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o.",
     parameters: [],
     status: "active",
-    tags: ["E-mail", "Não Inscritos", "Batch"],
+    tags: ["E-mail", "NÃƒÆ’Ã‚Â£o Inscritos", "Batch"],
     emailPreview:
-      '<h2 style="color: #044372; margin-top: 0;">Olá, [NOME]!</h2><p>Agradecemos seu interesse em participar do EAC.</p><p>Neste momento, você <strong>não foi selecionado para o EAC atual</strong>. Seu cadastro permanece em nossa base e você será convocado para o <strong>EAC do próximo semestre</strong>.</p><p>Fique atento ao seu E-mail e WhatsApp para os próximos comunicados.</p><br><p>Fraternalmente,<br><strong>Coordenação EAC</strong></p>',
+      '<h2 style="color: #044372; margin-top: 0;">OlÃƒÆ’Ã‚Â¡, [NOME]!</h2><p>Agradecemos seu interesse em participar do EAC.</p><p>Neste momento, vocÃƒÆ’Ã‚Âª <strong>nÃƒÆ’Ã‚Â£o foi selecionado para o EAC atual</strong>. Seu cadastro permanece em nossa base e vocÃƒÆ’Ã‚Âª serÃƒÆ’Ã‚Â¡ convocado para o <strong>EAC do prÃƒÆ’Ã‚Â³ximo semestre</strong>.</p><p>Fique atento ao seu E-mail e WhatsApp para os prÃƒÆ’Ã‚Â³ximos comunicados.</p><br><p>Fraternalmente,<br><strong>CoordenaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o EAC</strong></p>',
   },
   {
     id: "d5",
-    name: "Comunicado 99 → Cadastro de Encontrista",
+    name: "Comunicado 99 - Cadastro de Encontrista",
     type: "comunicado_99_cadastro",
-    endpoint: "google_script",
+    endpoint: "supabase_api",
     method: "POST",
     shortDescription:
       "Envia o comunicado fixo ID 99 para toda a base do Cadastro de Encontrista via E-mail.",
     detailedDescription:
-      "Disparo massivo por e-mail utilizando o conteúdo HTML do ID 99 da aba Comunicados. Busca e-mails na **Coluna H**.",
+      "Disparo massivo por e-mail utilizando o conteúdo dinâmico do comunicado ID 99. O público é montado via `vw_cadastro_oficial` (e-mail válido + deduplicação + anti-reenvio).",
     rules:
-      "### Protocolo de Alta Performance\n- **Email:** Coluna H.\n- **Processamento:** Lotes de 50 e-mails por clique.\n- **Status (Coluna W):** Grava o formato `Enviado - DD/MM/AAAA HH:mm`.\n- **Filtro:** Ignora automaticamente linhas com \"Enviado\".",
+      "### Protocolo de Comunicação (Novo Sistema)\n- **Origem:** `vw_cadastro_oficial`.\n- **Template:** conteúdo dinâmico de `comunicados.id = 99`.\n- **Email destino:** coluna de e-mail válida.\n- **Deduplicação:** por e-mail (case-insensitive).\n- **Anti-reenvio:** exclui destinatários com `SUCCESS` já registrado para este disparo.\n- **Lote:** padrão 50 por execução.\n- **Envio efetivo:** SMTP Gmail configurado no backend.",
     parameters: [],
     status: "active",
     tags: ["E-mail", "ID 99", "Batch"],
@@ -120,32 +120,32 @@ export const INITIAL_DISPATCHES: Dispatch[] = [
     shortDescription:
       "Felicita automaticamente os aniversariantes da data atual no Cadastro de Encontrista.",
     detailedDescription:
-      "Varre a coluna C (Nascimento) e envia e-mail (**Coluna H**) para quem faz aniversário hoje.",
+      "Varre a coluna C (Nascimento) e envia e-mail (**Coluna H**) para quem faz aniversÃƒÆ’Ã‚Â¡rio hoje.",
     rules:
-      "### Protocolo de Alta Performance\n- **Email:** Coluna H.\n- **Processamento:** 50 envios por clique.\n- **Status (Coluna T):** Grava `Enviado - Data Atual`.\n- **Filtro:** Compara Dia/Mês da coluna C.",
+      "### Protocolo de Alta Performance\n- **Email:** Coluna H.\n- **Processamento:** 50 envios por clique.\n- **Status (Coluna T):** Grava `Enviado - Data Atual`.\n- **Filtro:** Compara Dia/MÃƒÆ’Ã‚Âªs da coluna C.",
     parameters: [],
     status: "active",
-    tags: ["E-mail", "Felicitação", "Batch"],
+    tags: ["E-mail", "FelicitaÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o", "Batch"],
     emailPreview:
-      '<div style="text-align:center;"><h1 style="color:#044372; margin-top: 0;">🎈 Feliz Aniversário!</h1><p>Parabéns, <strong>[NOME DO ADOLESCENTE]</strong>! 🎂</p><p>A família EAC celebra sua vida com muita alegria!</p><p>Que Deus te abençoe imensamente neste novo ciclo.</p></div>',
+      '<div style="text-align:center;"><h1 style="color:#044372; margin-top: 0;">ÃƒÂ°Ã…Â¸Ã…Â½Ã‹â€  Feliz AniversÃƒÆ’Ã‚Â¡rio!</h1><p>ParabÃƒÆ’Ã‚Â©ns, <strong>[NOME DO ADOLESCENTE]</strong>! ÃƒÂ°Ã…Â¸Ã…Â½Ã¢â‚¬Å¡</p><p>A famÃƒÆ’Ã‚Â­lia EAC celebra sua vida com muita alegria!</p><p>Que Deus te abenÃƒÆ’Ã‚Â§oe imensamente neste novo ciclo.</p></div>',
   },
   {
     id: "d9",
-    name: "Emergência Pós Montagem - Período de Cadastro",
+    name: "EmergÃƒÆ’Ã‚Âªncia PÃƒÆ’Ã‚Â³s Montagem - PerÃƒÆ’Ã‚Â­odo de Cadastro",
     type: "emergencia_nov2025",
     endpoint: "google_script",
     method: "POST",
     shortDescription:
-      "Envia um comunicado emergencial por intervalo de cadastro (mês inicial até data final).",
+      "Envia um comunicado emergencial por intervalo de cadastro (mÃƒÆ’Ã‚Âªs inicial atÃƒÆ’Ã‚Â© data final).",
     detailedDescription:
-      "Dispara para registros cuja data de cadastro (coluna A / Timestamp ou Data Cadastro) esteja dentro do período selecionado: mês inicial até data final. O conteúdo pode ser editado antes do envio e a origem dos dados pode ser escolhida entre Encontreiros e Cadastro de Encontrista.",
+      "Dispara para registros cuja data de cadastro (coluna A / Timestamp ou Data Cadastro) esteja dentro do perÃƒÆ’Ã‚Â­odo selecionado: mÃƒÆ’Ã‚Âªs inicial atÃƒÆ’Ã‚Â© data final. O conteÃƒÆ’Ã‚Âºdo pode ser editado antes do envio e a origem dos dados pode ser escolhida entre Encontreiros e Cadastro de Encontrista.",
     rules:
-      "### Protocolo de Emergência\n- **Período:** Mês inicial + Data final definidos na execução.\n- **Referência:** Coluna A (Timestamp/Data Cadastro).\n- **Conteúdo:** Texto customizável antes do disparo.\n- **Origem:** Encontreiros ou Cadastro de Encontrista.\n- **Lote:** Máximo de 50 envios por execução.",
+      "### Protocolo de EmergÃƒÆ’Ã‚Âªncia\n- **PerÃƒÆ’Ã‚Â­odo:** MÃƒÆ’Ã‚Âªs inicial + Data final definidos na execuÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o.\n- **ReferÃƒÆ’Ã‚Âªncia:** Coluna A (Timestamp/Data Cadastro).\n- **ConteÃƒÆ’Ã‚Âºdo:** Texto customizÃƒÆ’Ã‚Â¡vel antes do disparo.\n- **Origem:** Encontreiros ou Cadastro de Encontrista.\n- **Lote:** MÃƒÆ’Ã‚Â¡ximo de 50 envios por execuÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o.",
     parameters: ["targetSheet", "message", "startMonth", "endDate"],
     status: "active",
-    tags: ["Emergência", "Encontreiro", "E-mail"],
+    tags: ["EmergÃƒÆ’Ã‚Âªncia", "Encontreiro", "E-mail"],
     emailPreview:
-      '<div style="text-align:center;"><h1 style="color:#B91C1C; margin-top: 0;">⚠️ COMUNICADO EMERGENCIAL</h1><p>Olá, [NOME]</p><p>Este é um aviso importante para os inscritos de Novembro/2025. Verifique sua caixa e responda se necessário.</p></div>',
+      '<div style="text-align:center;"><h1 style="color:#B91C1C; margin-top: 0;">ÃƒÂ¢Ã…Â¡Ã‚Â ÃƒÂ¯Ã‚Â¸Ã‚Â COMUNICADO EMERGENCIAL</h1><p>OlÃƒÆ’Ã‚Â¡, [NOME]</p><p>Este ÃƒÆ’Ã‚Â© um aviso importante para os inscritos de Novembro/2025. Verifique sua caixa e responda se necessÃƒÆ’Ã‚Â¡rio.</p></div>',
   },
   {
     id: "d3",
@@ -156,14 +156,14 @@ export const INITIAL_DISPATCHES: Dispatch[] = [
     shortDescription:
       "Gera e envia automaticamente a agenda de eventos confirmados para o Cadastro de Encontrista.",
     detailedDescription:
-      "Este motor integra dados de duas planilhas: extrai eventos do Calendário e dispara para a lista de contatos do Cadastro de Encontrista.",
+      "Este motor integra dados de duas planilhas: extrai eventos do CalendÃƒÆ’Ã‚Â¡rio e dispara para a lista de contatos do Cadastro de Encontrista.",
     rules:
-      "### Protocolo de Alta Performance\n- **Filtro de Eventos:** Apenas linhas com \"Confirmado\".\n- **Status:** Registra envio da semana atual para evitar duplicidade.\n- **Execução:** Lotes de 50 disparos por vez.",
+      "### Protocolo de Alta Performance\n- **Filtro de Eventos:** Apenas linhas com \"Confirmado\".\n- **Status:** Registra envio da semana atual para evitar duplicidade.\n- **ExecuÃƒÆ’Ã‚Â§ÃƒÆ’Ã‚Â£o:** Lotes de 50 disparos por vez.",
     parameters: [],
     status: "active",
-    tags: ["Agenda", "E-mail", "Calendário"],
+    tags: ["Agenda", "E-mail", "CalendÃƒÆ’Ã‚Â¡rio"],
     emailPreview:
-      '<h3 style="color: #044372; margin-top: 0;">📅 Agenda da Semana EAC</h3><p>Confira as atividades programadas para os próximos dias:</p><div style="background: #f1f5f9; padding: 15px; border-radius: 8px; margin: 15px 0;"><p style="margin: 0; font-size: 13px;"><strong>[NOME DA ATIVIDADE]</strong><br><span style="color: #64748b;">[DATA] às [HORA] em [LOCAL]</span></p></div><p style="font-size: 12px; color: #64748b;">* Apenas eventos com status \"Confirmado\" são listados aqui.</p>',
+      '<h3 style="color: #044372; margin-top: 0;">ÃƒÂ°Ã…Â¸Ã¢â‚¬Å“Ã¢â‚¬Â¦ Agenda da Semana EAC</h3><p>Confira as atividades programadas para os prÃƒÆ’Ã‚Â³ximos dias:</p><div style="background: #f1f5f9; padding: 15px; border-radius: 8px; margin: 15px 0;"><p style="margin: 0; font-size: 13px;"><strong>[NOME DA ATIVIDADE]</strong><br><span style="color: #64748b;">[DATA] ÃƒÆ’Ã‚Â s [HORA] em [LOCAL]</span></p></div><p style="font-size: 12px; color: #64748b;">* Apenas eventos com status \"Confirmado\" sÃƒÆ’Ã‚Â£o listados aqui.</p>',
   },
 ];
 
@@ -171,7 +171,7 @@ export const MOCK_LOGS: Log[] = [
   {
     id: "log-1",
     dispatchId: "d5",
-    dispatchName: "Comunicado 99 → Cadastro de Encontrista",
+    dispatchName: "Comunicado 99 - Cadastro de Encontrista",
     operator: "Sistema EAC",
     timestamp: new Date().toISOString(),
     duration: 4500,
@@ -180,3 +180,7 @@ export const MOCK_LOGS: Log[] = [
       "Sucesso: 12 e-mails enviados para a base do Cadastro de Encontrista.",
   },
 ];
+
+
+
+

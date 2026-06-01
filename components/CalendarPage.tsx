@@ -1,9 +1,10 @@
-
+﻿
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { CalendarEvent, User, SystemSettings } from '../types.ts';
 import Badge from './Badge.tsx';
 import { showAppConfirm } from '../utils/appDialog.ts';
 import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
+import DataOriginAudit from './DataOriginAudit.tsx';
 
 interface CalendarPageProps {
   googleWebAppUrl: string;
@@ -26,19 +27,31 @@ const getEventTypeColor = (type: string) => {
   return 'bg-[#64748b]';                                 
 };
 
+const normalizeStatus = (value: any) => {
+  const raw = toCleanString(value).toLowerCase().replace(/_/g, ' ').trim();
+  if (!raw) return '';
+  if (raw.includes('confirm')) return 'Confirmado';
+  if (raw.includes('agend')) return 'Agendado';
+  if (raw.includes('a confirmar') || raw === 'aconfirmar') return 'A confirmar';
+  if (raw.includes('cancel')) return 'Cancelado';
+  return toCleanString(value);
+};
+
 export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProps) {
   const [internalEvents, setInternalEvents] = useState<CalendarEvent[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<number>(new Date().getDate());
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('Todos');
+  const [tipoFilter, setTipoFilter] = useState<string>('Todos');
   
   const canCreate = user.role === 'ADMIN' || user.permissions.canCreate;
   const canEdit = user.role === 'ADMIN' || user.permissions.canEdit;
   const canDelete = user.role === 'ADMIN' || user.permissions.canDelete;
 
   const [formData, setFormData] = useState<CalendarEvent>({
-    atividade: '', tipo: 'Encontro', inicio: '', termino: '', local: '', proprietario: '', status: 'Confirmado'
+    atividade: '', tipo: 'Encontro', inicio: '', termino: '', local: '', proprietario: '', status: 'Confirmado', encontroId: ''
   });
 
   const year = currentDate.getFullYear();
@@ -77,9 +90,30 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
   const activeEvents = useMemo(() => {
     return internalEvents.filter(ev => {
       const parts = getEventDateParts(ev.inicio);
-      return parts && parts.y === year && parts.m === month;
+      if (!parts || parts.y !== year || parts.m !== month) return false;
+      const statusOk = statusFilter === 'Todos' || normalizeStatus(ev.status) === statusFilter;
+      const tipoOk = tipoFilter === 'Todos' || toCleanString(ev.tipo) === tipoFilter;
+      return statusOk && tipoOk;
     });
-  }, [internalEvents, year, month]);
+  }, [internalEvents, year, month, statusFilter, tipoFilter]);
+
+  const availableStatuses = useMemo(() => {
+    const set = new Set<string>(['Confirmado', 'Agendado', 'A confirmar']);
+    internalEvents.forEach((ev) => {
+      const v = normalizeStatus(ev.status);
+      if (v) set.add(v);
+    });
+    return ['Todos', ...Array.from(set)];
+  }, [internalEvents]);
+
+  const availableTipos = useMemo(() => {
+    const set = new Set<string>();
+    internalEvents.forEach((ev) => {
+      const v = toCleanString(ev.tipo);
+      if (v) set.add(v);
+    });
+    return ['Todos', ...Array.from(set)];
+  }, [internalEvents]);
 
   const selectedDayEvents = useMemo(() => {
     return activeEvents.filter(ev => getEventDateParts(ev.inicio)?.d === selectedDay);
@@ -130,6 +164,28 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
     }
   };
 
+  const handleImportExternos2026 = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/comunicados', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'IMPORT_CALENDAR_2026_EXTERNOS', googleWebAppUrl })
+      });
+      const data = sanitizeTextDeep(await response.json());
+      if (!data?.success) {
+        alert(data?.error || 'Não foi possível importar a aba Externos 2026.');
+        return;
+      }
+      alert(data?.message || 'Importação concluída.');
+      fetchInternalEvents();
+    } catch (e) {
+      alert('Erro ao importar calendário 2026 (Externos).');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const renderCalendar = () => {
     const totalDays = new Date(year, month + 1, 0).getDate();
     const startDay = new Date(year, month, 1).getDay();
@@ -176,13 +232,19 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
           >
             Sincronizar
           </button>
+          <button 
+             onClick={handleImportExternos2026}
+             className="px-6 py-4 bg-white border-2 border-amber-200 rounded-2xl font-black text-amber-700 hover:bg-amber-50 shadow-sm transition-all text-[10px] uppercase tracking-widest"
+          >
+            Importar Externos 2026
+          </button>
           {canCreate && (
             <button 
               onClick={() => {
                 setFormData({
                   atividade: '', tipo: 'Encontro', inicio: `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}T19:00`,
                   termino: `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}T21:00`,
-                  local: 'Salão Paroquial', proprietario: user.name, status: 'Confirmado'
+                  local: 'Salão Paroquial', proprietario: user.name, status: 'Confirmado', encontroId: ''
                 });
                 setIsModalOpen(true);
               }}
@@ -208,6 +270,31 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         <button onClick={() => changeMonth(1)} className="p-3 bg-slate-50 rounded-xl hover:text-blue-600 transition-all border border-slate-100 text-slate-400 group">
           <svg className="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7"/></svg>
         </button>
+      </div>
+
+      <div className="bg-white px-8 pb-6 border border-slate-200 border-t-0 border-b-0">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Filtro por Status</label>
+            <select
+              className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 font-black text-slate-800 outline-none focus:border-blue-500 transition-all text-xs"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              {availableStatuses.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Filtro por Tipo</label>
+            <select
+              className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 bg-slate-50 font-black text-slate-800 outline-none focus:border-blue-500 transition-all text-xs"
+              value={tipoFilter}
+              onChange={(e) => setTipoFilter(e.target.value)}
+            >
+              {availableTipos.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8">
@@ -264,7 +351,10 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                       <h4 className="font-black text-slate-800 text-base leading-tight uppercase tracking-tight mb-2">{toCleanString(ev.atividade)}</h4>
                       <div className="flex items-center text-slate-400 gap-4">
                          <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">📍</span> {toCleanString(ev.local) || 'Paróquia'}</p>
-                         <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">🕒</span> {new Date(ev.inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                         <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">ðŸ•’</span> {new Date(ev.inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                         {toCleanString(ev.encontroId) && (
+                           <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">#</span> {toCleanString(ev.encontroId)}</p>
+                         )}
                       </div>
                     </div>
                   </div>
@@ -325,6 +415,17 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Local</label>
                   <input className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 font-bold text-slate-800 text-sm" value={formData.local} onChange={e => setFormData({...formData, local: e.target.value})} />
                 </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ID do Encontro (opcional)</label>
+                  <input
+                    placeholder="Ex.: EAC-2026-01"
+                    className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 font-bold text-slate-800 text-sm"
+                    value={formData.encontroId || ''}
+                    onChange={e => setFormData({ ...formData, encontroId: e.target.value })}
+                  />
+                </div>
+
+                <DataOriginAudit record={formData} />
               </div>
               <div className="px-8 py-8 bg-slate-50 border-t flex flex-col md:flex-row gap-3">
                 <button type="submit" className="w-full blue-gradient text-white px-10 py-5 rounded-2xl font-black uppercase text-xs shadow-xl active:scale-95 transition-all tracking-[0.2em]">GRAVAR NA NUVEM</button>
@@ -336,3 +437,4 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
     </div>
   );
 }
+

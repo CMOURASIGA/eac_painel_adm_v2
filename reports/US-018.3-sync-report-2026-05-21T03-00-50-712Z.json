@@ -1,0 +1,545 @@
+{
+  "generatedAt": "2026-05-21T03:00:50.712Z",
+  "env": {
+    "supabaseSchema": "public",
+    "googleWebAppUrlConfigured": true,
+    "supabaseConfigured": true
+  },
+  "raw": {
+    "sheets": {
+      "GET_MEMBERS": {
+        "count": 72
+      },
+      "GET_NON_ENROLLED": {
+        "count": 231
+      },
+      "GET_INSCRICOES_PRIORITARIAS": {
+        "count": 70
+      },
+      "GET_CIRCULOS_DISTRIBUIDOS": {
+        "count": 72
+      },
+      "GET_PRESENCE": {
+        "count": 189
+      },
+      "GET_ENCONTREIROS": {
+        "count": 307
+      },
+      "GET_EVENTS": {
+        "count": 73
+      },
+      "GET_COMUNICADOS": {
+        "count": 2
+      },
+      "GET_LOGS": {
+        "count": 50
+      }
+    },
+    "supabase": {
+      "GET_MEMBERS": {
+        "table": "vw_cadastro_oficial",
+        "count": 3
+      },
+      "GET_NON_ENROLLED": {
+        "table": "vw_nao_inscritos",
+        "count": 205
+      },
+      "GET_INSCRICOES_PRIORITARIAS": {
+        "table": "vw_inscricoes_prioritarias",
+        "count": 69
+      },
+      "GET_CIRCULOS_DISTRIBUIDOS": {
+        "table": "vw_distribuicao_circulos",
+        "count": 69
+      },
+      "GET_PRESENCE": {
+        "table": "vw_presencas_historico",
+        "count": 179
+      },
+      "GET_ENCONTREIROS": {
+        "table": "vw_encontreiros",
+        "count": 1
+      },
+      "GET_EVENTS": {
+        "table": "eventos_agenda",
+        "count": 73
+      },
+      "GET_COMUNICADOS": {
+        "table": "comunicados",
+        "count": 2
+      },
+      "GET_LOGS": {
+        "table": "logs_auditoria",
+        "count": 0
+      }
+    }
+  },
+  "sections": [
+    {
+      "name": "Members (Cadastro Oficial) [action:GET_MEMBERS]",
+      "counts": {
+        "sheets": 72,
+        "supabase": 3,
+        "delta": -69
+      },
+      "requiredFieldIssues": [
+        {
+          "field": "nome",
+          "missingCount": 3,
+          "sampleIdx": [
+            0,
+            1,
+            2
+          ],
+          "source": "supabase"
+        },
+        {
+          "field": "telefone",
+          "missingCount": 1,
+          "sampleIdx": [
+            1
+          ],
+          "source": "supabase"
+        }
+      ],
+      "typeIssues": [],
+      "duplicates": [
+        {
+          "key": "5521997594522",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "5521971319713",
+          "count": 2,
+          "source": "sheets"
+        }
+      ],
+      "ok": false
+    },
+    {
+      "name": "NonEnrolled (NÃ£o Inscritos) [action:GET_NON_ENROLLED]",
+      "counts": {
+        "sheets": 231,
+        "supabase": 205,
+        "delta": -26
+      },
+      "requiredFieldIssues": [
+        {
+          "field": "nome",
+          "missingCount": 20,
+          "sampleIdx": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "source": "supabase"
+        },
+        {
+          "field": "bairro",
+          "missingCount": 8,
+          "sampleIdx": [
+            40,
+            47,
+            67,
+            77,
+            85,
+            97,
+            203,
+            204
+          ],
+          "source": "supabase"
+        }
+      ],
+      "typeIssues": [],
+      "duplicates": [
+        {
+          "key": "21996251281",
+          "count": 2,
+          "source": "sheets"
+        }
+      ],
+      "ok": false
+    },
+    {
+      "name": "InscriÃ§Ãµes PrioritÃ¡rias [action:GET_INSCRICOES_PRIORITARIAS]",
+      "counts": {
+        "sheets": 70,
+        "supabase": 69,
+        "delta": -1
+      },
+      "requiredFieldIssues": [
+        {
+          "field": "telefone",
+          "missingCount": 2,
+          "sampleIdx": [
+            9,
+            61
+          ],
+          "source": "sheets"
+        },
+        {
+          "field": "nome",
+          "missingCount": 20,
+          "sampleIdx": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "source": "supabase"
+        },
+        {
+          "field": "bairro",
+          "missingCount": 1,
+          "sampleIdx": [
+            18
+          ],
+          "source": "supabase"
+        }
+      ],
+      "typeIssues": [],
+      "duplicates": [
+        {
+          "key": "21998945084",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "21998893925",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "21996153415",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "5521996251281",
+          "count": 2,
+          "source": "supabase"
+        },
+        {
+          "key": "5521981119875",
+          "count": 2,
+          "source": "supabase"
+        }
+      ],
+      "ok": false
+    },
+    {
+      "name": "CÃ­rculos DistribuÃ­dos [action:GET_CIRCULOS_DISTRIBUIDOS]",
+      "counts": {
+        "sheets": 72,
+        "supabase": 69,
+        "delta": -3
+      },
+      "requiredFieldIssues": [
+        {
+          "field": "nome",
+          "missingCount": 20,
+          "sampleIdx": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "source": "supabase"
+        }
+      ],
+      "typeIssues": [
+        {
+          "field": "idade",
+          "sheetsBadCount": 1,
+          "supabaseBadCount": 0,
+          "sheetsSampleIdx": [
+            71
+          ],
+          "supabaseSampleIdx": [],
+          "badCount": 1
+        }
+      ],
+      "duplicates": [
+        {
+          "key": "Circulo 5:",
+          "count": 11,
+          "source": "supabase"
+        },
+        {
+          "key": "Circulo 2:",
+          "count": 12,
+          "source": "supabase"
+        },
+        {
+          "key": "Circulo 3:",
+          "count": 12,
+          "source": "supabase"
+        },
+        {
+          "key": "Circulo 1:",
+          "count": 12,
+          "source": "supabase"
+        },
+        {
+          "key": "Circulo 6:",
+          "count": 12,
+          "source": "supabase"
+        },
+        {
+          "key": "Circulo 4:",
+          "count": 10,
+          "source": "supabase"
+        }
+      ],
+      "ok": false
+    },
+    {
+      "name": "PresenÃ§a (Controle de PresenÃ§a) [action:GET_PRESENCE]",
+      "counts": {
+        "sheets": 189,
+        "supabase": 179,
+        "delta": -10
+      },
+      "requiredFieldIssues": [
+        {
+          "field": "nome",
+          "missingCount": 20,
+          "sampleIdx": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "source": "supabase"
+        },
+        {
+          "field": "telefone",
+          "missingCount": 20,
+          "sampleIdx": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9
+          ],
+          "source": "supabase"
+        }
+      ],
+      "typeIssues": [],
+      "duplicates": [
+        {
+          "key": ":",
+          "count": 179,
+          "source": "supabase"
+        }
+      ],
+      "ok": false
+    },
+    {
+      "name": "Encontreiros [action:GET_ENCONTREIROS]",
+      "counts": {
+        "sheets": 307,
+        "supabase": 1,
+        "delta": -306
+      },
+      "requiredFieldIssues": [
+        {
+          "field": "nomeCompleto",
+          "missingCount": 1,
+          "sampleIdx": [
+            0
+          ],
+          "source": "supabase"
+        }
+      ],
+      "typeIssues": [
+        {
+          "field": "email",
+          "sheetsBadCount": 2,
+          "supabaseBadCount": 0,
+          "sheetsSampleIdx": [
+            29,
+            41
+          ],
+          "supabaseSampleIdx": [],
+          "badCount": 2
+        }
+      ],
+      "duplicates": [
+        {
+          "key": "jasmin pontes barreiros:21991103628",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "mariana marques baars:21984791581",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "renan guimarães pellegrini:5521997217666",
+          "count": 3,
+          "source": "sheets"
+        },
+        {
+          "key": "maria clara de oliveira dias:21987838734",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "larah azevedo da silva:21970654832",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "maitê oliveira diniz figueiredo:21964275250",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "anna maria di mango:21998234182",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "ana beatriz martins saldanha:21981355532",
+          "count": 3,
+          "source": "sheets"
+        },
+        {
+          "key": "ágatha manuela vieira martins figueiredo:21985780393",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "beatriz de jesus lopes:21975204256",
+          "count": 3,
+          "source": "sheets"
+        },
+        {
+          "key": "francisco lima braga:21993580638",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "fernanda vieira da costa:21991229309",
+          "count": 3,
+          "source": "sheets"
+        },
+        {
+          "key": "isabela mattos rodrigues:21999768353",
+          "count": 3,
+          "source": "sheets"
+        },
+        {
+          "key": "luiza trindade freire:21974013311",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "natália moreira altoé:21995179886",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "thais guimarães brandão borges:21967115150",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "manuella navarro:21993258789",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "maria fernanda lobo tupini:21996520082",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "mariana ribeiro soares:21989885114",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "alan joubert silva e paula:21971783317",
+          "count": 2,
+          "source": "sheets"
+        },
+        {
+          "key": "olga cristiane ribeiro mendes de aguiar:21969339045",
+          "count": 2,
+          "source": "sheets"
+        }
+      ],
+      "ok": false
+    },
+    {
+      "name": "Agenda (Eventos) [action:GET_EVENTS]",
+      "counts": {
+        "sheets": 73,
+        "supabase": 73,
+        "delta": 0
+      },
+      "requiredFieldIssues": [],
+      "typeIssues": [],
+      "duplicates": [],
+      "ok": true
+    },
+    {
+      "name": "Comunicados [action:GET_COMUNICADOS]",
+      "counts": {
+        "sheets": 2,
+        "supabase": 2,
+        "delta": 0
+      },
+      "requiredFieldIssues": [],
+      "typeIssues": [],
+      "duplicates": [],
+      "ok": true
+    },
+    {
+      "name": "Logs (Auditoria) [action:GET_LOGS]",
+      "counts": {
+        "sheets": 50,
+        "supabase": 0,
+        "delta": -50
+      },
+      "requiredFieldIssues": [],
+      "typeIssues": [],
+      "duplicates": [],
+      "ok": false
+    }
+  ]
+}

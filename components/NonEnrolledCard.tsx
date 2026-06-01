@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import PersonCard from './PersonCard.tsx';
 
 type NonEnrolledCardProps = {
@@ -195,3 +195,4 @@ const NonEnrolledCard: React.FC<NonEnrolledCardProps> = ({
 };
 
 export default NonEnrolledCard;
+

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +16,8 @@ export async function POST(req: Request) {
     }
 
     const googleWebAppUrl = String(body?.googleWebAppUrl || '').trim();
+    const minAge = body?.minAge;
+    const maxAge = body?.maxAge;
 
     const proxyUrl = new URL('/api/comunicados', req.url).toString();
     const proxyResponse = await fetch(proxyUrl, {
@@ -23,7 +25,10 @@ export async function POST(req: Request) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'EXECUTE_DISTRIBUICAO_CIRCULOS',
-        data: {},
+        data: {
+          ...(minAge !== undefined ? { minAge } : {}),
+          ...(maxAge !== undefined ? { maxAge } : {}),
+        },
         ...(googleWebAppUrl ? { googleWebAppUrl } : {})
       })
     });

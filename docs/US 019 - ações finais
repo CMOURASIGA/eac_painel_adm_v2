@@ -1,0 +1,35 @@
+# US-019 - Ajuste final para homologação do formulário de inscrição
+
+## Contexto
+
+A estrutura de banco da US-019 foi ajustada e validada.
+
+Já temos:
+
+- `public.inscricoes` corrigida com origem, status, defaults e constraints.
+- Registros legados classificados como `origem_dado = 'PLANILHA'` e `criado_via_sistema = false`.
+- Status legados normalizados para o novo workflow.
+- Constraint `chk_inscricoes_status` aplicada.
+- Tabela `public.adolescente_responsaveis` criada.
+- FKs validadas:
+  - `adolescente_responsaveis.adolescente_id → adolescentes.id`
+  - `adolescente_responsaveis.responsavel_id → responsaveis.id`
+- Constraint única validada:
+  - `UNIQUE (adolescente_id, responsavel_id)`
+- `public.responsaveis` alinhada com campos de origem:
+  - `origem_dado`
+  - `criado_via_sistema`
+  - `data_importacao`
+  - `id_origem_planilha`
+  - `ultima_sincronizacao`
+
+Agora falta validar e, se necessário, ajustar o endpoint da US-019 para gravar o fluxo completo.
+
+---
+
+# Objetivo desta tarefa
+
+Ajustar e validar o endpoint:
+
+```text
+POST /api/inscricoes/create

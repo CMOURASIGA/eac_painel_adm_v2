@@ -1,4 +1,4 @@
-
+﻿
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, View } from '../types.ts';
 import Badge from './Badge.tsx';
@@ -269,8 +269,9 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentUser, go
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Senha Provisória</label>
                     <input 
-                      required 
+                      required={!isEditing}
                       type="password"
+                      placeholder={isEditing ? 'Deixe em branco para manter a senha atual' : ''}
                       className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 font-black text-slate-800 outline-none focus:border-blue-500 transition-all text-sm" 
                       value={formData.senha} 
                       onChange={e => setFormData({...formData, senha: e.target.value})} 
@@ -381,3 +382,4 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentUser, go
 };
 
 export default UserManagementPage;
+

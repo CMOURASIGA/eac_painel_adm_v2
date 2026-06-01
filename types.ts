@@ -1,7 +1,7 @@
-// types.ts
+﻿// types.ts
 
 // ========================
-// Navegação / Views
+// NavegaÃ§Ã£o / Views
 // ========================
 export type View =
   | 'dashboard'
@@ -19,7 +19,7 @@ export type View =
   | 'help';
 
 // ========================
-// Usuários
+// UsuÃ¡rios
 // ========================
 export type UserRole = 'ADMIN' | 'VIEWER';
 
@@ -43,6 +43,7 @@ export interface User {
         canEdit: boolean;
         canView: boolean;
         canDelete: boolean;
+        canViewSensitive?: boolean;
       };
     };
   };
@@ -96,7 +97,7 @@ export interface SystemSettings {
 }
 
 // ========================
-// Eventos (Calendário)
+// Eventos (CalendÃ¡rio)
 // ========================
 export interface CalendarEvent {
   id?: string;
@@ -107,6 +108,7 @@ export interface CalendarEvent {
   local: string;
   proprietario?: string;
   status?: string;
+  encontroId?: string;
 }
 
 export interface Adolescente {
@@ -169,6 +171,8 @@ export interface PresenceRecord {
   nome: string;
   telefone: string;
   circulo?: string;
+  encontroId?: string;
+  encontroNome?: string;
   timestamp?: any;
   mes?: string;
   telCadastrado?: string;
@@ -183,7 +187,7 @@ export interface NonEnrolledMember {
   bairro: string;
   dataCadastro?: string;
 
-  // respostas do formulário (colunas I a O na aba "não inscritos")
+  // respostas do formulÃ¡rio (colunas I a O na aba "nÃ£o inscritos")
   interesseConfirmado?: string; // I
   jaFezEac?: string;           // J
   contatoMudou?: string;        // K
@@ -196,7 +200,7 @@ export interface NonEnrolledMember {
 
 /**
  * IMPORTANTE:
- * LogStatus precisa existir no runtime (não pode ser só "type"),
+ * LogStatus precisa existir no runtime (nÃ£o pode ser sÃ³ "type"),
  * porque tem arquivo importando como valor.
  */
 export enum LogStatus {
@@ -214,6 +218,8 @@ export interface Log {
   duration: number;
   status: LogStatus;
   responseSummary: string;
+  modulo?: string;
+  tipo?: string;
 }
 
 export interface LogEntry {
@@ -222,3 +228,4 @@ export interface LogEntry {
   message: string;
   context?: any;
 }
+

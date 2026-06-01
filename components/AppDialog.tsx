@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { AppDialogRequest } from '../utils/appDialog.ts';
 
 interface AppDialogProps {
@@ -89,3 +89,4 @@ const AppDialog: React.FC<AppDialogProps> = ({ request, onResolve }) => {
 };
 
 export default AppDialog;
+

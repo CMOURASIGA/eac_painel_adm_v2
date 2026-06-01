@@ -1,4 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { handleSupabaseAction } from '../utils/supabaseActions';
+import { isSupabaseConfigured } from '../utils/supabaseServer';
 
 type ApiResult = Record<string, any> & { success?: boolean; error?: string };
 const LATIN1_CHARSET_REGEX = /(charset\s*=\s*(iso-8859-1|latin1|windows-1252))/i;
@@ -168,13 +170,110 @@ function getActionTimeoutMs(action: string) {
   return heavyActions.has(action) ? 120000 : 30000;
 }
 
+function sendError(res: NextApiResponse, status: number, error: string, message?: string, extra?: Record<string, any>) {
+  return res.status(status).json({
+    success: false,
+    error,
+    message: message || error,
+    ...(extra || {}),
+  });
+}
+
+function sendSuccess(res: NextApiResponse, status: number, payload: Record<string, any>) {
+  const fallbackMessage = 'Operacao concluida com sucesso.';
+  return res.status(status).json({
+    success: true,
+    message: String(payload?.message || fallbackMessage),
+    ...payload,
+  });
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, error: 'Método não permitido' });
+    return sendError(res, 405, 'Metodo nao permitido.');
   }
 
   try {
     const { action, data, googleWebAppUrl: clientUrl } = req.body ?? {};
+
+    const supabasePreferredActions = new Set([
+      'GET_SYNC_STATUS',
+      'USER_LOGIN',
+      'GET_USERS',
+      'SAVE_USER',
+      'DELETE_USER',
+      'GET_MEMBERS',
+      'SEARCH_MEMBERS',
+      'DELETE_MEMBER',
+      'GET_NON_ENROLLED',
+      'ATUALIZAR_NAO_INSCRITOS',
+      'UPDATE_NON_ENROLLED_RECADO',
+      'UPDATE_NON_ENROLLED_RECORD',
+      'GET_EVENTS',
+      'IMPORT_CALENDAR_2026_EXTERNOS',
+      'SAVE_EVENT',
+      'DELETE_EVENT',
+      'GET_COMUNICADOS',
+      'SAVE_COMUNICADO',
+      'DELETE_COMUNICADO',
+      'LOG_DISPATCH_EXECUTION',
+      'LOG_DISPATCH_DESTINATARIOS',
+      'BUILD_NON_ENROLLED_DISPATCH_AUDIENCE',
+      'GET_DISPARO_EXECUCOES',
+      'START_DISPARO_EXECUCAO',
+      'UPDATE_DISPARO_EXECUCAO_STATUS',
+      'RETRY_DISPARO_FALHAS',
+      'GET_LOGS',
+      'GET_OPERATIONAL_LOGS',
+      'GET_SAFE_SETTINGS',
+      'GET_CONTEXT_HELP',
+      'GET_ENCONTREIROS',
+      'GET_PRESENCE',
+      'GET_CIRCULOS_DISTRIBUIDOS',
+      'GET_INSCRICOES_PRIORITARIAS',
+      'PRIORITIZE_NON_ENROLLED',
+      'GET_EMAIL_STATUS_SUMMARY',
+      'GET_EMAIL_CALLS_BY_PERSON',
+      'SAVE_ENCONTREIRO',
+      'DELETE_ENCONTREIRO',
+      'NORMALIZE_ENCONTREIRO_WHATSAPP',
+      'GET_EQUIPES',
+      'GET_ENCONTREIRO_EQUIPES',
+      'SAVE_ENCONTREIRO_EQUIPES',
+      'EXECUTE_ANIVERSARIANTES',
+      'EXECUTE_COMUNICADO_99',
+    ]);
+
+    const allowSheetsFallbackForReads =
+      String(process.env.EAC_ALLOW_SHEETS_FALLBACK_READ || '').trim().toLowerCase() === 'true';
+
+    if (action && typeof action === 'string' && supabasePreferredActions.has(action)) {
+      const supa = await handleSupabaseAction(action, data || {});
+      if (supa.ok) {
+        res.setHeader('X-EAC-Backend', 'supabase');
+        res.setHeader('X-EAC-Action', action);
+        const payload = (supa.data && typeof supa.data === 'object')
+          ? (supa.data as Record<string, any>)
+          : { data: supa.data };
+        const ok = Boolean(payload?.success ?? true);
+        if (!ok) {
+          const err = String(payload?.error || 'Falha na operacao.');
+          return sendError(res, 400, err, String(payload?.message || err), payload);
+        }
+        return sendSuccess(res, 200, payload);
+      }
+
+      if (!allowSheetsFallbackForReads) {
+        console.error('[pages/api/comunicados] Falha Supabase:', { action, error: supa.error, details: supa.details });
+        res.setHeader('X-EAC-Backend', 'supabase');
+        res.setHeader('X-EAC-Action', action);
+        const status = isSupabaseConfigured() ? 502 : 500;
+        const err = String(supa.error || 'Falha ao consultar Supabase.');
+        return sendError(res, status, err, err, { details: supa.details });
+      }
+
+      // Fallback explicitamente permitido: segue fluxo legado (Google Apps Script).
+    }
 
     /*const webAppUrl =
       normalizeUrl(process.env.GOOGLE_WEBAPP_URL) ||
@@ -201,18 +300,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const masterKey = normalizeUrl(process.env.CHAVE_MESTRA) || 'EAC-Admin-Secure-778899';
 
     if (!webAppUrl) {
-      return res.status(400).json({ success: false, error: 'URL do Google Script não configurada.' });
+      return sendError(res, 400, 'URL do Google Script nao configurada.');
     }
 
     if (!isValidGoogleWebAppUrl(webAppUrl)) {
-      return res.status(400).json({
-        success: false,
-        error: 'URL do Google Script inválida. Use o link do Web App publicado.'
-      });
+      return sendError(res, 400, 'URL do Google Script invalida. Use o link do Web App publicado.');
     }
 
     if (!action || typeof action !== 'string') {
-      return res.status(400).json({ success: false, error: 'Ação inválida.' });
+      return sendError(res, 400, 'Acao invalida.');
     }
 
     // ========= AJUSTE: garantir payload.appUrl na action que precisa =========
@@ -271,7 +367,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         sample
       });
 
-      return res.status(502).json({ success: false, error: 'Resposta inválida do servidor Google.' });
+      return sendError(res, 502, 'Resposta invalida do servidor Google.');
     }
 
     if (!response.ok) {
@@ -281,11 +377,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         result
       });
 
-      return res.status(response.status).json({
-        success: false,
-        error: result?.error || `Erro Google: ${response.status}`,
-        ...result
-      });
+      const err = String(result?.error || `Erro Google: ${response.status}`);
+      return sendError(res, response.status, err, String(result?.message || err), result || {});
     }
 
     const success = Boolean(result?.success ?? result?.ok ?? false);
@@ -293,7 +386,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (Array.isArray((result as any)?.nonEnrolled)) {
       res.setHeader('X-EAC-NonEnrolled-Count', String((result as any).nonEnrolled.length));
     }
-    return res.status(200).json({ success, ...result });
+    if (!success) {
+      const err = String(result?.error || 'Falha ao executar acao.');
+      return sendError(res, 400, err, String(result?.message || err), result || {});
+    }
+    return sendSuccess(res, 200, result || {});
   } catch (error: any) {
     const msg =
       error?.name === 'AbortError'
@@ -301,7 +398,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         : (error?.message || 'Erro interno.');
 
     console.error('[pages/api/comunicados] Falha:', error);
-    return res.status(500).json({ success: false, error: msg });
+    return sendError(res, 500, msg);
   }
 }
 
@@ -312,3 +409,5 @@ function errorToSample(error: unknown) {
   if (idx === -1) return '';
   return message.slice(idx + marker.length).slice(0, 400);
 }
+
+
