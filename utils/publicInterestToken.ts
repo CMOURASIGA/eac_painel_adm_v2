@@ -1,5 +1,5 @@
 ﻿import crypto from 'crypto';
-import { getSupabaseServerClient } from './supabaseServer.ts';
+import { getSupabaseServerClient } from './supabaseServer.js';
 
 const TOKEN_TTL_HOURS = Number(process.env.PUBLIC_INTEREST_TOKEN_TTL_HOURS || 72);
 

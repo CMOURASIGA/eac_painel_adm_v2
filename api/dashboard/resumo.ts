@@ -1,6 +1,6 @@
 ﻿import type { NextApiRequest, NextApiResponse } from 'next';
-import { handleSupabaseAction } from '../../utils/supabaseActions.ts';
-import { isSupabaseConfigured } from '../../utils/supabaseServer.ts';
+import { handleSupabaseAction } from '../../utils/supabaseActions.js';
+import { isSupabaseConfigured } from '../../utils/supabaseServer.js';
 
 const clean = (v: any) => String(v ?? '').trim().toLowerCase();
 const isYes = (v: any) => ['sim', 's', 'yes', 'y', 'true', '1', 'verdadeiro', 'x'].includes(clean(v));

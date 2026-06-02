@@ -1,6 +1,6 @@
 ﻿import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
-import { getSupabaseServerClient } from '../../utils/supabaseServer.ts';
+import { getSupabaseServerClient } from '../../utils/supabaseServer.js';
 
 const toBool = (v: any) => ['1','true','sim','yes','y'].includes(String(v ?? '').trim().toLowerCase());
 
