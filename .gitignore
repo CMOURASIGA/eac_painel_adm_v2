@@ -25,6 +25,9 @@ dist-ssr
 
 .vercel
 .env*.local
+.env.vercel
+.env.vercel.*
+!.env.vercel.example
 git 
 .next
 *.tsbuildinfo
