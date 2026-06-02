@@ -37,6 +37,11 @@ foreach ($line in $lines) {
     continue
   }
 
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    Write-Host ("Pulando {0}: valor vazio." -f $name)
+    continue
+  }
+
   $tempFile = [System.IO.Path]::GetTempFileName()
   try {
     [System.IO.File]::WriteAllText($tempFile, $value)
