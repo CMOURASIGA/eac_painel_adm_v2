@@ -1,5 +1,5 @@
 ﻿import type { NextApiRequest, NextApiResponse } from 'next';
-import { consumePublicInterestToken, issuePublicInterestToken, validatePublicInterestToken } from '../../utils/publicInterestToken';
+import { consumePublicInterestToken, issuePublicInterestToken, validatePublicInterestToken } from '../../utils/publicInterestToken.ts';
 
 function send(res: NextApiResponse, status: number, body: any) {
   return res.status(status).json(body);

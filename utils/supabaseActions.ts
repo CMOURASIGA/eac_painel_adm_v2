@@ -1,19 +1,19 @@
 ﻿import type { SupabaseClient } from '@supabase/supabase-js';
-import { getSupabaseServerClient } from './supabaseServer';
+import { getSupabaseServerClient } from './supabaseServer.ts';
 import { createHash, timingSafeEqual } from 'crypto';
-import { markPresenceService } from '../services/presencaBusinessService';
-import { prioritizeNonEnrolledService } from '../services/priorizacaoService';
+import { markPresenceService } from '../services/presencaBusinessService.ts';
+import { prioritizeNonEnrolledService } from '../services/priorizacaoService.ts';
 import {
   saveEventService,
   deleteEventService,
   saveComunicadoService,
   deleteComunicadoService,
-} from '../services/calendarioComunicadosService';
+} from '../services/calendarioComunicadosService.ts';
 import {
   logDispatchExecutionService,
   logDispatchDestinatariosService,
   buildNonEnrolledDispatchAudienceService,
-} from '../services/disparosBusinessService';
+} from '../services/disparosBusinessService.ts';
 
 type JsonObject = Record<string, any>;
 

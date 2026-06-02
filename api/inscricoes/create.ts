@@ -1,6 +1,6 @@
 ﻿import type { NextApiRequest, NextApiResponse } from 'next';
-import { getSupabaseServerClient } from '../../utils/supabaseServer';
-import { executeInscricaoCreate } from '../../utils/inscricaoCreate';
+import { getSupabaseServerClient } from '../../utils/supabaseServer.ts';
+import { executeInscricaoCreate } from '../../utils/inscricaoCreate.ts';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {

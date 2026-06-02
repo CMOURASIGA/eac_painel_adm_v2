@@ -1,4 +1,4 @@
-import { getSupabaseServerClient } from './supabaseServer';
+import { getSupabaseServerClient } from './supabaseServer.ts';
 
 type AccessAction = 'view' | 'create' | 'edit' | 'delete';
 

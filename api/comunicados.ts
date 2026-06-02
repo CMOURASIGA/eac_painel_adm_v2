@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { handleSupabaseAction } from '../utils/supabaseActions';
-import { isSupabaseConfigured } from '../utils/supabaseServer';
+import { handleSupabaseAction } from '../utils/supabaseActions.ts';
+import { isSupabaseConfigured } from '../utils/supabaseServer.ts';
 
 type ApiResult = Record<string, any> & { success?: boolean; error?: string };
 const LATIN1_CHARSET_REGEX = /(charset\s*=\s*(iso-8859-1|latin1|windows-1252))/i;

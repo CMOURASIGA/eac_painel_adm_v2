@@ -1,5 +1,5 @@
 ﻿import type { NextApiRequest, NextApiResponse } from 'next';
-import { getSupabaseServerClient } from '../../utils/supabaseServer';
+import { getSupabaseServerClient } from '../../utils/supabaseServer.ts';
 
 const ALLOWED_STATUS = new Set(['ATIVO', 'PLANEJADO']);
 
