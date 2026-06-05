@@ -268,6 +268,7 @@ export async function executeInscricoesAdminList(params: {
   const busca = toCleanString(query.busca);
   const buscaDigits = normalizarTelefoneBusca(busca);
   const buscaText = busca;
+  const applyTriagemRule = toCleanString(query.apply_triagem_rule).toLowerCase() === 'true';
   console.log('[executeInscricoesAdminList] busca:', busca, 'buscaDigits:', buscaDigits);
 
   const page = Math.max(1, parseIntSafe(query.page, 1));
@@ -279,8 +280,8 @@ export async function executeInscricoesAdminList(params: {
   const idadeMin = idadeMinRaw ? parseIntSafe(idadeMinRaw, NaN) : null;
   const idadeMax = idadeMaxRaw ? parseIntSafe(idadeMaxRaw, NaN) : null;
   const idadeMaxTriagem = Number.isFinite(idadeMax as number)
-    ? Math.min(idadeMax as number, TRIAGEM_IDADE_MAXIMA)
-    : TRIAGEM_IDADE_MAXIMA;
+    ? (applyTriagemRule ? Math.min(idadeMax as number, TRIAGEM_IDADE_MAXIMA) : (idadeMax as number))
+    : (applyTriagemRule ? TRIAGEM_IDADE_MAXIMA : null);
 
   const fields: Record<string, string> = {};
   if (status && !STATUS_ALLOWED.has(status)) fields.status = 'Status de inscrição inválido.';
@@ -333,7 +334,7 @@ export async function executeInscricoesAdminList(params: {
     }
 
     let adolescenteIdsFiltroFinal = intersectIfNeeded(adolescenteIdsBase, adolescenteIdsBusca);
-    if (Array.isArray(adolescenteIdsFiltroFinal)) {
+    if (applyTriagemRule && Array.isArray(adolescenteIdsFiltroFinal)) {
       adolescenteIdsFiltroFinal = await excluirAdolescentesJaEncontreiros(supabase, adolescenteIdsFiltroFinal);
     }
 

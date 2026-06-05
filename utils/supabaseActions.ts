@@ -1131,7 +1131,36 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         ].filter(Boolean)
       );
 
-      const members = rows.map(normalizeMember).filter((m) => String(m.nome || '').trim());
+      let activePessoaIds = new Set<string>();
+      try {
+        const activeCadastroRows = await fetchAllRows(
+          supabase,
+          ['cadastro_oficial'].filter(Boolean),
+          { maxRows: 50000 }
+        );
+        activePessoaIds = new Set(
+          (Array.isArray(activeCadastroRows) ? activeCadastroRows : [])
+            .filter((row: any) => row?.ativo !== false && cleanText(pickFirst(row, ['status'])).toUpperCase() !== 'INATIVO')
+            .map((row: any) => cleanText(pickFirst(row, ['pessoa_id', 'pessoaId'])))
+            .filter(Boolean)
+        );
+      } catch (e) {
+        console.error('[GET_MEMBERS] falha ao carregar cadastro_oficial ativo:', e);
+      }
+
+      const members = rows
+        .filter((row: any) => {
+          if (activePessoaIds.size === 0) return true;
+          const pessoaId = cleanText(pickFirst(row, ['pessoa_id', 'pessoaId', 'id']));
+          return !!pessoaId && activePessoaIds.has(pessoaId);
+        })
+        .map((row: any) => normalizeMember({
+          ...row,
+          status: pickFirst(row, ['status', 'status_inscricao', 'statusInscricao']) || 'CONFIRMADO',
+          status_inscricao: pickFirst(row, ['status_inscricao', 'statusInscricao', 'status']) || 'CONFIRMADO',
+          confirmado: pickFirst(row, ['confirmado']) || 'Sim',
+        }))
+        .filter((m) => String(m.nome || '').trim());
       return { ok: true, data: { success: true, members, total: members.length, source: 'supabase' } };
     }
 

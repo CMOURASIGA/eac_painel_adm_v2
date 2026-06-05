@@ -416,7 +416,7 @@ const InscricoesReviewPage: React.FC = () => {
         <div className="mt-4 p-4 rounded-2xl border border-slate-200 bg-white">
           <div className="mb-3 p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900">
             <p className="text-[11px] font-black uppercase tracking-widest">Regra ativa de triagem</p>
-            <p className="text-sm font-semibold mt-1">A triagem mostra apenas possíveis encontristas: idade até 17 anos e sem papel ENCONTREIRO ativo.</p>
+            <p className="text-sm font-semibold mt-1">A triagem mostra o status operacional real das inscrições. Use os filtros para restringir idade, encontro, origem ou bairro quando necessário.</p>
           </div>
 
           <div className="mb-3 p-3 rounded-xl border border-blue-200 bg-blue-50 text-blue-900">
