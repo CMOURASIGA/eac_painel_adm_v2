@@ -1,13 +1,24 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { handleSupabaseAction } from '../../../../utils/supabaseActions';
 import { getSupabaseServerClient, isSupabaseConfigured } from '../../../../utils/supabaseServer';
-import { executeInscricoesAdminList } from '../../../../utils/inscricoesAdmin';
 
 export const dynamic = 'force-dynamic';
 
+const STATUS_PRIORITY: Record<string, number> = {
+  CONFIRMADO: 70,
+  FILA: 60,
+  PRIORIZADO: 50,
+  EM_ANALISE: 40,
+  INSCRITO: 30,
+  NAO_SELECIONADO: 20,
+  DESISTENTE: 10,
+  CANCELADO: 0,
+};
+
 const clean = (v: any) => String(v ?? '').trim().toLowerCase();
 const isYes = (v: any) => ['sim', 's', 'yes', 'y', 'true', '1', 'verdadeiro', 'x'].includes(clean(v));
-const isNo = (v: any) => ['nao', 'não', 'n', 'no', 'false', '0', 'falso'].includes(clean(v));
+const isNo = (v: any) => ['nao', 'n�o', 'n', 'no', 'false', '0', 'falso'].includes(clean(v));
 
 const pick = (row: any, keys: string[]) => {
   for (const key of keys) {
@@ -34,19 +45,97 @@ function buildNonEnrolledIndicators(list: any[]) {
   return { preConfirmadasCount, interesseCount, interesseNoCount };
 }
 
-async function fetchInscricoesByStatus(status: 'INSCRITO' | 'PRIORIZADO' | 'CONFIRMADO') {
-  const supabase = getSupabaseServerClient();
-  const first = await executeInscricoesAdminList({ supabase, query: { status, page: 1, page_size: 100 } });
-  if (first.status !== 200 || !first.body?.success) return { rows: [] as any[], total: 0 };
+function getStatusPriority(status: any) {
+  return STATUS_PRIORITY[String(status || '').trim().toUpperCase()] ?? -1;
+}
 
-  const rows = Array.isArray(first.body.data) ? [...first.body.data] : [];
-  const totalPages = Number(first.body?.pagination?.total_pages) || 1;
-  for (let page = 2; page <= totalPages; page += 1) {
-    const next = await executeInscricoesAdminList({ supabase, query: { status, page, page_size: 100 } });
-    if (next.status !== 200 || !next.body?.success) break;
-    rows.push(...(Array.isArray(next.body.data) ? next.body.data : []));
+function pickBestInscricaoRow(current: any, candidate: any) {
+  if (!current) return candidate;
+
+  const currentPriority = getStatusPriority(current?.status);
+  const candidatePriority = getStatusPriority(candidate?.status);
+  if (candidatePriority > currentPriority) return candidate;
+  if (candidatePriority < currentPriority) return current;
+
+  const currentDate = new Date(String(current?.data_inscricao || current?.criado_em || 0));
+  const candidateDate = new Date(String(candidate?.data_inscricao || candidate?.criado_em || 0));
+  const currentTime = Number.isNaN(currentDate.getTime()) ? 0 : currentDate.getTime();
+  const candidateTime = Number.isNaN(candidateDate.getTime()) ? 0 : candidateDate.getTime();
+
+  return candidateTime > currentTime ? candidate : current;
+}
+
+async function fetchTriagemRowsByStatus() {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) return { INSCRITO: [], PRIORIZADO: [], CONFIRMADO: [] } as Record<'INSCRITO' | 'PRIORIZADO' | 'CONFIRMADO', any[]>;
+
+  const { data: inscricoes, error: inscricoesError } = await supabase
+    .from('inscricoes')
+    .select('id,status,adolescente_id,data_inscricao,criado_em')
+    .order('data_inscricao', { ascending: false });
+  if (inscricoesError) return { INSCRITO: [], PRIORIZADO: [], CONFIRMADO: [] };
+
+  const bestByAdolescente = new Map<string, any>();
+  for (const row of inscricoes || []) {
+    const adolescenteId = String(row?.adolescente_id || '').trim();
+    const key = adolescenteId || `inscricao:${String(row?.id || '').trim()}`;
+    bestByAdolescente.set(key, pickBestInscricaoRow(bestByAdolescente.get(key), row));
   }
-  return { rows, total: rows.length };
+
+  const consolidatedRows = Array.from(bestByAdolescente.values());
+  const adolescenteIds = consolidatedRows.map((row: any) => String(row?.adolescente_id || '')).filter(Boolean);
+
+  const { data: adolescentes } = adolescenteIds.length
+    ? await supabase.from('adolescentes').select('id,pessoa_id').in('id', adolescenteIds)
+    : ({ data: [] } as any);
+
+  const pessoaIds = (adolescentes || []).map((row: any) => String(row?.pessoa_id || '')).filter(Boolean);
+  const { data: pessoas } = pessoaIds.length
+    ? await supabase.from('pessoas').select('id,idade_calculada').in('id', pessoaIds)
+    : ({ data: [] } as any);
+
+  const adolescenteToPessoa = new Map((adolescentes || []).map((row: any) => [String(row.id), String(row.pessoa_id || '')]));
+  const pessoaToIdade = new Map((pessoas || []).map((row: any) => [String(row.id), Number(row.idade_calculada)]));
+
+  const typed = {
+    INSCRITO: [] as any[],
+    PRIORIZADO: [] as any[],
+    CONFIRMADO: [] as any[],
+  };
+
+  consolidatedRows.forEach((row: any) => {
+    const status = String(row?.status || '').trim().toUpperCase();
+    if (!(status in typed)) return;
+    const pessoaId = adolescenteToPessoa.get(String(row?.adolescente_id || '')) || '';
+    typed[status as 'INSCRITO' | 'PRIORIZADO' | 'CONFIRMADO'].push({
+      ...row,
+      idade_calculada: pessoaToIdade.get(pessoaId) ?? null,
+    });
+  });
+
+  return typed;
+}
+
+async function fetchCadastroOficialCount(supabase: SupabaseClient | null) {
+  if (!supabase) return 0;
+  const { count, error } = await supabase
+    .from('cadastro_oficial')
+    .select('*', { count: 'exact', head: true })
+    .eq('ativo', true);
+  if (error) return 0;
+  return Number(count || 0);
+}
+
+async function fetchEncontreirosCount(supabase: SupabaseClient | null) {
+  if (!supabase) return 0;
+
+  const primary = await supabase.from('encontreiros').select('*', { count: 'exact', head: true });
+  if (!primary.error) return Number(primary.count || 0);
+
+  const fallback = await supabase.from('vw_encontreiros').select('*', { count: 'exact', head: true });
+  if (!fallback.error) return Number(fallback.count || 0);
+
+  return 0;
 }
 
 function buildAgeDistributionByStatus(data: Record<'INSCRITO' | 'PRIORIZADO' | 'CONFIRMADO', any[]>) {
@@ -90,26 +179,23 @@ function buildMonthlyCurrentYear(data: Record<'INSCRITO' | 'PRIORIZADO' | 'CONFI
 }
 
 export async function GET() {
-  const [membersRes, nonRes, eventsRes, logsRes, comRes, encontreirosRes, inscritosRes, priorizadosRes, confirmadosRes] = await Promise.all([
-    handleSupabaseAction('GET_MEMBERS', {}),
+  const supabase = getSupabaseServerClient();
+  const [membersCount, nonRes, eventsRes, logsRes, comRes, encontreirosCount, triagemRowsByStatus] = await Promise.all([
+    fetchCadastroOficialCount(supabase),
     handleSupabaseAction('GET_NON_ENROLLED', {}),
     handleSupabaseAction('GET_EVENTS', {}),
     handleSupabaseAction('GET_LOGS', {}),
     handleSupabaseAction('GET_COMUNICADOS', {}),
-    handleSupabaseAction('GET_ENCONTREIROS', {}),
-    fetchInscricoesByStatus('INSCRITO'),
-    fetchInscricoesByStatus('PRIORIZADO'),
-    fetchInscricoesByStatus('CONFIRMADO'),
+    fetchEncontreirosCount(supabase),
+    fetchTriagemRowsByStatus(),
   ]);
 
-  if (!membersRes.ok || !nonRes.ok || !eventsRes.ok || !logsRes.ok || !comRes.ok || !encontreirosRes.ok) {
+  if (!nonRes.ok || !eventsRes.ok || !logsRes.ok || !comRes.ok) {
     const firstError =
-      (!membersRes.ok && membersRes.error) ||
       (!nonRes.ok && nonRes.error) ||
       (!eventsRes.ok && eventsRes.error) ||
       (!logsRes.ok && logsRes.error) ||
       (!comRes.ok && comRes.error) ||
-      (!encontreirosRes.ok && encontreirosRes.error) ||
       'Falha ao montar resumo do dashboard.';
 
     return NextResponse.json(
@@ -118,18 +204,10 @@ export async function GET() {
     );
   }
 
-  const members = Array.isArray((membersRes.data as any)?.members) ? (membersRes.data as any).members : [];
   const nonEnrolled = Array.isArray((nonRes.data as any)?.nonEnrolled) ? (nonRes.data as any).nonEnrolled : [];
   const events = Array.isArray((eventsRes.data as any)?.events) ? (eventsRes.data as any).events : [];
   const logs = Array.isArray((logsRes.data as any)?.logs) ? (logsRes.data as any).logs : [];
   const comunicados = Array.isArray((comRes.data as any)?.comunicados) ? (comRes.data as any).comunicados : [];
-  const encontreiros = Array.isArray((encontreirosRes.data as any)?.encontreiros) ? (encontreirosRes.data as any).encontreiros : [];
-
-  const triagemRowsByStatus = {
-    INSCRITO: inscritosRes.rows,
-    PRIORIZADO: priorizadosRes.rows,
-    CONFIRMADO: confirmadosRes.rows,
-  } as const;
 
   const response = NextResponse.json(
     {
@@ -137,17 +215,17 @@ export async function GET() {
       source: 'supabase',
       message: 'Resumo do dashboard carregado com sucesso.',
       summary: {
-        membersCount: members.length,
+        membersCount,
         nonEnrolledCount: nonEnrolled.length,
         nonEnrolledIndicators: buildNonEnrolledIndicators(nonEnrolled),
         eventsCount: events.length,
         logsCount: logs.length,
         comunicadosCount: comunicados.length,
-        encontreirosCount: encontreiros.length,
+        encontreirosCount,
         triagemStatusCounts: {
-          inscrito: inscritosRes.total,
-          priorizado: priorizadosRes.total,
-          confirmado: confirmadosRes.total,
+          inscrito: triagemRowsByStatus.INSCRITO.length,
+          priorizado: triagemRowsByStatus.PRIORIZADO.length,
+          confirmado: triagemRowsByStatus.CONFIRMADO.length,
         },
         ageDistributionByStatus: buildAgeDistributionByStatus(triagemRowsByStatus),
         monthlyInscricoesCurrentYear: buildMonthlyCurrentYear(triagemRowsByStatus),

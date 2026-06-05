@@ -1030,24 +1030,37 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl }) => {
     });
   }, [members, memberFiltersApplied, memberSearchTotal]);
 
-  const membersStatusIndicators = useMemo(() => {
+  const memberDemographicIndicators = useMemo(() => {
     const counters = {
-      inscrito: 0,
-      priorizado: 0,
-      confirmado: 0,
-      naoSelecionado: 0,
-      desistente: 0,
-      cancelado: 0,
+      masculino: 0,
+      feminino: 0,
+      idade13: 0,
+      idade14: 0,
+      idade15: 0,
+      idade16: 0,
+      idade17: 0,
     };
+
+    const resolveAge = (m: any): number | null => {
+      const idadeRaw = toCleanString(m?.idade);
+      const idadeNum = Number(idadeRaw.replace(',', '.'));
+      if (isFinite(idadeNum) && idadeNum >= 0) return Math.floor(idadeNum);
+      return calculateAgeFromBirthDate(toCleanString(m?.nascimento));
+    };
+
     (Array.isArray(members) ? members : []).forEach((member: any) => {
-      const resolved = resolveMemberOperationalStatus(member);
-      if (resolved === 'inscrito') counters.inscrito += 1;
-      else if (resolved === 'priorizado') counters.priorizado += 1;
-      else if (resolved === 'confirmado') counters.confirmado += 1;
-      else if (resolved === 'nao_selecionado') counters.naoSelecionado += 1;
-      else if (resolved === 'desistente') counters.desistente += 1;
-      else if (resolved === 'cancelado') counters.cancelado += 1;
+      const sexo = toCleanString(member?.sexo).toLowerCase();
+      if (sexo.startsWith('m')) counters.masculino += 1;
+      else if (sexo.startsWith('f')) counters.feminino += 1;
+
+      const age = resolveAge(member);
+      if (age === 13) counters.idade13 += 1;
+      else if (age === 14) counters.idade14 += 1;
+      else if (age === 15) counters.idade15 += 1;
+      else if (age === 16) counters.idade16 += 1;
+      else if (age === 17) counters.idade17 += 1;
     });
+
     return counters;
   }, [members]);
 
@@ -3219,16 +3232,17 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
 
         <section className="bg-white rounded-[2rem] border border-slate-200 shadow-sm p-4 md:p-6">
           <div className="mb-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Indicadores por status</p>
-            <h3 className="text-lg md:text-xl font-black text-slate-900">Status operacional do cadastro</h3>
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">Indicadores demográficos</p>
+            <h3 className="text-lg md:text-xl font-black text-slate-900">Perfil do cadastro oficial</h3>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-            <StatIndicator label="Inscrito" count={membersStatusIndicators.inscrito} color="text-slate-700" isActive={false} onClick={() => {}} />
-            <StatIndicator label="Priorizado" count={membersStatusIndicators.priorizado} color="text-amber-600" isActive={false} onClick={() => {}} />
-            <StatIndicator label="Confirmado" count={membersStatusIndicators.confirmado} color="text-emerald-600" isActive={false} onClick={() => {}} />
-            <StatIndicator label="Não selecionado" count={membersStatusIndicators.naoSelecionado} color="text-rose-600" isActive={false} onClick={() => {}} />
-            <StatIndicator label="Desistente" count={membersStatusIndicators.desistente} color="text-orange-600" isActive={false} onClick={() => {}} />
-            <StatIndicator label="Cancelado" count={membersStatusIndicators.cancelado} color="text-fuchsia-600" isActive={false} onClick={() => {}} />
+          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
+            <StatIndicator label="Masculino" count={memberDemographicIndicators.masculino} color="text-sky-700" isActive={false} onClick={() => {}} />
+            <StatIndicator label="Feminino" count={memberDemographicIndicators.feminino} color="text-pink-600" isActive={false} onClick={() => {}} />
+            <StatIndicator label="13 anos" count={memberDemographicIndicators.idade13} color="text-slate-700" isActive={false} onClick={() => {}} />
+            <StatIndicator label="14 anos" count={memberDemographicIndicators.idade14} color="text-indigo-600" isActive={false} onClick={() => {}} />
+            <StatIndicator label="15 anos" count={memberDemographicIndicators.idade15} color="text-emerald-600" isActive={false} onClick={() => {}} />
+            <StatIndicator label="16 anos" count={memberDemographicIndicators.idade16} color="text-amber-600" isActive={false} onClick={() => {}} />
+            <StatIndicator label="17 anos" count={memberDemographicIndicators.idade17} color="text-fuchsia-600" isActive={false} onClick={() => {}} />
           </div>
         </section>
 
