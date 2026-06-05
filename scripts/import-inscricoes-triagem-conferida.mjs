@@ -634,6 +634,7 @@ async function main() {
     inscricoesAtualizadas: 0,
     reaproveitadosDos137: 0,
     novosSemCadastroOficial: 0,
+    inscricoesIgnoradasPorCadastroOficial: 0,
     errors: [],
   };
 
@@ -673,17 +674,25 @@ async function main() {
         vinculoId = await ensureVinculoResponsavel(adolescenteId, responsavelId);
       }
 
-      const { id: inscricaoId, existed } = await ensureInscricao(
-        encontro.id,
-        adolescenteId,
-        `Triagem conferida:${row.rowNumber}`,
-        row.email,
-        row.responsavel.email,
-      );
-
       const emCadastroOficial = await hasCadastroOficialAtivo(pessoaAdolescenteId);
-      if (emCadastroOficial) stats.reaproveitadosDos137 += 1;
-      else stats.novosSemCadastroOficial += 1;
+      if (emCadastroOficial) {
+        stats.reaproveitadosDos137 += 1;
+        stats.inscricoesIgnoradasPorCadastroOficial += 1;
+      } else {
+        const { id: inscricaoId, existed } = await ensureInscricao(
+          encontro.id,
+          adolescenteId,
+          `Triagem conferida:${row.rowNumber}`,
+          row.email,
+          row.responsavel.email,
+        );
+
+        if (existed) stats.inscricoesAtualizadas += 1;
+        else stats.inscricoesCriadas += 1;
+
+        void inscricaoId;
+        stats.novosSemCadastroOficial += 1;
+      }
 
       seen.pessoasAdolescentes.add(pessoaAdolescenteId);
       seen.adolescentes.add(adolescenteId);
@@ -691,10 +700,6 @@ async function main() {
       if (pessoaResponsavelId) seen.pessoasResponsaveis.add(pessoaResponsavelId);
       if (responsavelId) seen.responsaveis.add(responsavelId);
       if (vinculoId) seen.vinculos.add(vinculoId);
-      if (existed) stats.inscricoesAtualizadas += 1;
-      else stats.inscricoesCriadas += 1;
-
-      void inscricaoId;
     } catch (error) {
       stats.errors.push({
         rowNumber: row.rowNumber,

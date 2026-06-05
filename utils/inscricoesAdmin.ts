@@ -20,6 +20,16 @@ const STATUS_ALLOWED = new Set([
 
 const ORIGEM_ALLOWED = new Set(['SISTEMA', 'PLANILHA']);
 const TRIAGEM_IDADE_MAXIMA = 17;
+const STATUS_PRIORITY: Record<string, number> = {
+  CONFIRMADO: 70,
+  FILA: 60,
+  PRIORIZADO: 50,
+  EM_ANALISE: 40,
+  INSCRITO: 30,
+  NAO_SELECIONADO: 20,
+  DESISTENTE: 10,
+  CANCELADO: 0,
+};
 
 function toCleanString(value: any) {
   return String(value ?? '').trim();
@@ -52,6 +62,39 @@ function addOneDayIso(dateYmd: string) {
 
 function uniq(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
+}
+
+function getStatusPriority(status: any) {
+  const key = toCleanString(status).toUpperCase();
+  return STATUS_PRIORITY[key] ?? -1;
+}
+
+function pickBestInscricaoRow(current: any, candidate: any) {
+  if (!current) return candidate;
+
+  const currentPriority = getStatusPriority(current?.status);
+  const candidatePriority = getStatusPriority(candidate?.status);
+  if (candidatePriority > currentPriority) return candidate;
+  if (candidatePriority < currentPriority) return current;
+
+  const currentDate = new Date(String(current?.data_inscricao || current?.criado_em || 0));
+  const candidateDate = new Date(String(candidate?.data_inscricao || candidate?.criado_em || 0));
+  const currentTime = Number.isNaN(currentDate.getTime()) ? 0 : currentDate.getTime();
+  const candidateTime = Number.isNaN(candidateDate.getTime()) ? 0 : candidateDate.getTime();
+
+  return candidateTime > currentTime ? candidate : current;
+}
+
+function consolidarInscricoesPorAdolescente(rows: any[]) {
+  const bestByAdolescente = new Map<string, any>();
+
+  for (const row of rows) {
+    const adolescenteId = toCleanString(row?.adolescente_id);
+    const key = adolescenteId || `inscricao:${toCleanString(row?.id)}`;
+    bestByAdolescente.set(key, pickBestInscricaoRow(bestByAdolescente.get(key), row));
+  }
+
+  return Array.from(bestByAdolescente.values());
 }
 
 function intersectIfNeeded(base: string[] | null, target: string[] | null) {
@@ -358,25 +401,28 @@ export async function executeInscricoesAdminList(params: {
       };
     }
 
-    const { data: pageRows, error: pageError, count } = await buildInscricoesQuery(supabase, {
+    const { data: baseRows, error: baseError } = await buildInscricoesQuery(supabase, {
       encontroId,
-      status,
+      status: '',
       origemDado,
       dataInicio,
       dataFim,
       adolescenteIds: adolescenteIdsFiltroFinal,
-      withCount: true,
+      withCount: false,
     })
-      .order('data_inscricao', { ascending: false })
-      .range(offset, offset + pageSize - 1);
+      .order('data_inscricao', { ascending: false });
 
-    if (pageError) {
-      console.error('[inscricoes/admin] erro listagem:', pageError);
+    if (baseError) {
+      console.error('[inscricoes/admin] erro listagem:', baseError);
       return { status: 502, body: { success: false, error: 'ERRO_LISTAR_INSCRICOES', message: 'Não foi possível carregar as inscrições.' } };
     }
 
-    const allRows = Array.isArray(pageRows) ? pageRows : [];
-    const total = Number(count || 0);
+    const consolidatedRows = consolidarInscricoesPorAdolescente(Array.isArray(baseRows) ? baseRows : []);
+    const filteredRows = status
+      ? consolidatedRows.filter((row: any) => toCleanString(row?.status).toUpperCase() === status)
+      : consolidatedRows;
+    const total = filteredRows.length;
+    const allRows = filteredRows.slice(offset, offset + pageSize);
 
     const adolescenteIds = uniq(allRows.map((r: any) => String(r.adolescente_id || '')));
     const encontroIds = uniq(allRows.map((r: any) => String(r.encontro_id || '')));
@@ -493,24 +539,11 @@ export async function executeInscricoesAdminList(params: {
       };
     });
 
-    const statusRowsRes = await buildInscricoesQuery(supabase, {
-      encontroId,
-      status: '',
-      origemDado,
-      dataInicio,
-      dataFim,
-      adolescenteIds: adolescenteIdsFiltroFinal,
-      withCount: false,
-      onlyStatus: true,
-    });
-
     const porStatus: Record<string, number> = {};
-    if (!statusRowsRes.error) {
-      (statusRowsRes.data ?? []).forEach((r: any) => {
-        const s = toCleanString(r.status).toUpperCase() || 'SEM_STATUS';
-        porStatus[s] = (porStatus[s] || 0) + 1;
-      });
-    }
+    consolidatedRows.forEach((r: any) => {
+      const s = toCleanString(r.status).toUpperCase() || 'SEM_STATUS';
+      porStatus[s] = (porStatus[s] || 0) + 1;
+    });
 
     return {
       status: 200,
