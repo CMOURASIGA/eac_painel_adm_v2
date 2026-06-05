@@ -510,7 +510,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
         status: String(row?.status_inscricao || 'PRIORIZADO'),
         telefone: String(row?.telefone_adolescente || ''),
         bairro: String(row?.bairro || ''),
-        dataCadastro: row?.data_inscricao || row?.criado_em || '',
+        dataCadastro: row?.data_inscricao || '',
         dataNascimento: row?.data_nascimento || '',
         idade: row?.idade_calculada ?? '',
         sexo: '',

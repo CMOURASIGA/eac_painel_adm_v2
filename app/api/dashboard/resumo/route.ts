@@ -18,7 +18,7 @@ const STATUS_PRIORITY: Record<string, number> = {
 
 const clean = (v: any) => String(v ?? '').trim().toLowerCase();
 const isYes = (v: any) => ['sim', 's', 'yes', 'y', 'true', '1', 'verdadeiro', 'x'].includes(clean(v));
-const isNo = (v: any) => ['nao', 'não', 'n', 'no', 'false', '0', 'falso'].includes(clean(v));
+const isNo = (v: any) => ['nao', 'n', 'no', 'false', '0', 'falso'].includes(clean(v));
 
 const pick = (row: any, keys: string[]) => {
   for (const key of keys) {
@@ -57,8 +57,8 @@ function pickBestInscricaoRow(current: any, candidate: any) {
   if (candidatePriority > currentPriority) return candidate;
   if (candidatePriority < currentPriority) return current;
 
-  const currentDate = new Date(String(current?.data_inscricao || current?.criado_em || 0));
-  const candidateDate = new Date(String(candidate?.data_inscricao || candidate?.criado_em || 0));
+  const currentDate = new Date(String(current?.data_inscricao || 0));
+  const candidateDate = new Date(String(candidate?.data_inscricao || 0));
   const currentTime = Number.isNaN(currentDate.getTime()) ? 0 : currentDate.getTime();
   const candidateTime = Number.isNaN(candidateDate.getTime()) ? 0 : candidateDate.getTime();
 
@@ -164,7 +164,7 @@ function buildMonthlyCurrentYear(data: Record<'INSCRITO' | 'PRIORIZADO' | 'CONFI
 
   const allRows = [...data.INSCRITO, ...data.PRIORIZADO, ...data.CONFIRMADO];
   allRows.forEach((row: any) => {
-    const raw = String(row?.data_inscricao || row?.criado_em || '').trim();
+    const raw = String(row?.data_inscricao || '').trim();
     if (!raw) return;
     const dt = new Date(raw);
     if (Number.isNaN(dt.getTime())) return;

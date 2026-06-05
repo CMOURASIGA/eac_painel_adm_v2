@@ -77,8 +77,8 @@ function pickBestInscricaoRow(current: any, candidate: any) {
   if (candidatePriority > currentPriority) return candidate;
   if (candidatePriority < currentPriority) return current;
 
-  const currentDate = new Date(String(current?.data_inscricao || current?.criado_em || 0));
-  const candidateDate = new Date(String(candidate?.data_inscricao || candidate?.criado_em || 0));
+  const currentDate = new Date(String(current?.data_inscricao || 0));
+  const candidateDate = new Date(String(candidate?.data_inscricao || 0));
   const currentTime = Number.isNaN(currentDate.getTime()) ? 0 : currentDate.getTime();
   const candidateTime = Number.isNaN(candidateDate.getTime()) ? 0 : candidateDate.getTime();
 

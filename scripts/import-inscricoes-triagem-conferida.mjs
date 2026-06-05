@@ -81,6 +81,23 @@ function parseDateFlexible(value) {
   return null;
 }
 
+function parseTimestampFlexible(value) {
+  const raw = normalizeText(value);
+  if (!raw) return null;
+
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(raw)) {
+    return raw.replace(' ', 'T');
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(raw)) {
+    return raw;
+  }
+
+  const dt = new Date(raw);
+  if (!Number.isNaN(dt.getTime())) return dt.toISOString();
+  return null;
+}
+
 function parseBooleanPtBr(value) {
   const raw = normalizeText(value).toLowerCase();
   if (!raw) return null;
@@ -258,6 +275,7 @@ function toImportRows(rawRows) {
       observacoes: buildObservacoes(canonical),
       aceiteImagem: parseBooleanPtBr(canonical.autorizacao_imagem),
       aceiteNormas: parseBooleanPtBr(canonical.aceite_normas_evento),
+      dataInscricao: parseTimestampFlexible(canonical.carimbo_data_hora_iso) || parseTimestampFlexible(canonical.carimbo_data_hora_original),
       responsavel: {
         nomeCompleto: responsavelNome,
         nomeNormalizado: normalizeName(responsavelNome),
@@ -561,7 +579,7 @@ async function ensureVinculoResponsavel(adolescenteId, responsavelId) {
   return data.id;
 }
 
-async function ensureInscricao(encontroId, adolescenteId, rowRef, emailAdolescente, emailResponsavel) {
+async function ensureInscricao(encontroId, adolescenteId, rowRef, emailAdolescente, emailResponsavel, dataInscricao) {
   const existing = await maybeSingle(
     supabase
       .from('inscricoes')
@@ -569,6 +587,9 @@ async function ensureInscricao(encontroId, adolescenteId, rowRef, emailAdolescen
       .eq('encontro_id', encontroId)
       .eq('adolescente_id', adolescenteId),
   );
+
+  const now = new Date().toISOString();
+  const resolvedDataInscricao = dataInscricao || now;
 
   const body = {
     encontro_id: encontroId,
@@ -579,10 +600,10 @@ async function ensureInscricao(encontroId, adolescenteId, rowRef, emailAdolescen
     status: INSCRICAO_STATUS,
     origem_dado: ORIGEM,
     criado_via_sistema: false,
-    data_inscricao: new Date().toISOString(),
-    data_importacao: new Date().toISOString(),
+    data_inscricao: resolvedDataInscricao,
+    data_importacao: now,
     id_origem_planilha: rowRef,
-    ultima_sincronizacao: new Date().toISOString(),
+    ultima_sincronizacao: now,
   };
 
   if (existing?.id) {
@@ -685,6 +706,7 @@ async function main() {
           `Triagem conferida:${row.rowNumber}`,
           row.email,
           row.responsavel.email,
+          row.dataInscricao,
         );
 
         if (existed) stats.inscricoesAtualizadas += 1;
