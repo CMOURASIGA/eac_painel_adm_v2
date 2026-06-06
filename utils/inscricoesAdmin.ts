@@ -448,7 +448,7 @@ export async function executeInscricoesAdminList(params: {
       pessoaIds.length
         ? supabase
             .from('pessoas')
-            .select('id,nome_completo,nome_normalizado,data_nascimento,idade_calculada,telefone,telefone_normalizado,bairro,observacoes')
+            .select('id,nome_completo,nome_normalizado,data_nascimento,idade_calculada,sexo,email,telefone,telefone_normalizado,endereco,bairro,observacoes')
             .in('id', pessoaIds)
         : Promise.resolve({ data: [], error: null } as any),
       adolescenteIds.length
@@ -521,9 +521,12 @@ export async function executeInscricoesAdminList(params: {
         nome_adolescente: pessoa?.nome_completo ?? null,
         nome_adolescente_normalizado: pessoa?.nome_normalizado ?? null,
         data_nascimento: pessoa?.data_nascimento ?? null,
+        sexo: pessoa?.sexo ?? null,
+        email_adolescente: pessoa?.email ?? null,
         idade_calculada: pessoa?.idade_calculada ?? null,
         telefone_adolescente: pessoa?.telefone ?? null,
         telefone_adolescente_normalizado: pessoa?.telefone_normalizado ?? null,
+        endereco: pessoa?.endereco ?? null,
         bairro: pessoa?.bairro ?? null,
         observacoes: pessoa?.observacoes ?? null,
 

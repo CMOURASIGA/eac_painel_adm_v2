@@ -267,6 +267,10 @@ function normalizeMember(row: any) {
   ]);
   return {
     ...extractOriginFields(row),
+    cadastro_oficial_id: pickFirst(row, ['cadastro_oficial_id', 'cadastroOficialId', 'id']),
+    pessoa_id: pickFirst(row, ['pessoa_id', 'pessoaId']),
+    adolescente_id: pickFirst(row, ['adolescente_id', 'adolescenteId']),
+    responsavel_id: pickFirst(row, ['responsavel_id', 'responsavelId']),
     timestamp: pickFirst(row, ['timestamp', 'carimbo', 'created_at', 'createdAt']),
     nome: pickFirst(row, ['nome', 'name', 'nome_completo', 'nomeCompleto']),
     nascimento: pickFirst(row, ['nascimento', 'data_nascimento', 'dataNascimento']),
@@ -299,6 +303,207 @@ function normalizeMember(row: any) {
     desistente: pickFirst(row, ['desistente', 'is_desistente']),
     cancelado: pickFirst(row, ['cancelado', 'is_cancelado']),
   };
+}
+
+function normalizePhoneStorage(value: any) {
+  const raw = cleanText(value);
+  if (!raw) return { original: '', normalized: '' };
+  return { original: raw, normalized: normalizeDigits(raw) };
+}
+
+function parseMemberBirthDate(value: any) {
+  const raw = cleanText(value);
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const br = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (br) return `${br[3]}-${br[2].padStart(2, '0')}-${br[1].padStart(2, '0')}`;
+  const dt = new Date(raw);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt.toISOString().slice(0, 10);
+}
+
+function buildMemberRecord(params: {
+  cadastro: any;
+  pessoa: any;
+  adolescente: any;
+  responsavel: any;
+}) {
+  const { cadastro, pessoa, adolescente, responsavel } = params;
+  const participaGrupo =
+    pickFirst(adolescente, ['grupo_ministerio_descricao', 'participa_grupo_ministerio']) ||
+    pickFirst(pessoa, ['participa_grupo', 'participaGrupo']);
+
+  return normalizeMember({
+    ...extractOriginFields(cadastro),
+    cadastro_oficial_id: pickFirst(cadastro, ['id']),
+    pessoa_id: pickFirst(pessoa, ['id', 'pessoa_id']),
+    adolescente_id: pickFirst(adolescente, ['id', 'adolescente_id']),
+    responsavel_id: pickFirst(responsavel, ['id', 'responsavel_id']),
+    timestamp: pickFirst(cadastro, ['data_entrada_cadastro', 'created_at', 'criado_em', 'updated_at', 'atualizado_em']),
+    nome_completo: pickFirst(pessoa, ['nome_completo']),
+    nascimento: pickFirst(pessoa, ['data_nascimento']),
+    sexo: pickFirst(pessoa, ['sexo']),
+    endereco: pickFirst(pessoa, ['endereco']),
+    bairro: pickFirst(pessoa, ['bairro']),
+    telefone: pickFirst(pessoa, ['telefone']),
+    whatsapp: pickFirst(pessoa, ['telefone']),
+    email: pickFirst(pessoa, ['email']),
+    responsavel_nome: pickFirst(responsavel, ['nome']),
+    responsavel_telefone: pickFirst(responsavel, ['telefone']),
+    responsavel_email: pickFirst(responsavel, ['email']),
+    tempo_paroquia: pickFirst(adolescente, ['tempo_participacao_paroquia']),
+    participa_grupo: participaGrupo,
+    motivacao: pickFirst(adolescente, ['motivacao']),
+    expectativas: pickFirst(adolescente, ['expectativas']),
+    autoriza_imagem: pickFirst(adolescente, ['autorizacao_imagem']),
+    concorda_normas: pickFirst(adolescente, ['aceite_normas']),
+    pertence_porciuncula: pickFirst(pessoa, ['pertence_porciuncula']),
+    idade: pickFirst(pessoa, ['idade_calculada']),
+    status: 'CONFIRMADO',
+    status_inscricao: 'CONFIRMADO',
+    confirmado: 'Sim',
+  });
+}
+
+async function fetchActiveMembersFromNormalizedTables(supabase: SupabaseClient) {
+  const cadastroRows = await fetchAllRows(supabase, ['cadastro_oficial'].filter(Boolean), { maxRows: 50000 });
+  const activeCadastros = (Array.isArray(cadastroRows) ? cadastroRows : []).filter((row: any) => {
+    return row?.ativo !== false && cleanText(pickFirst(row, ['status'])).toUpperCase() !== 'INATIVO';
+  });
+
+  const pessoaIds = Array.from(new Set(activeCadastros.map((row: any) => cleanText(row?.pessoa_id)).filter(Boolean)));
+  const [pessoasRes, adolescentesRes] = await Promise.all([
+    pessoaIds.length ? supabase.from('pessoas').select('*').in('id', pessoaIds) : Promise.resolve({ data: [], error: null } as any),
+    pessoaIds.length ? supabase.from('adolescentes').select('*').in('pessoa_id', pessoaIds) : Promise.resolve({ data: [], error: null } as any),
+  ]);
+
+  if (pessoasRes.error) throw pessoasRes.error;
+  if (adolescentesRes.error) throw adolescentesRes.error;
+
+  const adolescentes = Array.isArray(adolescentesRes.data) ? adolescentesRes.data : [];
+  const pessoas = Array.isArray(pessoasRes.data) ? pessoasRes.data : [];
+  const adolescentesByPessoaId = new Map(adolescentes.map((row: any) => [cleanText(row?.pessoa_id), row]));
+
+  const adolescenteIds = adolescentes.map((row: any) => cleanText(row?.id)).filter(Boolean);
+  const vinculosRes = adolescenteIds.length
+    ? await supabase
+        .from('adolescente_responsaveis')
+        .select('id,adolescente_id,responsavel_id,principal')
+        .in('adolescente_id', adolescenteIds)
+        .order('principal', { ascending: false })
+    : ({ data: [], error: null } as any);
+  if (vinculosRes.error) throw vinculosRes.error;
+
+  const vinculos = Array.isArray(vinculosRes.data) ? vinculosRes.data : [];
+  const principalVinculoByAdolescenteId = new Map<string, any>();
+  vinculos.forEach((row: any) => {
+    const key = cleanText(row?.adolescente_id);
+    if (!key || principalVinculoByAdolescenteId.has(key)) return;
+    principalVinculoByAdolescenteId.set(key, row);
+  });
+
+  const responsavelIds = Array.from(
+    new Set(vinculos.map((row: any) => cleanText(row?.responsavel_id)).filter(Boolean))
+  );
+  const responsaveisRes = responsavelIds.length
+    ? await supabase.from('responsaveis').select('*').in('id', responsavelIds)
+    : ({ data: [], error: null } as any);
+  if (responsaveisRes.error) throw responsaveisRes.error;
+
+  const pessoasById = new Map(pessoas.map((row: any) => [cleanText(row?.id), row]));
+  const responsaveisById = new Map((Array.isArray(responsaveisRes.data) ? responsaveisRes.data : []).map((row: any) => [cleanText(row?.id), row]));
+
+  const members = activeCadastros
+    .map((cadastro: any) => {
+      const pessoaId = cleanText(cadastro?.pessoa_id);
+      const pessoa = pessoasById.get(pessoaId);
+      const adolescente = adolescentesByPessoaId.get(pessoaId);
+      const vinculo = adolescente ? principalVinculoByAdolescenteId.get(cleanText(adolescente?.id)) : null;
+      const responsavel = vinculo ? responsaveisById.get(cleanText(vinculo?.responsavel_id)) : null;
+      return buildMemberRecord({ cadastro, pessoa, adolescente, responsavel });
+    })
+    .filter((member: any) => cleanText(member?.nome));
+
+  members.sort((a: any, b: any) => cleanText(a?.nome).localeCompare(cleanText(b?.nome)));
+  return members;
+}
+
+async function resolveMemberContext(supabase: SupabaseClient, payload: any) {
+  const pessoaIdFromPayload = cleanText(payload?.pessoa_id);
+  const adolescenteIdFromPayload = cleanText(payload?.adolescente_id);
+  const responsavelIdFromPayload = cleanText(payload?.responsavel_id);
+  const cadastroIdFromPayload = cleanText(payload?.cadastro_oficial_id);
+  const email = cleanText(payload?.email).toLowerCase();
+  const originalEmail = cleanText(payload?.originalEmail).toLowerCase();
+
+  let cadastro: any = null;
+  let pessoa: any = null;
+  let adolescente: any = null;
+  let responsavel: any = null;
+
+  if (cadastroIdFromPayload) {
+    const res = await supabase.from('cadastro_oficial').select('*').eq('id', cadastroIdFromPayload).limit(1).maybeSingle();
+    if (!res.error) cadastro = res.data || null;
+  }
+
+  if (!cadastro && pessoaIdFromPayload) {
+    const res = await supabase.from('cadastro_oficial').select('*').eq('pessoa_id', pessoaIdFromPayload).eq('ativo', true).limit(1).maybeSingle();
+    if (!res.error) cadastro = res.data || null;
+  }
+
+  if (!cadastro && (email || originalEmail)) {
+    const emailCandidates = [email, originalEmail].filter(Boolean);
+    const pessoaRes = await supabase.from('pessoas').select('id,email').in('email', emailCandidates).limit(2);
+    if (!pessoaRes.error) {
+      const pessoaIds = (Array.isArray(pessoaRes.data) ? pessoaRes.data : []).map((row: any) => cleanText(row?.id)).filter(Boolean);
+      if (pessoaIds.length) {
+        const cadastroRes = await supabase.from('cadastro_oficial').select('*').in('pessoa_id', pessoaIds).eq('ativo', true).limit(1).maybeSingle();
+        if (!cadastroRes.error) cadastro = cadastroRes.data || null;
+      }
+    }
+  }
+
+  if (cadastro?.pessoa_id) {
+    const pessoaRes = await supabase.from('pessoas').select('*').eq('id', cadastro.pessoa_id).limit(1).maybeSingle();
+    if (pessoaRes.error) throw pessoaRes.error;
+    pessoa = pessoaRes.data || null;
+  } else if (pessoaIdFromPayload) {
+    const pessoaRes = await supabase.from('pessoas').select('*').eq('id', pessoaIdFromPayload).limit(1).maybeSingle();
+    if (pessoaRes.error) throw pessoaRes.error;
+    pessoa = pessoaRes.data || null;
+  }
+
+  if (adolescenteIdFromPayload) {
+    const adolescenteRes = await supabase.from('adolescentes').select('*').eq('id', adolescenteIdFromPayload).limit(1).maybeSingle();
+    if (adolescenteRes.error) throw adolescenteRes.error;
+    adolescente = adolescenteRes.data || null;
+  } else if (pessoa?.id) {
+    const adolescenteRes = await supabase.from('adolescentes').select('*').eq('pessoa_id', pessoa.id).limit(1).maybeSingle();
+    if (adolescenteRes.error) throw adolescenteRes.error;
+    adolescente = adolescenteRes.data || null;
+  }
+
+  if (responsavelIdFromPayload) {
+    const responsavelRes = await supabase.from('responsaveis').select('*').eq('id', responsavelIdFromPayload).limit(1).maybeSingle();
+    if (responsavelRes.error) throw responsavelRes.error;
+    responsavel = responsavelRes.data || null;
+  } else if (adolescente?.id) {
+    const vinculoRes = await supabase
+      .from('adolescente_responsaveis')
+      .select('responsavel_id,principal')
+      .eq('adolescente_id', adolescente.id)
+      .order('principal', { ascending: false })
+      .limit(1);
+    if (vinculoRes.error) throw vinculoRes.error;
+    const responsavelId = cleanText(Array.isArray(vinculoRes.data) ? vinculoRes.data[0]?.responsavel_id : '');
+    if (responsavelId) {
+      const responsavelRes = await supabase.from('responsaveis').select('*').eq('id', responsavelId).limit(1).maybeSingle();
+      if (responsavelRes.error) throw responsavelRes.error;
+      responsavel = responsavelRes.data || null;
+    }
+  }
+
+  return { cadastro, pessoa, adolescente, responsavel };
 }
 
 function normalizeNonEnrolled(row: any) {
@@ -1119,48 +1324,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
     }
 
     if (ctx.action === 'GET_MEMBERS') {
-      const rows = await fetchAllRows(
-        supabase,
-        [
-          String(process.env.EAC_SUPABASE_TABLE_MEMBERS || '').trim(),
-          'cadastro_oficial',
-          'cadastro',
-          'members',
-          'membros',
-          'adolescentes',
-        ].filter(Boolean)
-      );
-
-      let activePessoaIds = new Set<string>();
-      try {
-        const activeCadastroRows = await fetchAllRows(
-          supabase,
-          ['cadastro_oficial'].filter(Boolean),
-          { maxRows: 50000 }
-        );
-        activePessoaIds = new Set(
-          (Array.isArray(activeCadastroRows) ? activeCadastroRows : [])
-            .filter((row: any) => row?.ativo !== false && cleanText(pickFirst(row, ['status'])).toUpperCase() !== 'INATIVO')
-            .map((row: any) => cleanText(pickFirst(row, ['pessoa_id', 'pessoaId'])))
-            .filter(Boolean)
-        );
-      } catch (e) {
-        console.error('[GET_MEMBERS] falha ao carregar cadastro_oficial ativo:', e);
-      }
-
-      const members = rows
-        .filter((row: any) => {
-          if (activePessoaIds.size === 0) return true;
-          const pessoaId = cleanText(pickFirst(row, ['pessoa_id', 'pessoaId', 'id']));
-          return !!pessoaId && activePessoaIds.has(pessoaId);
-        })
-        .map((row: any) => normalizeMember({
-          ...row,
-          status: pickFirst(row, ['status', 'status_inscricao', 'statusInscricao']) || 'CONFIRMADO',
-          status_inscricao: pickFirst(row, ['status_inscricao', 'statusInscricao', 'status']) || 'CONFIRMADO',
-          confirmado: pickFirst(row, ['confirmado']) || 'Sim',
-        }))
-        .filter((m) => String(m.nome || '').trim());
+      const members = await fetchActiveMembersFromNormalizedTables(supabase);
       return { ok: true, data: { success: true, members, total: members.length, source: 'supabase' } };
     }
 
@@ -1822,87 +1986,107 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         return { ok: true, data: { success: false, error: 'Nome e e-mail são obrigatórios.' } };
       }
 
-      const configuredMembersTable = String(process.env.EAC_SUPABASE_TABLE_MEMBERS || '').trim();
-      const configuredIsView = configuredMembersTable.toLowerCase().startsWith('vw_');
-      const tableCandidates = [
-        ...(configuredIsView ? [] : [configuredMembersTable]),
-        'cadastro_oficial',
-        'cadastro',
-        'members',
-        'membros',
-        'adolescentes',
-        ...(configuredIsView ? [configuredMembersTable] : []),
-      ].filter(Boolean);
+      const context = await resolveMemberContext(supabase, ctx.payload);
+      const exists = Boolean(context.cadastro?.id || context.pessoa?.id || context.adolescente?.id);
+      const nowIso = new Date().toISOString();
 
-      let table = '';
-      for (const candidate of tableCandidates) {
-        const probe = await supabase.from(candidate).select('email').limit(1);
-        if (!probe.error) {
-          table = candidate;
-          break;
-        }
-      }
-      if (!table) {
-        const resolved = await queryFirstExistingTable<any[]>(
-          supabase,
-          tableCandidates,
-          async (tableName) => await supabase.from(tableName).select('*').limit(1)
-        );
-        table = resolved.table;
+      if (!exists) {
+        return { ok: true, data: { success: false, error: 'Cadastro oficial não encontrado para edição.' } };
       }
 
-      const payloadSnake = {
-        nome,
+      if (!context.pessoa?.id || !context.adolescente?.id) {
+        return { ok: true, data: { success: false, error: 'Registro incompleto: pessoa/adolescente não localizados.' } };
+      }
+
+      const telefoneInfo = normalizePhoneStorage(cleanText(ctx.payload.whatsapp || ctx.payload.telefone));
+      const responsavelTelefoneInfo = normalizePhoneStorage(cleanText(ctx.payload.responsavelTel));
+      const nascimentoIso = parseMemberBirthDate(ctx.payload.nascimento);
+
+      const pessoaPayload = await pickPayloadByExistingColumns(supabase, 'pessoas', {
         nome_completo: nome,
-        nascimento: cleanText(ctx.payload.nascimento),
+        nome_normalizado: nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(),
+        data_nascimento: nascimentoIso,
         sexo: cleanText(ctx.payload.sexo),
         endereco: cleanText(ctx.payload.endereco),
         bairro: cleanText(ctx.payload.bairro),
-        telefone: cleanText(ctx.payload.telefone),
+        telefone: telefoneInfo.original,
+        telefone_normalizado: telefoneInfo.normalized,
         email,
-        responsavel_nome: cleanText(ctx.payload.responsavelNome),
-        responsavel_telefone: cleanText(ctx.payload.responsavelTel),
-        responsavel_email: cleanText(ctx.payload.responsavelEmail),
-        tempo_paroquia: cleanText(ctx.payload.tempoParoquia),
-        participa_grupo: cleanText(ctx.payload.participaGrupo),
+        email_normalizado: email,
+        atualizado_em: nowIso,
+        updated_at: nowIso,
+        ultima_sincronizacao: nowIso,
+      });
+      const pessoaUpdate = await supabase.from('pessoas').update(pessoaPayload as any).eq('id', context.pessoa.id);
+      if (pessoaUpdate.error) throw pessoaUpdate.error;
+
+      const adolescentePayload = await pickPayloadByExistingColumns(supabase, 'adolescentes', {
+        tempo_participacao_paroquia: cleanText(ctx.payload.tempoParoquia),
+        grupo_ministerio_descricao: cleanText(ctx.payload.participaGrupo),
+        participa_grupo_ministerio: cleanText(ctx.payload.participaGrupo),
         motivacao: cleanText(ctx.payload.motivacao),
         expectativas: cleanText(ctx.payload.expectativas),
-        autoriza_imagem: cleanText(ctx.payload.autorizaImagem),
-        concorda_normas: cleanText(ctx.payload.concordaNormas),
-        pertence_porciuncula: cleanText(ctx.payload.pertencePorciuncula),
-        whatsapp: cleanText(ctx.payload.whatsapp),
-        updated_at: new Date().toISOString(),
-      };
-      const safePayloadSnake = await pickPayloadByExistingColumns(supabase, table, payloadSnake);
+        autorizacao_imagem: cleanText(ctx.payload.autorizaImagem),
+        aceite_normas: cleanText(ctx.payload.concordaNormas),
+        atualizado_em: nowIso,
+        ultima_sincronizacao: nowIso,
+      });
+      const adolescenteUpdate = await supabase.from('adolescentes').update(adolescentePayload as any).eq('id', context.adolescente.id);
+      if (adolescenteUpdate.error) throw adolescenteUpdate.error;
 
-      const idOrEmail = originalEmail || email;
-      const existing = await supabase.from(table).select('*').or(`email.eq.${idOrEmail}`).limit(1);
-      if (existing.error) throw existing.error;
-      const exists = Array.isArray(existing.data) && existing.data.length > 0;
+      if (context.responsavel?.id) {
+        const responsavelEmail = cleanText(ctx.payload.responsavelEmail).toLowerCase();
+        const responsavelPayload = await pickPayloadByExistingColumns(supabase, 'responsaveis', {
+          nome: cleanText(ctx.payload.responsavelNome),
+          telefone: responsavelTelefoneInfo.original,
+          telefone_normalizado: responsavelTelefoneInfo.normalized,
+          email: responsavelEmail,
+          email_normalizado: responsavelEmail,
+          atualizado_em: nowIso,
+          ultima_sincronizacao: nowIso,
+        });
+        const responsavelUpdate = await supabase.from('responsaveis').update(responsavelPayload as any).eq('id', context.responsavel.id);
+        if (responsavelUpdate.error) throw responsavelUpdate.error;
 
-      let result: any = null;
-      if (exists) {
-        let update = await supabase.from(table).update(safePayloadSnake as any).or(`email.eq.${idOrEmail}`).select('*').limit(1);
-        if (update.error) throw update.error;
-        result = Array.isArray(update.data) ? update.data[0] : null;
-      } else {
-        const insertSnake = await pickPayloadByExistingColumns(
-          supabase,
-          table,
-          { ...payloadSnake, created_at: new Date().toISOString() }
-        );
-        let insert = await supabase.from(table).insert(insertSnake as any).select('*').limit(1);
-        if (insert.error) throw insert.error;
-        result = Array.isArray(insert.data) ? insert.data[0] : null;
+        const responsavelPessoaId = cleanText(context.responsavel?.pessoa_id);
+        if (responsavelPessoaId) {
+          const responsavelPessoaPayload = await pickPayloadByExistingColumns(supabase, 'pessoas', {
+            nome_completo: cleanText(ctx.payload.responsavelNome),
+            nome_normalizado: cleanText(ctx.payload.responsavelNome).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(),
+            telefone: responsavelTelefoneInfo.original,
+            telefone_normalizado: responsavelTelefoneInfo.normalized,
+            email: responsavelEmail,
+            email_normalizado: responsavelEmail,
+            atualizado_em: nowIso,
+            updated_at: nowIso,
+            ultima_sincronizacao: nowIso,
+          });
+          const responsavelPessoaUpdate = await supabase.from('pessoas').update(responsavelPessoaPayload as any).eq('id', responsavelPessoaId);
+          if (responsavelPessoaUpdate.error) throw responsavelPessoaUpdate.error;
+        }
       }
+
+      if (context.cadastro?.id) {
+        const cadastroPayload = await pickPayloadByExistingColumns(supabase, 'cadastro_oficial', {
+          atualizado_em: nowIso,
+          updated_at: nowIso,
+          ultima_sincronizacao: nowIso,
+        });
+        const cadastroUpdate = await supabase.from('cadastro_oficial').update(cadastroPayload as any).eq('id', context.cadastro.id);
+        if (cadastroUpdate.error) throw cadastroUpdate.error;
+      }
+
+      const refreshed = (await fetchActiveMembersFromNormalizedTables(supabase)).find((member: any) => {
+        return cleanText(member?.pessoa_id) === cleanText(context.pessoa?.id);
+      });
 
       return {
         ok: true,
         data: {
           success: true,
           source: 'supabase',
-          member: normalizeMember(result || payloadSnake),
-          message: exists ? 'Cadastro atualizado com sucesso.' : 'Cadastro criado com sucesso.',
+          member: refreshed || normalizeMember(ctx.payload),
+          message: 'Cadastro atualizado com sucesso.',
         },
       };
     }

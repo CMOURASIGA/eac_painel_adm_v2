@@ -113,6 +113,10 @@ export interface CalendarEvent {
 
 export interface Adolescente {
   id?: string;
+  pessoa_id?: string;
+  adolescente_id?: string;
+  responsavel_id?: string;
+  cadastro_oficial_id?: string;
   nome: string;
   email: string;
   telefone: string;
@@ -120,6 +124,17 @@ export interface Adolescente {
   nascimento?: string;
   endereco?: string;
   sexo?: string;
+  responsavelNome?: string;
+  responsavelTel?: string;
+  responsavelEmail?: string;
+  tempoParoquia?: string;
+  participaGrupo?: string;
+  motivacao?: string;
+  expectativas?: string;
+  autorizaImagem?: string;
+  concordaNormas?: string;
+  pertencePorciuncula?: string;
+  whatsapp?: string;
   responsavel_nome?: string;
   responsavel_telefone?: string;
   responsavel_email?: string;

@@ -71,6 +71,25 @@ function isTransitionAllowed(statusAtual: string, statusNovo: string) {
   return allowed.has(statusNovo);
 }
 
+function normalizePhoneDigits(value: any) {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
+function normalizeNome(value: any) {
+  return toCleanString(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function parseFlexibleDate(value: any) {
+  const raw = toCleanString(value);
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const br = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (br) return `${br[3]}-${br[2].padStart(2, '0')}-${br[1].padStart(2, '0')}`;
+  const dt = new Date(raw);
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt.toISOString().slice(0, 10);
+}
+
 async function resolveEncontreirosTable(supabase: SupabaseClient) {
   const envTable = String(process.env.EAC_SUPABASE_TABLE_ENCONTREIROS || '').trim();
   const candidates = [
@@ -476,8 +495,13 @@ export async function executeAtualizarCadastroInscricao(params: {
   }
 
   const emailAdolescente = toCleanString(body.email_adolescente);
+  const nomeAdolescente = toCleanString(body.nome_adolescente);
+  const dataNascimento = parseFlexibleDate(body.data_nascimento);
+  const sexo = toCleanString(body.sexo);
+  const endereco = toCleanString(body.endereco);
   const telefoneAdolescente = toCleanString(body.telefone_adolescente);
   const bairro = toCleanString(body.bairro);
+  const nomeResponsavel = toCleanString(body.nome_responsavel);
   const emailResponsavel = toCleanString(body.email_responsavel);
   const telefoneResponsavel = toCleanString(body.telefone_responsavel);
 
@@ -505,13 +529,20 @@ export async function executeAtualizarCadastroInscricao(params: {
     }
 
     const pessoaPatch: Record<string, any> = { atualizado_em: new Date().toISOString() };
+    if (nomeAdolescente) {
+      pessoaPatch.nome_completo = nomeAdolescente;
+      pessoaPatch.nome_normalizado = normalizeNome(nomeAdolescente);
+    }
+    if (dataNascimento) pessoaPatch.data_nascimento = dataNascimento;
+    if (sexo) pessoaPatch.sexo = sexo;
+    if (endereco) pessoaPatch.endereco = endereco;
     if (emailAdolescente) {
       pessoaPatch.email = emailAdolescente;
       pessoaPatch.email_normalizado = emailAdolescente.toLowerCase();
     }
     if (telefoneAdolescente) {
       pessoaPatch.telefone = telefoneAdolescente;
-      pessoaPatch.telefone_normalizado = telefoneAdolescente.replace(/\D/g, '');
+      pessoaPatch.telefone_normalizado = normalizePhoneDigits(telefoneAdolescente);
     }
     if (bairro) pessoaPatch.bairro = bairro;
 
@@ -520,7 +551,7 @@ export async function executeAtualizarCadastroInscricao(params: {
       if (pessoaError) throw pessoaError;
     }
 
-    if (emailResponsavel || telefoneResponsavel) {
+    if (nomeResponsavel || emailResponsavel || telefoneResponsavel) {
       const { data: vinculos, error: vinculosError } = await supabase
         .from('adolescente_responsaveis')
         .select('responsavel_id,principal')
@@ -531,18 +562,59 @@ export async function executeAtualizarCadastroInscricao(params: {
       const responsavelId = Array.isArray(vinculos) && vinculos[0]?.responsavel_id ? String(vinculos[0].responsavel_id) : '';
 
       if (responsavelId) {
+        const { data: responsavelAtual, error: responsavelAtualError } = await supabase
+          .from('responsaveis')
+          .select('id,pessoa_id')
+          .eq('id', responsavelId)
+          .limit(1)
+          .maybeSingle();
+        if (responsavelAtualError) throw responsavelAtualError;
+
         const respPatch: Record<string, any> = { atualizado_em: new Date().toISOString() };
+        if (nomeResponsavel) respPatch.nome = nomeResponsavel;
         if (emailResponsavel) {
           respPatch.email = emailResponsavel;
           respPatch.email_normalizado = emailResponsavel.toLowerCase();
         }
         if (telefoneResponsavel) {
           respPatch.telefone = telefoneResponsavel;
-          respPatch.telefone_normalizado = telefoneResponsavel.replace(/\D/g, '');
+          respPatch.telefone_normalizado = normalizePhoneDigits(telefoneResponsavel);
         }
         const { error: respError } = await supabase.from('responsaveis').update(respPatch).eq('id', responsavelId);
         if (respError) throw respError;
+
+        if (responsavelAtual?.pessoa_id) {
+          const pessoaResponsavelPatch: Record<string, any> = { atualizado_em: new Date().toISOString() };
+          if (nomeResponsavel) {
+            pessoaResponsavelPatch.nome_completo = nomeResponsavel;
+            pessoaResponsavelPatch.nome_normalizado = normalizeNome(nomeResponsavel);
+          }
+          if (emailResponsavel) {
+            pessoaResponsavelPatch.email = emailResponsavel;
+            pessoaResponsavelPatch.email_normalizado = emailResponsavel.toLowerCase();
+          }
+          if (telefoneResponsavel) {
+            pessoaResponsavelPatch.telefone = telefoneResponsavel;
+            pessoaResponsavelPatch.telefone_normalizado = normalizePhoneDigits(telefoneResponsavel);
+          }
+          if (Object.keys(pessoaResponsavelPatch).length > 1) {
+            const { error: pessoaResponsavelError } = await supabase
+              .from('pessoas')
+              .update(pessoaResponsavelPatch)
+              .eq('id', responsavelAtual.pessoa_id);
+            if (pessoaResponsavelError) throw pessoaResponsavelError;
+          }
+        }
       }
+    }
+
+    const inscricaoPatch: Record<string, any> = { ultima_sincronizacao: new Date().toISOString() };
+    if (emailAdolescente) inscricaoPatch.email_adolescente_snapshot = emailAdolescente;
+    if (emailResponsavel) inscricaoPatch.email_responsavel_snapshot = emailResponsavel;
+    if (emailResponsavel || emailAdolescente) inscricaoPatch.email_destino_snapshot = emailResponsavel || emailAdolescente;
+    if (Object.keys(inscricaoPatch).length > 1) {
+      const { error: inscricaoPatchError } = await supabase.from('inscricoes').update(inscricaoPatch).eq('id', inscricaoId);
+      if (inscricaoPatchError) throw inscricaoPatchError;
     }
 
     return { status: 200, body: { success: true, message: 'Cadastro atualizado com sucesso.', data: { inscricao_id: inscricaoId } } };

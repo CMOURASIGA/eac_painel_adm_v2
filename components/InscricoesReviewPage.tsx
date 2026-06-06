@@ -162,9 +162,14 @@ const InscricoesReviewPage: React.FC = () => {
   const [statusFeedback, setStatusFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [cadastroFeedback, setCadastroFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [cadastroForm, setCadastroForm] = useState({
+    nome_adolescente: '',
+    data_nascimento: '',
+    sexo: '',
+    endereco: '',
     email_adolescente: '',
     telefone_adolescente: '',
     bairro: '',
+    nome_responsavel: '',
     email_responsavel: '',
     telefone_responsavel: '',
   });
@@ -207,9 +212,14 @@ const InscricoesReviewPage: React.FC = () => {
     setStatusFeedback(null);
     setCadastroFeedback(null);
     setCadastroForm({
-      email_adolescente: '',
-      telefone_adolescente: '',
-      bairro: '',
+      nome_adolescente: String(selected?.nome_adolescente || ''),
+      data_nascimento: String(selected?.data_nascimento || ''),
+      sexo: String((selected as any)?.sexo || ''),
+      endereco: String((selected as any)?.endereco || ''),
+      email_adolescente: String((selected as any)?.email_adolescente || ''),
+      telefone_adolescente: String(selected?.telefone_adolescente || ''),
+      bairro: String(selected?.bairro || ''),
+      nome_responsavel: String(selected?.nome_responsavel || ''),
       email_responsavel: String(selected?.email_responsavel || ''),
       telefone_responsavel: String(selected?.telefone_responsavel || ''),
     });
@@ -335,9 +345,14 @@ const InscricoesReviewPage: React.FC = () => {
     try {
       const r = await inscricoesService.atualizarCadastroInscricao({
         inscricao_id: selected.inscricao_id,
+        nome_adolescente: cadastroForm.nome_adolescente,
+        data_nascimento: cadastroForm.data_nascimento,
+        sexo: cadastroForm.sexo,
+        endereco: cadastroForm.endereco,
         email_adolescente: cadastroForm.email_adolescente,
         telefone_adolescente: cadastroForm.telefone_adolescente,
         bairro: cadastroForm.bairro,
+        nome_responsavel: cadastroForm.nome_responsavel,
         email_responsavel: cadastroForm.email_responsavel,
         telefone_responsavel: cadastroForm.telefone_responsavel,
       });
@@ -654,6 +669,30 @@ const InscricoesReviewPage: React.FC = () => {
               <p className="text-xs uppercase tracking-widest text-slate-500 font-black">Editar cadastro</p>
               <div className="mt-2 grid grid-cols-1 gap-2">
                 <input
+                  value={cadastroForm.nome_adolescente}
+                  onChange={(e) => setCadastroForm((prev) => ({ ...prev, nome_adolescente: e.target.value }))}
+                  placeholder="Nome do adolescente"
+                  className="px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold"
+                />
+                <input
+                  value={cadastroForm.data_nascimento}
+                  onChange={(e) => setCadastroForm((prev) => ({ ...prev, data_nascimento: e.target.value }))}
+                  placeholder="Nascimento do adolescente"
+                  className="px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold"
+                />
+                <input
+                  value={cadastroForm.sexo}
+                  onChange={(e) => setCadastroForm((prev) => ({ ...prev, sexo: e.target.value }))}
+                  placeholder="Sexo"
+                  className="px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold"
+                />
+                <input
+                  value={cadastroForm.endereco}
+                  onChange={(e) => setCadastroForm((prev) => ({ ...prev, endereco: e.target.value }))}
+                  placeholder="Endereço"
+                  className="px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold"
+                />
+                <input
                   value={cadastroForm.email_adolescente}
                   onChange={(e) => setCadastroForm((prev) => ({ ...prev, email_adolescente: e.target.value }))}
                   placeholder="E-mail do adolescente"
@@ -669,6 +708,12 @@ const InscricoesReviewPage: React.FC = () => {
                   value={cadastroForm.bairro}
                   onChange={(e) => setCadastroForm((prev) => ({ ...prev, bairro: e.target.value }))}
                   placeholder="Bairro"
+                  className="px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold"
+                />
+                <input
+                  value={cadastroForm.nome_responsavel}
+                  onChange={(e) => setCadastroForm((prev) => ({ ...prev, nome_responsavel: e.target.value }))}
+                  placeholder="Nome do responsável"
                   className="px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold"
                 />
                 <input

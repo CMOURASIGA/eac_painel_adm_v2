@@ -35,6 +35,8 @@ export type InscricaoAdminItem = {
   pessoa_adolescente_id?: string | null;
   nome_adolescente?: string | null;
   data_nascimento?: string | null;
+  sexo?: string | null;
+  endereco?: string | null;
   idade_calculada?: number | null;
   telefone_adolescente?: string | null;
   telefone_adolescente_normalizado?: string | null;
@@ -77,9 +79,14 @@ export type AlterarStatusInscricaoPayload = {
 
 export type AtualizarCadastroInscricaoPayload = {
   inscricao_id: string;
+  nome_adolescente?: string;
+  data_nascimento?: string;
+  sexo?: string;
+  endereco?: string;
   email_adolescente?: string;
   telefone_adolescente?: string;
   bairro?: string;
+  nome_responsavel?: string;
   email_responsavel?: string;
   telefone_responsavel?: string;
 };
