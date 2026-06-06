@@ -17,7 +17,9 @@ const STATUS_OPTIONS = [
 ];
 
 const STATUS_CHANGE_OPTIONS = [
+  'EM_ANALISE',
   'PRIORIZADO',
+  'FILA',
   'CONFIRMADO',
   'NAO_SELECIONADO',
   'DESISTENTE',
@@ -25,7 +27,7 @@ const STATUS_CHANGE_OPTIONS = [
 ];
 
 const JUSTIFICATIVA_OBRIGATORIA_STATUS = new Set(['NAO_SELECIONADO', 'DESISTENTE', 'CANCELADO']);
-const QUICK_STATUS_OPTIONS = ['PRIORIZADO', 'CONFIRMADO', 'NAO_SELECIONADO'];
+const QUICK_STATUS_OPTIONS = ['EM_ANALISE', 'PRIORIZADO', 'CONFIRMADO', 'NAO_SELECIONADO'];
 const STATUS_TRANSITIONS_ALLOWED: Record<string, string[]> = {
   INSCRITO: ['EM_ANALISE', 'PRIORIZADO', 'NAO_SELECIONADO', 'CANCELADO'],
   EM_ANALISE: ['PRIORIZADO', 'FILA', 'CONFIRMADO', 'NAO_SELECIONADO', 'DESISTENTE', 'CANCELADO'],
@@ -246,7 +248,7 @@ const InscricoesReviewPage: React.FC = () => {
   };
 
   const statusCards = useMemo(() => {
-    const keys = ['INSCRITO', 'PRIORIZADO', 'FILA', 'CONFIRMADO', 'NAO_SELECIONADO'];
+    const keys = ['INSCRITO', 'EM_ANALISE', 'PRIORIZADO', 'FILA', 'CONFIRMADO', 'NAO_SELECIONADO'];
     return keys.map((key) => ({ key, value: summary.por_status[key] || 0 }));
   }, [summary.por_status]);
 

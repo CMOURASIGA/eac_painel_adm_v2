@@ -1060,12 +1060,12 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl }) => {
 
   const memberBairroOptions = useMemo(() => {
     const set = new Set<string>();
-    (Array.isArray(members) ? members : []).forEach((m: any) => {
+    (Array.isArray(allMembers) ? allMembers : []).forEach((m: any) => {
       const bairro = toCleanString(m?.bairro);
       if (bairro) set.add(bairro);
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [members]);
+  }, [allMembers]);
 
   const hasAdvancedFiltersActive = useMemo(() => {
     return Boolean(
@@ -1088,54 +1088,20 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl }) => {
   }, []);
 
   const handleMemberSearch = useCallback(async () => {
-    const applied = { ...memberFiltersDraft };
-    setMemberFiltersApplied(applied);
-
-    const requestSeq = memberSearchRequestSeqRef.current + 1;
-    memberSearchRequestSeqRef.current = requestSeq;
-
     abortPendingMemberSearch();
-    const controller = new AbortController();
-    memberSearchAbortRef.current = controller;
+    memberSearchRequestSeqRef.current += 1;
     setIsMemberSearching(true);
 
     try {
-      const payload = {
-        query: applied.query,
-        bairro: applied.bairro,
-        telefone: applied.telefone,
-        email: applied.email,
-        sexo: applied.sexo,
-        pertencePorciuncula: applied.pertencePorciuncula,
-        faixaEtaria: applied.faixaEtaria,
-        ageRange: applied.faixaEtaria,
-        page: 1,
-        limit: 30,
-        sortBy: 'nome',
-        sortDir: 'asc',
-      };
-      const res = await callApiProxy('SEARCH_MEMBERS', googleWebAppUrl, payload, { signal: controller.signal });
-      if (requestSeq !== memberSearchRequestSeqRef.current) return;
-
-      if (res?.success) {
-        const items = Array.isArray(res.items) ? res.items : (Array.isArray(res.members) ? res.members : []);
-        setMembers(items);
-        setMemberSearchTotal(Number(res.total) || items.length);
-      } else {
-        alert(res?.error || 'Não foi possível pesquisar participantes.');
-      }
-    } catch (err: any) {
-      if (err?.name === 'AbortError') return;
-      alert('Erro ao pesquisar participantes.');
+      const applied = { ...memberFiltersDraft };
+      const filtered = filterMembersList(allMembers as any[], applied);
+      setMemberFiltersApplied(applied);
+      setMembers(allMembers);
+      setMemberSearchTotal(filtered.length);
     } finally {
-      if (requestSeq === memberSearchRequestSeqRef.current) {
-        setIsMemberSearching(false);
-        if (memberSearchAbortRef.current === controller) {
-          memberSearchAbortRef.current = null;
-        }
-      }
+      setIsMemberSearching(false);
     }
-  }, [googleWebAppUrl, memberFiltersDraft, abortPendingMemberSearch]);
+  }, [allMembers, memberFiltersDraft, abortPendingMemberSearch]);
 
   const handleMemberIndicatorClick = useCallback((kind: 'sexo' | 'idade', value: string) => {
     abortPendingMemberSearch();
@@ -1166,9 +1132,9 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl }) => {
     const reset = { ...DEFAULT_MEMBER_SEARCH_FILTERS };
     setMemberFiltersDraft(reset);
     setMemberFiltersApplied(reset);
-    setMemberSearchTotal(null);
-    await fetchData();
-  }, [fetchData, abortPendingMemberSearch]);
+    setMembers(allMembers);
+    setMemberSearchTotal(allMembers.length);
+  }, [allMembers, abortPendingMemberSearch]);
 
   useEffect(() => {
     return () => {
@@ -3395,16 +3361,18 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block">Faixa etária</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1 block">Idade</label>
                   <select
                     value={memberFiltersDraft.faixaEtaria}
                     onChange={(e) => handleMemberFilterChange('faixaEtaria', e.target.value)}
                     className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-sm outline-none focus:bg-white focus:border-blue-500"
                   >
                     <option value="">Todas</option>
-                    <option value="0_11">0 - 11 anos</option>
-                    <option value="12_16">12 - 16 anos</option>
-                    <option value="17_plus">17+ anos</option>
+                    <option value="13">13 anos</option>
+                    <option value="14">14 anos</option>
+                    <option value="15">15 anos</option>
+                    <option value="16">16 anos</option>
+                    <option value="17">17 anos</option>
                   </select>
                 </div>
               </div>
