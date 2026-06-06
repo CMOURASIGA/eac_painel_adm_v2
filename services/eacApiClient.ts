@@ -24,6 +24,9 @@ function normalizeLegacyApiPayload(payload: any) {
   const normalized: any = { ...payload };
   if (!normalized.message && typeof normalized.mensagem === 'string') normalized.message = normalized.mensagem;
   if (!normalized.error && typeof normalized.erro === 'string') normalized.error = normalized.erro;
+  if (normalized.error && typeof normalized.error === 'object') {
+    normalized.error = String(normalized.error.message || normalized.error.code || 'Erro na requisicao.');
+  }
   if (normalized.success === undefined && normalized.ok === true) normalized.success = true;
   if (normalized.success === undefined && normalized.status === 'success') normalized.success = true;
   return normalized;
