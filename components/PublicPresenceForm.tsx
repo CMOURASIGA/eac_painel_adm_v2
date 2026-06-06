@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Toast from './Toast';
-import { getJson, postJson } from '../services/eacApiClient.ts';
+import { postComunicadosAction } from '../services/eacApiClient.ts';
 import { toCleanString } from '../utils/textEncoding.ts';
 
 type ToastState = { message: string; type: 'success' | 'error' | 'info' } | null;
@@ -36,7 +36,7 @@ const PublicPresenceForm: React.FC = () => {
     async function loadBase() {
       setIsLoadingBase(true);
       try {
-        const r = await getJson<any>('/api/presenca/public-data');
+        const r = await postComunicadosAction<any>('GET_PUBLIC_PRESENCE_DATA', {});
         if (!r.success) throw new Error(r.error || 'Falha ao carregar lista de presença.');
         if (!active) return;
         const items = Array.isArray((r.data as any)?.candidates) ? (r.data as any).candidates : [];
@@ -117,7 +117,7 @@ const PublicPresenceForm: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const r = await postJson<any>('/api/presenca/public-marcar', {
+      const r = await postComunicadosAction<any>('MARK_PRESENCE', {
         tipoEvento: eventType,
         nome: selectedCandidate.nome,
         telefone: selectedCandidate.telefone,

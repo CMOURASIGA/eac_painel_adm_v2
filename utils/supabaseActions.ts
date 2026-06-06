@@ -698,6 +698,81 @@ function buildAllowedModulesFromLegacyPayload(payload: any, isAdmin: boolean) {
   return Array.from(mods);
 }
 
+function buildPublicPresenceCandidates(payload: {
+  encontreiros?: any[];
+  encontristas?: any[];
+  presence?: any[];
+}) {
+  const toClean = (v: any) => String(v ?? '').trim();
+  const normalizeDigitsLocal = (v: any) => String(v || '').replace(/\D/g, '');
+  const normalizeTextLocal = (v: any) =>
+    toClean(v)
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+  const encontreiros = Array.isArray(payload?.encontreiros) ? payload.encontreiros : [];
+  const encontristas = Array.isArray(payload?.encontristas) ? payload.encontristas : [];
+  const presence = Array.isArray(payload?.presence) ? payload.presence : [];
+
+  const map = new Map<string, any>();
+  const upsert = (row: any, origem: 'ENCONTREIRO' | 'ENCONTRISTA') => {
+    const nome = toClean(row?.nomeCompleto || row?.nome || row?.nome_completo || row?.name);
+    if (!nome) return;
+    const telefone = toClean(row?.celularWhatsapp || row?.telefone || row?.whatsapp || row?.celular || row?.phone);
+    const telKey = normalizeDigitsLocal(telefone);
+    const key = telKey ? `tel:${telKey}` : `nome:${normalizeTextLocal(nome)}`;
+    const prev = map.get(key);
+    map.set(key, {
+      key,
+      nome,
+      telefone: telefone || prev?.telefone || '',
+      circulo: toClean(
+        row?.circulo ||
+        row?.grupoSugerido ||
+        row?.grupo_sugerido ||
+        row?.circuloInformado ||
+        row?.circulo_informado ||
+        prev?.circulo ||
+        ''
+      ),
+      origem: prev && prev.origem !== origem ? 'AMBOS' : (prev?.origem || origem),
+    });
+  };
+
+  encontreiros.forEach((r: any) => upsert(r, 'ENCONTREIRO'));
+  encontristas.forEach((r: any) => upsert(r, 'ENCONTRISTA'));
+
+  if (map.size === 0) {
+    presence.forEach((row: any) => {
+      const nome = toClean(row?.nome || row?.nome_digitado || row?.nome_completo);
+      if (!nome) return;
+      const telefone = toClean(row?.telefone || row?.telefone_digitado || row?.telefone_normalizado);
+      const telKey = normalizeDigitsLocal(telefone);
+      const key = telKey ? `tel:${telKey}` : `nome:${normalizeTextLocal(nome)}`;
+      if (map.has(key)) return;
+      map.set(key, {
+        key,
+        nome,
+        telefone,
+        circulo: toClean(row?.circulo || row?.circulo_informado),
+        origem: 'ENCONTREIRO',
+      });
+    });
+  }
+
+  const candidates = Array.from(map.values()).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
+  return {
+    success: true,
+    candidates,
+    debug: {
+      encontreirosCount: encontreiros.length,
+      encontristasCount: encontristas.length,
+      presenceCount: presence.length,
+    },
+  };
+}
+
 async function findAuthUserByEmail(supabase: SupabaseClient, email: string) {
   const target = cleanText(email).toLowerCase();
   if (!target) return null;
@@ -1358,6 +1433,33 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
     if (ctx.action === 'GET_MEMBERS') {
       const members = await fetchActiveMembersFromNormalizedTables(supabase);
       return { ok: true, data: { success: true, members, total: members.length, source: 'supabase' } };
+    }
+
+    if (ctx.action === 'GET_PUBLIC_PRESENCE_DATA') {
+      const [enc, mem, pre] = await Promise.all([
+        handleSupabaseAction('GET_ENCONTREIROS', {}),
+        handleSupabaseAction('GET_MEMBERS', {}),
+        handleSupabaseAction('GET_PRESENCE', {}),
+      ]);
+
+      if (!enc.ok || !mem.ok) {
+        return {
+          ok: true,
+          data: {
+            success: false,
+            error: (!enc.ok ? enc.error : '') || (!mem.ok ? mem.error : '') || 'Falha ao carregar dados de presenca.',
+          },
+        };
+      }
+
+      const encontreiros = Array.isArray((enc.data as any)?.encontreiros) ? (enc.data as any).encontreiros : [];
+      const encontristas = Array.isArray((mem.data as any)?.members) ? (mem.data as any).members : [];
+      const presence = pre.ok && Array.isArray((pre.data as any)?.presence) ? (pre.data as any).presence : [];
+
+      return {
+        ok: true,
+        data: buildPublicPresenceCandidates({ encontreiros, encontristas, presence }),
+      };
     }
 
     if (ctx.action === 'GET_USERS') {
