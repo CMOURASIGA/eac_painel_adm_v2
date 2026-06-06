@@ -40,6 +40,7 @@ const PublicInscricaoForm: React.FC = () => {
 
   const [form, setForm] = useState({
     nome_adolescente: '',
+    nome_social: '',
     data_nascimento: '',
     telefone_adolescente: '',
     email_adolescente: '',
@@ -107,6 +108,7 @@ const PublicInscricaoForm: React.FC = () => {
     try {
       const payload = {
         nome_adolescente: toCleanString(form.nome_adolescente),
+        nome_social: toCleanString(form.nome_social),
         data_nascimento: toCleanString(form.data_nascimento),
         idade: computedAge ? Number(computedAge) : undefined,
         telefone_adolescente: toCleanString(form.telefone_adolescente),
@@ -195,6 +197,18 @@ const PublicInscricaoForm: React.FC = () => {
                   {fieldErrors.nome_adolescente ? <p className="mt-1 text-xs text-red-600">{fieldErrors.nome_adolescente}</p> : null}
                 </div>
 
+                <div>
+                  <label className={labelClass}>Nome social</label>
+                  <input
+                    value={form.nome_social}
+                    onChange={(e) => setForm((prev) => ({ ...prev, nome_social: e.target.value }))}
+                    className={inputClass('nome_social')}
+                    placeholder="Como prefere ser chamado(a)"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className={labelClass}>Data de nascimento *</label>
                   <input

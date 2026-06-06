@@ -109,6 +109,7 @@ export function validarPayloadInscricao(payload: AnyObject): ValidationResult {
   const normalized: AnyObject = {
     id_encontro: normalizarTexto(payload.id_encontro),
     nome_adolescente: normalizarNome(payload.nome_adolescente),
+    nome_social: normalizarTexto(payload.nome_social) || null,
     data_nascimento: normalizarTexto(payload.data_nascimento),
     telefone_adolescente: normalizarTelefoneBR(payload.telefone_adolescente),
     nome_responsavel: normalizarNome(payload.nome_responsavel),
@@ -150,6 +151,29 @@ export function validarPayloadInscricao(payload: AnyObject): ValidationResult {
   }
 
   return { normalized, fields };
+}
+
+async function pickPayloadByExistingColumns(
+  supabase: SupabaseClient,
+  table: string,
+  payload: Record<string, any>
+) {
+  const filtered: Record<string, any> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    const probe = await supabase.from(table).select(key).limit(1);
+    if (!probe.error) filtered[key] = value;
+  }
+  return Object.keys(filtered).length > 0 ? filtered : payload;
+}
+
+function mergeNomeSocialInObservacoes(observacoes: string | null, nomeSocial: string | null) {
+  const base = normalizarTexto(observacoes);
+  const social = normalizarTexto(nomeSocial);
+  if (!social) return base || null;
+
+  const withoutOldTag = base.replace(/(?:^|\n)Nome social:\s*.+$/im, '').trim();
+  const tagged = `Nome social: ${social}`;
+  return withoutOldTag ? `${withoutOldTag}\n${tagged}` : tagged;
 }
 
 function calcAgeOnDate(birth: Date, on: Date): number {
@@ -384,22 +408,26 @@ export async function executeInscricaoCreate(params: { supabase: SupabaseClient 
 
   const nowIso = new Date().toISOString();
 
+  const pessoaAdolescentePayload = await pickPayloadByExistingColumns(supabase, 'pessoas', {
+    nome_completo: normalized.nome_adolescente,
+    nome_normalizado: normalizarNome(normalized.nome_adolescente),
+    nome_social: normalized.nome_social,
+    data_nascimento: normalized.data_nascimento,
+    idade_calculada: idade,
+    telefone: normalized.telefone_adolescente,
+    telefone_normalizado: normalized.telefone_adolescente,
+    bairro: normalized.bairro,
+    email: normalized.email_adolescente,
+    email_normalizado: normalized.email_adolescente ? normalizarTexto(normalized.email_adolescente).toLowerCase() : null,
+    observacoes: mergeNomeSocialInObservacoes(normalized.observacoes, normalized.nome_social),
+    origem_dado: 'SISTEMA',
+    criado_via_sistema: true,
+    data_importacao: nowIso,
+  });
+
   const { data: pessoaAdolescente, error: pessoaAdolescenteError } = await supabase
     .from('pessoas')
-    .insert({
-      nome_completo: normalized.nome_adolescente,
-      nome_normalizado: normalizarNome(normalized.nome_adolescente),
-      data_nascimento: normalized.data_nascimento,
-      idade_calculada: idade,
-      telefone: normalized.telefone_adolescente,
-      telefone_normalizado: normalized.telefone_adolescente,
-      bairro: normalized.bairro,
-      email: normalized.email_adolescente,
-      email_normalizado: normalized.email_adolescente ? normalizarTexto(normalized.email_adolescente).toLowerCase() : null,
-      origem_dado: 'SISTEMA',
-      criado_via_sistema: true,
-      data_importacao: nowIso,
-    })
+    .insert(pessoaAdolescentePayload)
     .select('id')
     .single();
 
