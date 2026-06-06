@@ -5,6 +5,7 @@ import { toCleanString } from '../utils/textEncoding.ts';
 
 type ToastState = { message: string; type: 'success' | 'error' | 'info' } | null;
 type EventType = 'POS_ENCONTRO' | 'REUNIAO_CIRCULO';
+type AudienceType = 'TODOS' | 'ENCONTRISTA' | 'ENCONTREIRO';
 
 interface PresenceCandidate {
   key: string;
@@ -22,6 +23,7 @@ const PublicPresenceForm: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [eventType, setEventType] = useState<EventType>('POS_ENCONTRO');
+  const [audienceType, setAudienceType] = useState<AudienceType>('TODOS');
   const [selectedKey, setSelectedKey] = useState('');
   const [circulo, setCirculo] = useState('');
   const [candidates, setCandidates] = useState<PresenceCandidate[]>([]);
@@ -65,16 +67,25 @@ const PublicPresenceForm: React.FC = () => {
   }, []);
 
   const filteredCandidates = useMemo(() => {
-    if (eventType === 'REUNIAO_CIRCULO') {
+    if (audienceType === 'ENCONTRISTA') {
       return candidates.filter((c) => c.origem === 'ENCONTRISTA' || c.origem === 'AMBOS');
     }
+    if (audienceType === 'ENCONTREIRO') {
+      return candidates.filter((c) => c.origem === 'ENCONTREIRO' || c.origem === 'AMBOS');
+    }
     return candidates;
-  }, [candidates, eventType]);
+  }, [audienceType, candidates]);
 
   const selectedCandidate = useMemo(
     () => filteredCandidates.find((c) => c.key === selectedKey) || null,
     [filteredCandidates, selectedKey]
   );
+
+  const getOriginLabel = (origem: PresenceCandidate['origem']) => {
+    if (origem === 'ENCONTRISTA') return 'Encontrista';
+    if (origem === 'ENCONTREIRO') return 'Encontreiro';
+    return 'Ambos';
+  };
 
   const isLockedEncontreiroCircle = useMemo(
     () =>
@@ -164,13 +175,28 @@ const PublicPresenceForm: React.FC = () => {
                   value={eventType}
                   onChange={(e) => {
                     setEventType(e.target.value as EventType);
-                    setSelectedKey('');
-                    setCirculo('');
                   }}
                   className="w-full h-12 px-4 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                 >
                   <option value="POS_ENCONTRO">Pós-Encontro (encontreiro + encontrista)</option>
                   <option value="REUNIAO_CIRCULO">Reunião de Círculo (somente encontrista)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-extrabold text-slate-800 mb-1">Visualizar nomes de *</label>
+                <select
+                  value={audienceType}
+                  onChange={(e) => {
+                    setAudienceType(e.target.value as AudienceType);
+                    setSelectedKey('');
+                    setCirculo('');
+                  }}
+                  className="w-full h-12 px-4 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                >
+                  <option value="TODOS">Encontrista + Encontreiro</option>
+                  <option value="ENCONTRISTA">Somente Encontrista</option>
+                  <option value="ENCONTREIRO">Somente Encontreiro</option>
                 </select>
               </div>
 
@@ -185,7 +211,7 @@ const PublicPresenceForm: React.FC = () => {
                   <option value="">{isLoadingBase ? 'Carregando nomes...' : 'Selecione o nome'}</option>
                   {filteredCandidates.map((c) => (
                     <option key={c.key} value={c.key}>
-                      {c.nome}
+                      {`${c.nome} (${getOriginLabel(c.origem)})`}
                     </option>
                   ))}
                 </select>
