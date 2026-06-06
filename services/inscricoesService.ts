@@ -1,4 +1,4 @@
-import { deleteJson, emptyOk, getJson, patchJson, postComunicadosAction, postJson, type EacApiResult } from './eacApiClient.ts';
+ï»¿import { deleteJson, emptyOk, getJson, patchJson, postComunicadosAction, postJson, type EacApiResult } from './eacApiClient.ts';
 
 export type InscricoesPrioritariasResponse = {
   inscricoesPrioritarias?: any[];
@@ -94,20 +94,20 @@ export type AtualizarCadastroInscricaoPayload = {
 export const inscricoesService = {
   async listarEncontrosAbertos(): Promise<EacApiResult<{ encontros: EncontroItem[] }>> {
     const r = await getJson<any>('/api/encontros/abertos');
-    if (!r.success) return r;
+    if (!r.success) return r as any;
     const encontros = Array.isArray((r.data as any)?.encontros) ? (r.data as any).encontros : [];
     return emptyOk({ encontros }, r.raw);
   },
 
   async createInscricao(payload: any): Promise<EacApiResult<{ data: any; message?: string; duplicate?: boolean }>> {
     const r = await postJson<any>('/api/inscricoes/create', payload);
-    if (!r.success) return r;
+    if (!r.success) return r as any;
     return emptyOk({ data: (r.data as any)?.data ?? (r.data as any), message: (r.data as any)?.message, duplicate: (r.data as any)?.duplicate }, r.raw);
   },
 
   async listarPrioritarias(opts: { googleWebAppUrl?: string } = {}): Promise<EacApiResult<{ items: any[]; total: number }>> {
     const r = await postComunicadosAction<InscricoesPrioritariasResponse>('GET_INSCRICOES_PRIORITARIAS', {}, opts);
-    if (!r.success) return r;
+    if (!r.success) return r as any;
     const payload = r.data as any;
     const list = Array.isArray(payload?.inscricoesPrioritarias)
       ? payload.inscricoesPrioritarias
@@ -118,7 +118,7 @@ export const inscricoesService = {
 
   async listarCirculosDistribuidos(opts: { googleWebAppUrl?: string } = {}): Promise<EacApiResult<Record<string, any[]>>> {
     const r = await postComunicadosAction<CirculosDistribuidosResponse>('GET_CIRCULOS_DISTRIBUIDOS', {}, opts);
-    if (!r.success) return r;
+    if (!r.success) return r as any;
     const grouped = (r.data as any)?.circulos;
     return emptyOk(grouped && typeof grouped === 'object' ? grouped : {}, r.raw);
   },
@@ -127,7 +127,7 @@ export const inscricoesService = {
     payload: { minAge?: number | null; maxAge?: number | null } = {},
     opts: { googleWebAppUrl?: string } = {}
   ): Promise<EacApiResult<any>> {
-    // Endpoint dedicado (hoje proxy do /api/comunicados), para permitir evoluir a implementação sem mudar o frontend.
+    // Endpoint dedicado (hoje proxy do /api/comunicados), para permitir evoluir a implementaÃ§Ã£o sem mudar o frontend.
     return await postJson('/api/inscricoes-prioritarias/distribuir', { ...payload, ...(opts.googleWebAppUrl ? { googleWebAppUrl: opts.googleWebAppUrl } : {}) });
   },
 
@@ -174,4 +174,5 @@ async excluirInscricao(payload: { inscricao_id: string }): Promise<EacApiResult<
     return await postJson<any>('/api/inscricoes/admin/lote', payload);
   },
 };
+
 

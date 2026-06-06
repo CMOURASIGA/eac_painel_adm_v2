@@ -1,8 +1,9 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
+﻿import type { NextApiRequest, NextApiResponse } from 'next';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { handleSupabaseAction } from '../../utils/supabaseActions.js';
 import { getSupabaseServerClient, isSupabaseConfigured } from '../../utils/supabaseServer.js';
 
+type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
 const STATUS_PRIORITY: Record<string, number> = {
   CONFIRMADO: 70,
   FILA: 60,
@@ -16,7 +17,7 @@ const STATUS_PRIORITY: Record<string, number> = {
 
 const clean = (v: any) => String(v ?? '').trim().toLowerCase();
 const isYes = (v: any) => ['sim', 's', 'yes', 'y', 'true', '1', 'verdadeiro', 'x'].includes(clean(v));
-const isNo = (v: any) => ['nao', 'n�o', 'n', 'no', 'false', '0', 'falso'].includes(clean(v));
+const isNo = (v: any) => ['nao', 'não', 'n', 'no', 'false', '0', 'falso'].includes(clean(v));
 
 const pick = (row: any, keys: string[]) => {
   for (const key of keys) {
@@ -67,7 +68,7 @@ function pickBestInscricaoRow(current: any, candidate: any) {
   return candidateTime > currentTime ? candidate : current;
 }
 
-async function fetchCadastroOficialCount(supabase: SupabaseClient | null) {
+async function fetchCadastroOficialCount(supabase: AnySupabaseClient | null) {
   if (!supabase) return 0;
   const { count, error } = await supabase
     .from('cadastro_oficial')
@@ -77,7 +78,7 @@ async function fetchCadastroOficialCount(supabase: SupabaseClient | null) {
   return Number(count || 0);
 }
 
-async function fetchEncontreirosCount(supabase: SupabaseClient | null) {
+async function fetchEncontreirosCount(supabase: AnySupabaseClient | null) {
   if (!supabase) return 0;
 
   const primary = await supabase.from('encontreiros').select('*', { count: 'exact', head: true });
@@ -89,7 +90,7 @@ async function fetchEncontreirosCount(supabase: SupabaseClient | null) {
   return 0;
 }
 
-async function fetchTriagemRowsByStatus(supabase: SupabaseClient | null) {
+async function fetchTriagemRowsByStatus(supabase: AnySupabaseClient | null) {
   const empty = { INSCRITO: [] as any[], PRIORIZADO: [] as any[], CONFIRMADO: [] as any[] };
   if (!supabase) return empty;
 
@@ -235,3 +236,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return sendError(res, 500, e?.message || 'Erro interno.');
   }
 }
+

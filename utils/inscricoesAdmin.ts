@@ -1,6 +1,7 @@
 ﻿import type { SupabaseClient } from '@supabase/supabase-js';
 
 type AnyObject = Record<string, any>;
+type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
 
 type ExecResult = {
   status: number;
@@ -104,7 +105,7 @@ function intersectIfNeeded(base: string[] | null, target: string[] | null) {
   return base.filter((id) => targetSet.has(id));
 }
 
-async function adolescentesByPessoaIds(supabase: SupabaseClient, pessoaIds: string[]) {
+async function adolescentesByPessoaIds(supabase: AnySupabaseClient, pessoaIds: string[]) {
   if (pessoaIds.length === 0) return [] as Array<{ id: string; pessoa_id: string }>;
   const batchSize = 150;
   const rows: Array<{ id: string; pessoa_id: string }> = [];
@@ -123,7 +124,7 @@ async function adolescentesByPessoaIds(supabase: SupabaseClient, pessoaIds: stri
 }
 
 async function excluirAdolescentesJaEncontreiros(
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
   adolescenteIds: string[]
 ) {
   try {
@@ -168,7 +169,7 @@ async function excluirAdolescentesJaEncontreiros(
   }
 }
 
-async function adolescenteIdsByResponsavelBusca(supabase: SupabaseClient, buscaText: string, buscaDigits: string) {
+async function adolescenteIdsByResponsavelBusca(supabase: AnySupabaseClient, buscaText: string, buscaDigits: string) {
   if (!buscaText && !buscaDigits) return [] as string[];
 
   let q = supabase.from('responsaveis').select('id');
@@ -203,7 +204,7 @@ async function adolescenteIdsByResponsavelBusca(supabase: SupabaseClient, buscaT
 }
 
 async function adolescenteIdsByPessoaFiltros(
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
   opts: {
     idadeMin?: number | null;
     idadeMax?: number | null;
@@ -248,7 +249,7 @@ async function adolescenteIdsByPessoaFiltros(
 }
 
 function buildInscricoesQuery(
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
   opts: {
     encontroId?: string;
     status?: string;
@@ -293,7 +294,7 @@ function buildInscricoesQuery(
 }
 
 export async function executeInscricoesAdminList(params: {
-  supabase: SupabaseClient | null;
+  supabase: AnySupabaseClient | null;
   query: Record<string, any>;
 }): Promise<ExecResult> {
   const { supabase, query } = params;
@@ -476,10 +477,10 @@ export async function executeInscricoesAdminList(params: {
       return { status: 502, body: { success: false, error: 'ERRO_LISTAR_INSCRICOES', message: 'Não foi possível carregar as inscrições.' } };
     }
 
-    const encontrosMap = new Map((encontrosRes.data ?? []).map((e: any) => [String(e.id), e]));
-    const adolescentesMap = new Map(adolescentes.map((a: any) => [String(a.id), a]));
-    const pessoasMap = new Map((pessoasRes.data ?? []).map((p: any) => [String(p.id), p]));
-    const responsaveisMap = new Map((responsaveisRes.data ?? []).map((r: any) => [String(r.id), r]));
+    const encontrosMap = new Map<string, any>(((encontrosRes.data ?? []) as any[]).map((e: any) => [String(e.id), e]));
+    const adolescentesMap = new Map<string, any>(adolescentes.map((a: any) => [String(a.id), a]));
+    const pessoasMap = new Map<string, any>(((pessoasRes.data ?? []) as any[]).map((p: any) => [String(p.id), p]));
+    const responsaveisMap = new Map<string, any>(((responsaveisRes.data ?? []) as any[]).map((r: any) => [String(r.id), r]));
 
     const vinculosByAdolescente = new Map<string, any[]>();
     vinculos.forEach((v: any) => {
@@ -570,3 +571,4 @@ export async function executeInscricoesAdminList(params: {
     return { status: 500, body: { success: false, error: 'INTERNAL_ERROR', message: 'Erro ao listar inscrições.' } };
   }
 }
+

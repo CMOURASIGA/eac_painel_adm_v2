@@ -1,11 +1,12 @@
 ﻿import type { SupabaseClient } from '@supabase/supabase-js';
 
 type JsonObject = Record<string, any>;
+type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
 type ServiceResult = { ok: true; data: JsonObject };
 
 const cleanText = (value: any) => String(value ?? '').trim();
 
-async function findFirstTable(supabase: SupabaseClient, candidates: string[]) {
+async function findFirstTable(supabase: AnySupabaseClient, candidates: string[]) {
   let lastErr: any = null;
   for (const table of candidates) {
     const res = await supabase.from(table).select('*').limit(1);
@@ -34,7 +35,7 @@ function toWriteTableCandidates(candidates: string[]) {
   return Array.from(normalized).filter(Boolean);
 }
 
-export async function saveEventService(supabase: SupabaseClient, payload: JsonObject): Promise<ServiceResult> {
+export async function saveEventService(supabase: AnySupabaseClient, payload: JsonObject): Promise<ServiceResult> {
   const id = cleanText(payload.id) || (globalThis.crypto?.randomUUID?.() || `evt-${Date.now()}`);
   const atividade = cleanText(payload.atividade);
   const tipo = cleanText(payload.tipo) || 'Encontro';
@@ -83,7 +84,7 @@ export async function saveEventService(supabase: SupabaseClient, payload: JsonOb
   return { ok: true, data: { success: true, source: 'supabase', event: result || payloadSnake, message: exists ? 'Evento atualizado com sucesso.' : 'Evento criado com sucesso.' } };
 }
 
-export async function deleteEventService(supabase: SupabaseClient, payload: JsonObject): Promise<ServiceResult> {
+export async function deleteEventService(supabase: AnySupabaseClient, payload: JsonObject): Promise<ServiceResult> {
   const id = cleanText(payload.id);
   if (!id) return { ok: true, data: { success: false, error: 'ID e obrigatorio para exclusao.' } };
 
@@ -103,7 +104,7 @@ export async function deleteEventService(supabase: SupabaseClient, payload: Json
   return { ok: true, data: { success: true, source: 'supabase', id, message: `Evento #${id} removido.` } };
 }
 
-export async function saveComunicadoService(supabase: SupabaseClient, payload: JsonObject): Promise<ServiceResult> {
+export async function saveComunicadoService(supabase: AnySupabaseClient, payload: JsonObject): Promise<ServiceResult> {
   const id = cleanText(payload.id);
   const titulo = cleanText(payload.titulo);
   const assunto = cleanText(payload.assunto);
@@ -185,7 +186,7 @@ export async function saveComunicadoService(supabase: SupabaseClient, payload: J
   return { ok: true, data: { success: true, source: 'supabase', comunicado: result || payloadSnake, message: exists ? 'Comunicado atualizado com sucesso.' : 'Comunicado criado com sucesso.' } };
 }
 
-export async function deleteComunicadoService(supabase: SupabaseClient, payload: JsonObject): Promise<ServiceResult> {
+export async function deleteComunicadoService(supabase: AnySupabaseClient, payload: JsonObject): Promise<ServiceResult> {
   const id = cleanText(payload.id);
   if (!id) return { ok: true, data: { success: false, error: 'ID e obrigatorio para exclusao.' } };
 

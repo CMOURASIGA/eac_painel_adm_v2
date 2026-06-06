@@ -1,13 +1,14 @@
 ﻿import type { SupabaseClient } from '@supabase/supabase-js';
 
 type JsonObject = Record<string, any>;
+type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
 
 type ServiceResult = { ok: true; data: JsonObject };
 
 const cleanText = (value: any) => String(value ?? '').trim();
 const normalizeDigits = (value: any) => String(value || '').replace(/\D/g, '');
 
-export async function markPresenceService(supabase: SupabaseClient, payload: JsonObject): Promise<ServiceResult> {
+export async function markPresenceService(supabase: AnySupabaseClient, payload: JsonObject): Promise<ServiceResult> {
   const telefoneInput = cleanText(payload.telefone);
   const nomeInput = cleanText(payload.nome);
   const circuloInput = cleanText(payload.circulo);

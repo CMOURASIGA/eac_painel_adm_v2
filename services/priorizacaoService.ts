@@ -1,6 +1,7 @@
 ﻿import type { SupabaseClient } from '@supabase/supabase-js';
 
 type JsonObject = Record<string, any>;
+type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
 type ServiceResult = { ok: true; data: JsonObject };
 
 const cleanText = (value: any) => String(value ?? '').trim();
@@ -13,7 +14,7 @@ const pickFirst = (row: any, keys: string[]) => {
   return '';
 };
 
-async function findFirstTable(supabase: SupabaseClient, candidates: string[]) {
+async function findFirstTable(supabase: AnySupabaseClient, candidates: string[]) {
   let lastErr: any = null;
   for (const table of candidates) {
     const res = await supabase.from(table).select('*').limit(1);
@@ -62,7 +63,7 @@ const isUuidLike = (value: string) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
 
 async function findFirstRowByKeys(
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
   table: string,
   keys: string[],
   value: string
@@ -93,7 +94,7 @@ async function findFirstRowByKeys(
 }
 
 async function updateByFirstExistingKey(
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
   table: string,
   whereKeys: string[],
   whereValue: string,
@@ -121,7 +122,7 @@ async function updateByFirstExistingKey(
 }
 
 async function deleteByFirstExistingKey(
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
   table: string,
   whereKeys: string[],
   whereValue: string
@@ -148,7 +149,7 @@ async function deleteByFirstExistingKey(
 }
 
 async function deleteCirculoParticipantesByPrioritariaId(
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
   inscricaoPrioritariaId: string
 ) {
   const id = cleanText(inscricaoPrioritariaId);
@@ -171,7 +172,7 @@ async function deleteCirculoParticipantesByPrioritariaId(
 }
 
 async function syncInscricaoStatus(
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
   inscricaoId: string,
   targetStatus: string
 ) {
@@ -198,7 +199,7 @@ async function syncInscricaoStatus(
   return false;
 }
 
-export async function prioritizeNonEnrolledService(supabase: SupabaseClient, payload: JsonObject): Promise<ServiceResult> {
+export async function prioritizeNonEnrolledService(supabase: AnySupabaseClient, payload: JsonObject): Promise<ServiceResult> {
   const linhaOrigem = cleanText(payload.linhaOrigem || payload.linha_origem);
   const prioridadeId = cleanText(payload.id || payload.prioritarioId || payload.inscricao_prioritaria_id);
   const priorizarRaw = payload.priorizar;

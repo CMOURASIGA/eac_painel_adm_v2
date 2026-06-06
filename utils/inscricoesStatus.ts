@@ -1,6 +1,7 @@
 ﻿import type { SupabaseClient } from '@supabase/supabase-js';
 
 type AnyObject = Record<string, any>;
+type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
 
 type ExecResult = {
   status: number;
@@ -90,7 +91,7 @@ function parseFlexibleDate(value: any) {
   return dt.toISOString().slice(0, 10);
 }
 
-async function resolveEncontreirosTable(supabase: SupabaseClient) {
+async function resolveEncontreirosTable(supabase: AnySupabaseClient) {
   const envTable = String(process.env.EAC_SUPABASE_TABLE_ENCONTREIROS || '').trim();
   const candidates = [
     envTable,
@@ -107,7 +108,7 @@ async function resolveEncontreirosTable(supabase: SupabaseClient) {
 }
 
 async function pickPayloadByExistingColumns(
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
   table: string,
   payload: Record<string, any>
 ) {
@@ -120,7 +121,7 @@ async function pickPayloadByExistingColumns(
 }
 
 async function upsertEncontreiroFromEncontrista(
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
   params: {
     pessoaId: string;
     nome: string;
@@ -184,7 +185,7 @@ async function upsertEncontreiroFromEncontrista(
 }
 
 async function ensureCadastroOficialAtivo(
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
   params: {
     pessoaId: string;
     encontroId: string;
@@ -250,7 +251,7 @@ async function ensureCadastroOficialAtivo(
 }
 
 async function ensurePessoaPapelAtivo(
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
   pessoaId: string,
   papel: 'ENCONTRISTA' | 'ENCONTREIRO',
 ) {
@@ -281,7 +282,7 @@ async function ensurePessoaPapelAtivo(
 }
 
 async function promoverInscricaoConfirmadaParaEncontrista(
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
   inscricaoId: string,
 ) {
   const { data: inscricao, error: inscricaoError } = await supabase
@@ -342,7 +343,7 @@ async function promoverInscricaoConfirmadaParaEncontrista(
 }
 
 export async function executeAlterarStatusInscricao(params: {
-  supabase: SupabaseClient | null;
+  supabase: AnySupabaseClient | null;
   body: Record<string, any>;
 }): Promise<ExecResult> {
   const { supabase, body } = params;
@@ -480,7 +481,7 @@ export async function executeAlterarStatusInscricao(params: {
 
 
 export async function executeExcluirInscricao(params: {
-  supabase: SupabaseClient | null;
+  supabase: AnySupabaseClient | null;
   body: Record<string, any>;
 }): Promise<ExecResult> {
   const { supabase, body } = params;
@@ -553,7 +554,7 @@ export async function executeExcluirInscricao(params: {
 }
 
 export async function executeAtualizarCadastroInscricao(params: {
-  supabase: SupabaseClient | null;
+  supabase: AnySupabaseClient | null;
   body: Record<string, any>;
 }): Promise<ExecResult> {
   const { supabase, body } = params;
@@ -698,7 +699,7 @@ export async function executeAtualizarCadastroInscricao(params: {
 }
 
 export async function executeFechamentoLoteEncontro(params: {
-  supabase: SupabaseClient | null;
+  supabase: AnySupabaseClient | null;
   body: Record<string, any>;
 }): Promise<ExecResult> {
   const { supabase, body } = params;
@@ -798,3 +799,4 @@ export async function executeFechamentoLoteEncontro(params: {
     return { status: 500, body: { success: false, error: 'INTERNAL_ERROR', message: 'Erro ao executar fechamento em lote.' } };
   }
 }
+

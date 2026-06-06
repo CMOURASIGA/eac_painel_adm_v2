@@ -1,6 +1,7 @@
 ﻿import type { SupabaseClient } from '@supabase/supabase-js';
 
 type JsonObject = Record<string, any>;
+type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
 type ServiceResult = { ok: true; data: JsonObject };
 
 const cleanText = (value: any) => String(value ?? '').trim();
@@ -12,7 +13,7 @@ const pickFirst = (row: any, keys: string[]) => {
   return '';
 };
 
-async function fetchAllRowsSimple(supabase: SupabaseClient, tableCandidates: string[], maxRows = 30000) {
+async function fetchAllRowsSimple(supabase: AnySupabaseClient, tableCandidates: string[], maxRows = 30000) {
   for (const table of tableCandidates) {
     const res = await supabase.from(table).select('*').limit(maxRows);
     if (!res.error) return Array.isArray(res.data) ? res.data : [];
@@ -23,7 +24,7 @@ async function fetchAllRowsSimple(supabase: SupabaseClient, tableCandidates: str
   return [];
 }
 
-export async function logDispatchExecutionService(supabase: SupabaseClient, payload: JsonObject): Promise<ServiceResult> {
+export async function logDispatchExecutionService(supabase: AnySupabaseClient, payload: JsonObject): Promise<ServiceResult> {
   const dispatchId = cleanText(payload.dispatchId);
   const dispatchName = cleanText(payload.dispatchName);
   const operator = cleanText(payload.operator) || 'Sistema';
@@ -54,7 +55,7 @@ export async function logDispatchExecutionService(supabase: SupabaseClient, payl
   return { ok: true, data: { success: true, source: 'supabase', inserted } };
 }
 
-export async function logDispatchDestinatariosService(supabase: SupabaseClient, payload: JsonObject): Promise<ServiceResult> {
+export async function logDispatchDestinatariosService(supabase: AnySupabaseClient, payload: JsonObject): Promise<ServiceResult> {
   const dispatchId = cleanText(payload.dispatchId);
   const dispatchName = cleanText(payload.dispatchName);
   const operator = cleanText(payload.operator) || 'Sistema';
@@ -98,7 +99,7 @@ export async function logDispatchDestinatariosService(supabase: SupabaseClient, 
   return { ok: true, data: { success: true, source: 'supabase', inserted } };
 }
 
-export async function buildNonEnrolledDispatchAudienceService(supabase: SupabaseClient, payload: JsonObject): Promise<ServiceResult> {
+export async function buildNonEnrolledDispatchAudienceService(supabase: AnySupabaseClient, payload: JsonObject): Promise<ServiceResult> {
   const tipo = cleanText(payload.tipo || 'waitlist');
   const rows = await fetchAllRowsSimple(supabase, [
     String(process.env.EAC_SUPABASE_TABLE_NON_ENROLLED || '').trim(),

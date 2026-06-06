@@ -1,6 +1,7 @@
 ﻿import type { SupabaseClient } from '@supabase/supabase-js';
 
 type AnyObject = Record<string, any>;
+type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
 
 type ValidationResult = {
   normalized: AnyObject;
@@ -154,7 +155,7 @@ export function validarPayloadInscricao(payload: AnyObject): ValidationResult {
 }
 
 async function pickPayloadByExistingColumns(
-  supabase: SupabaseClient,
+  supabase: AnySupabaseClient,
   table: string,
   payload: Record<string, any>
 ) {
@@ -252,7 +253,7 @@ async function enviarEmailConfirmacaoInscricao(opts: {
   return { sent: true as const, reason: 'ok' };
 }
 
-async function findExistingInscricao(supabase: SupabaseClient, adolescenteNome: string, dataNascimento: string, telefoneNormalizado: string) {
+async function findExistingInscricao(supabase: AnySupabaseClient, adolescenteNome: string, dataNascimento: string, telefoneNormalizado: string) {
   const nomeNormalizado = normalizarNome(adolescenteNome);
 
   const { data: pessoasTelefone, error: erroTelefone } = await supabase
@@ -291,7 +292,7 @@ async function findExistingInscricao(supabase: SupabaseClient, adolescenteNome: 
   return Array.isArray(inscricoes) && inscricoes.length > 0 ? inscricoes[0] : null;
 }
 
-async function resolveEncontroParaInscricao(supabase: SupabaseClient, encontroIdRaw: string) {
+async function resolveEncontroParaInscricao(supabase: AnySupabaseClient, encontroIdRaw: string) {
   if (encontroIdRaw && validarUuid(encontroIdRaw)) {
     const { data: encontroById, error: byIdError } = await supabase
       .from('encontros')
@@ -323,7 +324,7 @@ async function resolveEncontroParaInscricao(supabase: SupabaseClient, encontroId
   return encontros[0];
 }
 
-export async function executeInscricaoCreate(params: { supabase: SupabaseClient | null; body: AnyObject }): Promise<ExecResult> {
+export async function executeInscricaoCreate(params: { supabase: AnySupabaseClient | null; body: AnyObject }): Promise<ExecResult> {
   const { supabase, body } = params;
 
   if (!supabase) {
@@ -561,3 +562,4 @@ export async function executeInscricaoCreate(params: { supabase: SupabaseClient 
     },
   };
 }
+

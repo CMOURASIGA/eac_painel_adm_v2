@@ -1,10 +1,11 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { handleSupabaseAction } from '../../../../utils/supabaseActions';
 import { getSupabaseServerClient, isSupabaseConfigured } from '../../../../utils/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
+type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
 const STATUS_PRIORITY: Record<string, number> = {
   CONFIRMADO: 70,
   FILA: 60,
@@ -116,7 +117,7 @@ async function fetchTriagemRowsByStatus() {
   return typed;
 }
 
-async function fetchCadastroOficialCount(supabase: SupabaseClient | null) {
+async function fetchCadastroOficialCount(supabase: AnySupabaseClient | null) {
   if (!supabase) return 0;
   const { count, error } = await supabase
     .from('cadastro_oficial')
@@ -126,7 +127,7 @@ async function fetchCadastroOficialCount(supabase: SupabaseClient | null) {
   return Number(count || 0);
 }
 
-async function fetchEncontreirosCount(supabase: SupabaseClient | null) {
+async function fetchEncontreirosCount(supabase: AnySupabaseClient | null) {
   if (!supabase) return 0;
 
   const primary = await supabase.from('encontreiros').select('*', { count: 'exact', head: true });
@@ -238,3 +239,4 @@ export async function GET() {
   response.headers.set('X-EAC-Endpoint', 'dashboard/resumo');
   return response;
 }
+

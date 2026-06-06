@@ -1,4 +1,4 @@
-﻿import type { SupabaseClient } from '@supabase/supabase-js';
+﻿import type { SupabaseClient as BaseSupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseServerClient } from './supabaseServer.js';
 import { createHash, timingSafeEqual } from 'crypto';
 import { markPresenceService } from '../services/presencaBusinessService.js';
@@ -16,6 +16,7 @@ import {
 } from '../services/disparosBusinessService.js';
 
 type JsonObject = Record<string, any>;
+type SupabaseClient = BaseSupabaseClient<any, 'public', string, any, any>;
 
 type SupabaseActionContext = {
   action: string;
@@ -23,8 +24,8 @@ type SupabaseActionContext = {
 };
 
 type SupabaseActionResult =
-  | { ok: true; data: JsonObject }
-  | { ok: false; error: string; details?: any };
+  | { ok: true; data: JsonObject; error?: undefined; details?: undefined }
+  | { ok: false; error: string; details?: any; data?: undefined };
 
 const DEFAULT_MAX_ROWS = 10000;
 
@@ -140,6 +141,8 @@ const toYesNo = (value: any) => {
   if (['nao', 'não', 'n', 'no', '0', 'false'].includes(s)) return 'Não';
   return String(value ?? '').trim();
 };
+
+const toBool = (value: any) => ['1', 'true', 'sim', 'yes', 'y', 'x'].includes(String(value ?? '').trim().toLowerCase());
 
 async function queryFirstExistingTable<T>(
   supabase: SupabaseClient,
@@ -387,7 +390,7 @@ async function fetchActiveMembersFromNormalizedTables(supabase: SupabaseClient) 
 
   const adolescentes = Array.isArray(adolescentesRes.data) ? adolescentesRes.data : [];
   const pessoas = Array.isArray(pessoasRes.data) ? pessoasRes.data : [];
-  const adolescentesByPessoaId = new Map(adolescentes.map((row: any) => [cleanText(row?.pessoa_id), row]));
+  const adolescentesByPessoaId = new Map<string, any>(adolescentes.map((row: any) => [cleanText(row?.pessoa_id), row]));
 
   const adolescenteIds = adolescentes.map((row: any) => cleanText(row?.id)).filter(Boolean);
   const vinculosRes = adolescenteIds.length
@@ -415,8 +418,10 @@ async function fetchActiveMembersFromNormalizedTables(supabase: SupabaseClient) 
     : ({ data: [], error: null } as any);
   if (responsaveisRes.error) throw responsaveisRes.error;
 
-  const pessoasById = new Map(pessoas.map((row: any) => [cleanText(row?.id), row]));
-  const responsaveisById = new Map((Array.isArray(responsaveisRes.data) ? responsaveisRes.data : []).map((row: any) => [cleanText(row?.id), row]));
+  const pessoasById = new Map<string, any>(pessoas.map((row: any) => [cleanText(row?.id), row]));
+  const responsaveisById = new Map<string, any>(
+    (Array.isArray(responsaveisRes.data) ? responsaveisRes.data : []).map((row: any) => [cleanText(row?.id), row])
+  );
 
   const members = activeCadastros
     .map((cadastro: any) => {
@@ -4314,6 +4319,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
     return { ok: false, error: message, details: e };
   }
 }
+
 
 
 

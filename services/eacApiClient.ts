@@ -1,15 +1,20 @@
 ﻿import { sanitizeTextDeep } from '../utils/textEncoding.ts';
 
 export type EacApiResult<T> =
-  | { success: true; data: T; raw: any }
-  | { success: false; error: string; status?: number; raw?: any; sample?: string };
+  | { success: true; data: T; raw: any; error?: undefined; status?: number; sample?: string }
+  | { success: false; error: string; status?: number; raw?: any; sample?: string; data?: undefined };
 
 type PostActionOptions = {
   googleWebAppUrl?: string;
   signal?: AbortSignal;
 };
 
-async function readJsonSafe(res: Response): Promise<{ ok: true; json: any } | { ok: false; error: string; sample: string }> {
+async function readJsonSafe(
+  res: Response
+): Promise<
+  | { ok: true; json: any; error?: undefined; sample?: undefined }
+  | { ok: false; error: string; sample: string; json?: undefined }
+> {
   const raw = await res.text();
   if (!raw) return { ok: false, error: `Resposta vazia (HTTP ${res.status}).`, sample: '' };
   try {

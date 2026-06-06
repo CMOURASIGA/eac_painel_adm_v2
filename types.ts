@@ -8,6 +8,7 @@ export type View =
   | 'members'
   | 'inscricoes_prioritarias'
   | 'inscricoes_prioritarias_circulos'
+  | 'inscricoes_review'
   | 'encontreiros'
   | 'presence'
   | 'dispatches'
@@ -83,6 +84,7 @@ export interface Comunicado {
   assunto: string;
   corpo: string;
   status?: string;
+  dataCriacao?: string;
   dataAgendada?: string;
   dataEventos?: string;
 }
@@ -220,6 +222,8 @@ export interface NonEnrolledMember {
  */
 export enum LogStatus {
   SUCCESS = "SUCCESS",
+  FAILURE = "FAILURE",
+  NO_DATA = "NO_DATA",
   WARNING = "WARNING",
   ERROR = "ERROR"
 }

@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 type SupabaseEnvConfig = {
   url: string;
@@ -19,7 +19,7 @@ export function isSupabaseConfigured() {
   return Boolean(readSupabaseEnvConfig());
 }
 
-export function getSupabaseServerClient(): SupabaseClient | null {
+export function getSupabaseServerClient() {
   const cfg = readSupabaseEnvConfig();
   if (!cfg) return null;
 
