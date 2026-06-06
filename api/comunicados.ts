@@ -229,6 +229,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       'GET_CONTEXT_HELP',
       'GET_ENCONTREIROS',
       'GET_PRESENCE',
+      'GET_PUBLIC_PRESENCE_DATA',
       'GET_CIRCULOS_DISTRIBUIDOS',
       'GET_INSCRICOES_PRIORITARIAS',
       'PRIORITIZE_NON_ENROLLED',
