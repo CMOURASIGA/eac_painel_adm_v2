@@ -582,6 +582,7 @@ const applyNonEnrolledDraftToItem = (item: any, draft: NonEnrolledEditDraft) => 
 
 const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl }) => {
   const [members, setMembers] = useState<Adolescente[]>([]);
+  const [allMembers, setAllMembers] = useState<Adolescente[]>([]);
   const [nonEnrolled, setNonEnrolled] = useState<NonEnrolledMember[]>([]);
   const [bairroStats, setBairroStats] = useState<BairroCardStat[]>([]);
   const [nonEnrolledMeta, setNonEnrolledMeta] = useState<any>({
@@ -701,6 +702,7 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl }) => {
 
       if (mData?.success) {
         const loadedMembers = Array.isArray(mData.members) ? mData.members : [];
+        setAllMembers(loadedMembers);
         setMembers(loadedMembers);
         setMemberSearchTotal(loadedMembers.length);
       }
@@ -1048,7 +1050,7 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl }) => {
       return calculateAgeFromBirthDate(toCleanString(m?.nascimento));
     };
 
-    (Array.isArray(members) ? members : []).forEach((member: any) => {
+    (Array.isArray(allMembers) ? allMembers : []).forEach((member: any) => {
       const sexo = toCleanString(member?.sexo).toLowerCase();
       if (sexo.startsWith('m')) counters.masculino += 1;
       else if (sexo.startsWith('f')) counters.feminino += 1;
@@ -1062,7 +1064,7 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl }) => {
     });
 
     return counters;
-  }, [members]);
+  }, [allMembers]);
 
   const memberBairroOptions = useMemo(() => {
     const set = new Set<string>();

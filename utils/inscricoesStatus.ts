@@ -183,6 +183,72 @@ async function upsertEncontreiroFromEncontrista(
   await supabase.from(table).insert(safeInsert as any);
 }
 
+async function ensureCadastroOficialAtivo(
+  supabase: SupabaseClient,
+  params: {
+    pessoaId: string;
+    encontroId: string;
+    origem?: string;
+    observacoes?: string;
+  }
+) {
+  const nowIso = new Date().toISOString();
+  const { data: existing, error: existingError } = await supabase
+    .from('cadastro_oficial')
+    .select('*')
+    .eq('pessoa_id', params.pessoaId)
+    .eq('ativo', true)
+    .limit(1)
+    .maybeSingle();
+  if (existingError) throw existingError;
+
+  const origem = toCleanString(params.origem) || 'SISTEMA';
+  const observacoes = toCleanString(params.observacoes);
+
+  if (existing?.id) {
+    const updatePayload = await pickPayloadByExistingColumns(supabase, 'cadastro_oficial', {
+      encontro_id: existing.encontro_id || params.encontroId || null,
+      origem,
+      status: 'ATIVO',
+      elegivel_encontreiro: true,
+      observacoes: observacoes || existing.observacoes || null,
+      ativo: true,
+      updated_at: nowIso,
+      atualizado_em: nowIso,
+      ultima_sincronizacao: nowIso,
+    });
+    const { error: updateError } = await supabase
+      .from('cadastro_oficial')
+      .update(updatePayload as any)
+      .eq('id', existing.id);
+    if (updateError) throw updateError;
+    return existing.id as string;
+  }
+
+  const insertPayload = await pickPayloadByExistingColumns(supabase, 'cadastro_oficial', {
+    pessoa_id: params.pessoaId,
+    encontro_id: params.encontroId || null,
+    origem,
+    status: 'ATIVO',
+    elegivel_encontreiro: true,
+    observacoes: observacoes || null,
+    ativo: true,
+    created_at: nowIso,
+    updated_at: nowIso,
+    criado_em: nowIso,
+    atualizado_em: nowIso,
+    ultima_sincronizacao: nowIso,
+  });
+  const { data: inserted, error: insertError } = await supabase
+    .from('cadastro_oficial')
+    .insert(insertPayload as any)
+    .select('id')
+    .limit(1)
+    .maybeSingle();
+  if (insertError) throw insertError;
+  return toCleanString(inserted?.id);
+}
+
 async function ensurePessoaPapelAtivo(
   supabase: SupabaseClient,
   pessoaId: string,
@@ -220,13 +286,14 @@ async function promoverInscricaoConfirmadaParaEncontrista(
 ) {
   const { data: inscricao, error: inscricaoError } = await supabase
     .from('inscricoes')
-    .select('adolescente_id')
+    .select('adolescente_id,encontro_id')
     .eq('id', inscricaoId)
     .limit(1)
     .maybeSingle();
   if (inscricaoError) throw inscricaoError;
 
   const adolescenteId = toCleanString(inscricao?.adolescente_id);
+  const encontroId = toCleanString(inscricao?.encontro_id);
   if (!adolescenteId) return;
 
   const { data: adolescente, error: adolescenteError } = await supabase
@@ -244,6 +311,12 @@ async function promoverInscricaoConfirmadaParaEncontrista(
   // e também elegível como encontreiro para composição futura de equipes.
   await ensurePessoaPapelAtivo(supabase, pessoaId, 'ENCONTRISTA');
   await ensurePessoaPapelAtivo(supabase, pessoaId, 'ENCONTREIRO');
+  await ensureCadastroOficialAtivo(supabase, {
+    pessoaId,
+    encontroId,
+    origem: 'SISTEMA',
+    observacoes: `Promovido da inscrição confirmada ${inscricaoId}`,
+  });
 
   try {
     const { data: pessoa, error: pessoaError } = await supabase
