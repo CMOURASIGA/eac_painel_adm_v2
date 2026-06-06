@@ -416,15 +416,32 @@ const InscricoesReviewPage: React.FC = () => {
         <p className="mt-1 text-sm text-slate-600">Acompanhe inscrições recebidas e revise os dados operacionais.</p>
 
         <div className="mt-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
-          <div className="p-3 rounded-xl border border-slate-200 bg-white">
+          <button
+            type="button"
+            onClick={() => applyQuickStatusFilter('')}
+            className={`p-3 rounded-xl border text-left transition-colors ${
+              !String(applied.status || '').trim()
+                ? 'border-blue-600 bg-blue-50'
+                : 'border-slate-200 bg-white hover:border-blue-300'
+            }`}
+          >
             <p className="text-[10px] uppercase tracking-widest text-slate-500 font-black">Total</p>
             <p className="text-2xl font-black text-slate-900">{summary.total || 0}</p>
-          </div>
+          </button>
           {statusCards.map((s) => (
-            <div key={s.key} className="p-3 rounded-xl border border-slate-200 bg-white">
+            <button
+              key={s.key}
+              type="button"
+              onClick={() => applyQuickStatusFilter(s.key)}
+              className={`p-3 rounded-xl border text-left transition-colors ${
+                String(applied.status || '').trim() === s.key
+                  ? 'border-blue-600 bg-blue-50'
+                  : 'border-slate-200 bg-white hover:border-blue-300'
+              }`}
+            >
               <p className="text-[10px] uppercase tracking-widest text-slate-500 font-black">{s.key}</p>
               <p className="text-2xl font-black text-slate-900">{s.value}</p>
-            </div>
+            </button>
           ))}
         </div>
 

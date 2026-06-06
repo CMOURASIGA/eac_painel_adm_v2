@@ -535,6 +535,68 @@ const normalizeEditableYesNo = (value: any) => {
   return normalized === 'Em branco' ? '' : normalized;
 };
 
+const resolveMemberAge = (member: any): number | null => {
+  const idadeRaw = toCleanString(member?.idade);
+  const idadeNum = Number(idadeRaw.replace(',', '.'));
+  if (isFinite(idadeNum) && idadeNum >= 0) return Math.floor(idadeNum);
+  return calculateAgeFromBirthDate(toCleanString(member?.nascimento));
+};
+
+const matchesMemberAgeFilter = (age: number | null, faixa: string) => {
+  if (!faixa) return true;
+  if (age === null) return false;
+  if (faixa === '0_11') return age >= 0 && age <= 11;
+  if (faixa === '12_16') return age >= 12 && age <= 16;
+  if (faixa === '17_plus') return age >= 17;
+  if (['13', '14', '15', '16', '17'].includes(faixa)) return age === Number(faixa);
+  return true;
+};
+
+const filterMembersList = (source: any[], filters: MemberSearchFilters) => {
+  const list = Array.isArray(source) ? source : [];
+  const query = toCleanString(filters.query).toLowerCase();
+  const bairroFilter = toCleanString(filters.bairro).toLowerCase();
+  const telefoneFilterRaw = toCleanString(filters.telefone);
+  const telefoneFilterDigits = telefoneFilterRaw.replace(/\D/g, '');
+  const emailFilter = toCleanString(filters.email).toLowerCase();
+  const sexoFilter = toCleanString(filters.sexo).toLowerCase();
+  const pertenceFilter = toCleanString(filters.pertencePorciuncula).toLowerCase();
+  const faixaEtariaFilter = toCleanString(filters.faixaEtaria).toLowerCase();
+
+  return list.filter((m: any) => {
+    const nome = toCleanString(m?.nome).toLowerCase();
+    const email = toCleanString(m?.email).toLowerCase();
+    const telRaw = toCleanString(m?.telefone || m?.whatsapp);
+    const telDigits = telRaw.replace(/\D/g, '');
+    const bairro = toCleanString(m?.bairro).toLowerCase();
+    const sexo = toCleanString(m?.sexo).toLowerCase();
+    const pertence = toCleanString(m?.pertencePorciuncula).toLowerCase();
+
+    if (query) {
+      const queryDigits = query.replace(/\D/g, '');
+      const inText = nome.includes(query) || email.includes(query) || bairro.includes(query) || telRaw.toLowerCase().includes(query);
+      const inDigits = queryDigits ? telDigits.includes(queryDigits) : false;
+      if (!inText && !inDigits) return false;
+    }
+
+    if (bairroFilter && !bairro.includes(bairroFilter)) return false;
+    if (emailFilter && !email.includes(emailFilter)) return false;
+    if (sexoFilter && sexo !== sexoFilter) return false;
+    if (pertenceFilter && pertence !== pertenceFilter.toLowerCase()) return false;
+    if (!matchesMemberAgeFilter(resolveMemberAge(m), faixaEtariaFilter)) return false;
+
+    if (telefoneFilterRaw) {
+      if (telefoneFilterDigits) {
+        if (!telDigits.includes(telefoneFilterDigits)) return false;
+      } else if (!telRaw.toLowerCase().includes(telefoneFilterRaw.toLowerCase())) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+};
+
 const buildNonEnrolledEditDraft = (ne: any): NonEnrolledEditDraft => ({
   nome: toCleanString(ne?.nome || ne?.Nome || ne?.['Nome']),
   email: toCleanString(ne?.email || ne?.Email || ne?.['Email']),
@@ -966,70 +1028,7 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl }) => {
   }, [nonEnrolled]);
 
   const filteredMembers = useMemo(() => {
-    const list = Array.isArray(members) ? members : [];
-    const faixaEtariaFilter = toCleanString(memberFiltersApplied.faixaEtaria).toLowerCase();
-
-    const resolveAge = (m: any): number | null => {
-      const idadeRaw = toCleanString(m?.idade);
-      const idadeNum = Number(idadeRaw.replace(',', '.'));
-      if (isFinite(idadeNum) && idadeNum >= 0) return Math.floor(idadeNum);
-      return calculateAgeFromBirthDate(toCleanString(m?.nascimento));
-    };
-
-    const matchesFaixaEtaria = (age: number | null, faixa: string) => {
-      if (!faixa) return true;
-      if (age === null) return false;
-      if (faixa === '0_11') return age >= 0 && age <= 11;
-      if (faixa === '12_16') return age >= 12 && age <= 16;
-      if (faixa === '17_plus') return age >= 17;
-      return true;
-    };
-
-    if (memberSearchTotal !== null) {
-      if (!faixaEtariaFilter) return list;
-      return list.filter((m: any) => matchesFaixaEtaria(resolveAge(m), faixaEtariaFilter));
-    }
-
-    const query = toCleanString(memberFiltersApplied.query).toLowerCase();
-    const bairroFilter = toCleanString(memberFiltersApplied.bairro).toLowerCase();
-    const telefoneFilterRaw = toCleanString(memberFiltersApplied.telefone);
-    const telefoneFilterDigits = telefoneFilterRaw.replace(/\D/g, '');
-    const emailFilter = toCleanString(memberFiltersApplied.email).toLowerCase();
-    const sexoFilter = toCleanString(memberFiltersApplied.sexo).toLowerCase();
-    const pertenceFilter = toCleanString(memberFiltersApplied.pertencePorciuncula).toLowerCase();
-
-    return list.filter((m: any) => {
-      const nome = toCleanString(m?.nome).toLowerCase();
-      const email = toCleanString(m?.email).toLowerCase();
-      const telRaw = toCleanString(m?.telefone || m?.whatsapp);
-      const telDigits = telRaw.replace(/\D/g, '');
-      const bairro = toCleanString(m?.bairro).toLowerCase();
-      const sexo = toCleanString(m?.sexo).toLowerCase();
-      const pertence = toCleanString(m?.pertencePorciuncula).toLowerCase();
-
-      if (query) {
-        const queryDigits = query.replace(/\D/g, '');
-        const inText = nome.includes(query) || email.includes(query) || bairro.includes(query) || telRaw.toLowerCase().includes(query);
-        const inDigits = queryDigits ? telDigits.includes(queryDigits) : false;
-        if (!inText && !inDigits) return false;
-      }
-
-      if (bairroFilter && !bairro.includes(bairroFilter)) return false;
-      if (emailFilter && !email.includes(emailFilter)) return false;
-      if (sexoFilter && sexo !== sexoFilter) return false;
-      if (pertenceFilter && pertence !== pertenceFilter) return false;
-      if (!matchesFaixaEtaria(resolveAge(m), faixaEtariaFilter)) return false;
-
-      if (telefoneFilterRaw) {
-        if (telefoneFilterDigits) {
-          if (!telDigits.includes(telefoneFilterDigits)) return false;
-        } else if (!telRaw.toLowerCase().includes(telefoneFilterRaw.toLowerCase())) {
-          return false;
-        }
-      }
-
-      return true;
-    });
+    return filterMembersList(Array.isArray(members) ? members : [], memberFiltersApplied);
   }, [members, memberFiltersApplied, memberSearchTotal]);
 
   const memberDemographicIndicators = useMemo(() => {
@@ -1043,19 +1042,12 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl }) => {
       idade17: 0,
     };
 
-    const resolveAge = (m: any): number | null => {
-      const idadeRaw = toCleanString(m?.idade);
-      const idadeNum = Number(idadeRaw.replace(',', '.'));
-      if (isFinite(idadeNum) && idadeNum >= 0) return Math.floor(idadeNum);
-      return calculateAgeFromBirthDate(toCleanString(m?.nascimento));
-    };
-
     (Array.isArray(allMembers) ? allMembers : []).forEach((member: any) => {
       const sexo = toCleanString(member?.sexo).toLowerCase();
       if (sexo.startsWith('m')) counters.masculino += 1;
       else if (sexo.startsWith('f')) counters.feminino += 1;
 
-      const age = resolveAge(member);
+      const age = resolveMemberAge(member);
       if (age === 13) counters.idade13 += 1;
       else if (age === 14) counters.idade14 += 1;
       else if (age === 15) counters.idade15 += 1;
@@ -1144,6 +1136,27 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl }) => {
       }
     }
   }, [googleWebAppUrl, memberFiltersDraft, abortPendingMemberSearch]);
+
+  const handleMemberIndicatorClick = useCallback((kind: 'sexo' | 'idade', value: string) => {
+    abortPendingMemberSearch();
+    memberSearchRequestSeqRef.current += 1;
+    setIsMemberSearching(false);
+
+    const nextFilters = {
+      ...memberFiltersDraft,
+      sexo: kind === 'sexo'
+        ? (toCleanString(memberFiltersApplied.sexo).toLowerCase() === value.toLowerCase() ? '' : value)
+        : memberFiltersDraft.sexo,
+      faixaEtaria: kind === 'idade'
+        ? (toCleanString(memberFiltersApplied.faixaEtaria) === value ? '' : value)
+        : memberFiltersDraft.faixaEtaria,
+    };
+
+    setMemberFiltersDraft(nextFilters);
+    setMemberFiltersApplied(nextFilters);
+    setMembers(allMembers);
+    setMemberSearchTotal(filterMembersList(allMembers as any[], nextFilters).length);
+  }, [abortPendingMemberSearch, allMembers, memberFiltersApplied, memberFiltersDraft]);
 
   const handleMemberSearchClear = useCallback(async () => {
     abortPendingMemberSearch();
@@ -3238,13 +3251,13 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
             <h3 className="text-lg md:text-xl font-black text-slate-900">Perfil do cadastro oficial</h3>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
-            <StatIndicator label="Masculino" count={memberDemographicIndicators.masculino} color="text-sky-700" isActive={false} onClick={() => {}} />
-            <StatIndicator label="Feminino" count={memberDemographicIndicators.feminino} color="text-pink-600" isActive={false} onClick={() => {}} />
-            <StatIndicator label="13 anos" count={memberDemographicIndicators.idade13} color="text-slate-700" isActive={false} onClick={() => {}} />
-            <StatIndicator label="14 anos" count={memberDemographicIndicators.idade14} color="text-indigo-600" isActive={false} onClick={() => {}} />
-            <StatIndicator label="15 anos" count={memberDemographicIndicators.idade15} color="text-emerald-600" isActive={false} onClick={() => {}} />
-            <StatIndicator label="16 anos" count={memberDemographicIndicators.idade16} color="text-amber-600" isActive={false} onClick={() => {}} />
-            <StatIndicator label="17 anos" count={memberDemographicIndicators.idade17} color="text-fuchsia-600" isActive={false} onClick={() => {}} />
+            <StatIndicator label="Masculino" count={memberDemographicIndicators.masculino} color="text-sky-700" isActive={toCleanString(memberFiltersApplied.sexo).toLowerCase() === 'masculino'} onClick={() => handleMemberIndicatorClick('sexo', 'Masculino')} />
+            <StatIndicator label="Feminino" count={memberDemographicIndicators.feminino} color="text-pink-600" isActive={toCleanString(memberFiltersApplied.sexo).toLowerCase() === 'feminino'} onClick={() => handleMemberIndicatorClick('sexo', 'Feminino')} />
+            <StatIndicator label="13 anos" count={memberDemographicIndicators.idade13} color="text-slate-700" isActive={toCleanString(memberFiltersApplied.faixaEtaria) === '13'} onClick={() => handleMemberIndicatorClick('idade', '13')} />
+            <StatIndicator label="14 anos" count={memberDemographicIndicators.idade14} color="text-indigo-600" isActive={toCleanString(memberFiltersApplied.faixaEtaria) === '14'} onClick={() => handleMemberIndicatorClick('idade', '14')} />
+            <StatIndicator label="15 anos" count={memberDemographicIndicators.idade15} color="text-emerald-600" isActive={toCleanString(memberFiltersApplied.faixaEtaria) === '15'} onClick={() => handleMemberIndicatorClick('idade', '15')} />
+            <StatIndicator label="16 anos" count={memberDemographicIndicators.idade16} color="text-amber-600" isActive={toCleanString(memberFiltersApplied.faixaEtaria) === '16'} onClick={() => handleMemberIndicatorClick('idade', '16')} />
+            <StatIndicator label="17 anos" count={memberDemographicIndicators.idade17} color="text-fuchsia-600" isActive={toCleanString(memberFiltersApplied.faixaEtaria) === '17'} onClick={() => handleMemberIndicatorClick('idade', '17')} />
           </div>
         </section>
 
