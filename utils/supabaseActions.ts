@@ -366,7 +366,12 @@ function buildMemberRecord(params: {
 }
 
 async function fetchActiveMembersFromNormalizedTables(supabase: SupabaseClient) {
-  const cadastroRows = await fetchAllRows(supabase, ['cadastro_oficial'].filter(Boolean), { maxRows: 50000 });
+  let cadastroRows: any[] = [];
+  try {
+    cadastroRows = await fetchAllRows(supabase, ['cadastro_oficial'].filter(Boolean), { maxRows: 50000 });
+  } catch {
+    cadastroRows = [];
+  }
   const activeCadastros = (Array.isArray(cadastroRows) ? cadastroRows : []).filter((row: any) => {
     return row?.ativo !== false && cleanText(pickFirst(row, ['status'])).toUpperCase() !== 'INATIVO';
   });
@@ -423,6 +428,28 @@ async function fetchActiveMembersFromNormalizedTables(supabase: SupabaseClient) 
       return buildMemberRecord({ cadastro, pessoa, adolescente, responsavel });
     })
     .filter((member: any) => cleanText(member?.nome));
+
+  if (members.length === 0) {
+    const fallbackRows = await fetchAllRows(
+      supabase,
+      [
+        String(process.env.EAC_SUPABASE_TABLE_MEMBERS || '').trim(),
+        'vw_cadastro_oficial',
+        'cadastro',
+        'members',
+        'membros',
+        'adolescentes',
+      ].filter(Boolean),
+      { maxRows: 50000 }
+    );
+
+    const fallbackMembers = (Array.isArray(fallbackRows) ? fallbackRows : [])
+      .map(normalizeMember)
+      .filter((member: any) => cleanText(member?.nome));
+
+    fallbackMembers.sort((a: any, b: any) => cleanText(a?.nome).localeCompare(cleanText(b?.nome)));
+    return fallbackMembers;
+  }
 
   members.sort((a: any, b: any) => cleanText(a?.nome).localeCompare(cleanText(b?.nome)));
   return members;
