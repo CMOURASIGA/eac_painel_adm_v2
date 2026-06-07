@@ -1069,6 +1069,90 @@ function buildEncontreiroRowPayload(payload: JsonObject, mode: 'camel' | 'snake'
   return out;
 }
 
+function normalizeEncontreiroClassification(payload: JsonObject) {
+  const raw = cleanText(payload.classificacao);
+  if (raw) return raw;
+  const ageDigits = cleanText(payload.idade).replace(/\D/g, '');
+  if (!ageDigits) return 'OUTRO';
+  return Number(ageDigits) <= 17 ? 'Adolescente' : 'Adulto';
+}
+
+async function saveEncontreiroViaRpc(supabase: SupabaseClient, payload: JsonObject) {
+  const pessoaIdRpc = await supabase.rpc('eac_upsert_pessoa', {
+    p_nome: cleanText(payload.nomeCompleto),
+    p_email: cleanText(payload.email) || null,
+    p_telefone: cleanText(payload.celularWhatsapp) || null,
+    p_data_nascimento: cleanText(payload.dataNascimento) || null,
+    p_bairro: cleanText(payload.bairro) || null,
+    p_observacoes: cleanText(payload.classificacao) || null,
+    p_origem: 'PLANILHA',
+    p_criado_via_sistema: false,
+  });
+  if (pessoaIdRpc.error) throw pessoaIdRpc.error;
+
+  const pessoaId = cleanText(pessoaIdRpc.data);
+  if (!pessoaId) throw new Error('Falha ao resolver pessoa do encontreiro.');
+
+  const papelRpc = await supabase.rpc('eac_ensure_papel', {
+    p_pessoa_id: pessoaId,
+    p_papel: 'ENCONTREIRO',
+    p_origem: 'PLANILHA',
+  });
+  if (papelRpc.error) throw papelRpc.error;
+
+  const encontreiroRpc = await supabase.rpc('eac_ensure_encontreiro', {
+    p_pessoa_id: pessoaId,
+    p_nome_completo: cleanText(payload.nomeCompleto),
+    p_data_nascimento: cleanText(payload.dataNascimento) || null,
+    p_idade: cleanText(payload.idade) || null,
+    p_email: cleanText(payload.email) || null,
+    p_celular_whatsapp: cleanText(payload.celularWhatsapp) || null,
+    p_endereco_completo: cleanText(payload.enderecoCompleto) || null,
+    p_responsavel_contato: cleanText(payload.responsavelContato) || null,
+    p_bairro: cleanText(payload.bairro) || null,
+    p_frequenta_missas: cleanText(payload.frequentaMissas) || null,
+    p_onde_missas: cleanText(payload.ondeMissas) || null,
+    p_participa_movimento: cleanText(payload.participaMovimento) || null,
+    p_movimento_paroquia: cleanText(payload.movimentoParoquia) || null,
+    p_paroquia_fez_eac: cleanText(payload.paroquiaFezEac) || null,
+    p_ja_trabalhou_eac: cleanText(payload.jaTrabalhouEac) || null,
+    p_ja_coordenou_equipe: cleanText(payload.jaCoordenouEquipe) || null,
+    p_pais_fizeram_encontro: cleanText(payload.paisFizeramEncontro) || null,
+    p_possui_alergia: cleanText(payload.possuiAlergia) || null,
+    p_toma_remedio: cleanText(payload.tomaRemedio) || null,
+    p_alimentacao_especial: cleanText(payload.alimentacaoEspecial) || null,
+    p_sugestao_ultimo_encontro: cleanText(payload.sugestaoUltimoEncontro) || null,
+    p_dica_pos_encontro: cleanText(payload.dicaPosEncontro) || null,
+    p_classificacao: normalizeEncontreiroClassification(payload),
+  });
+  if (encontreiroRpc.error) throw encontreiroRpc.error;
+
+  const encontreiroId = cleanText(encontreiroRpc.data);
+  let saved: any = null;
+  try {
+    const rows = await fetchAllRows(supabase, getEncontreirosReadCandidates(), { maxRows: 5000 });
+    saved = rows.find((row: any) =>
+      cleanText(row?.encontreiro_id || row?.id) === encontreiroId ||
+      cleanText(row?.pessoa_id) === pessoaId
+    ) || null;
+  } catch {
+    saved = null;
+  }
+
+  return {
+    pessoaId,
+    encontreiroId,
+    savedNormalized: saved ? normalizeEncontreiro(saved, 0) : {
+      id: encontreiroId,
+      nomeCompleto: cleanText(payload.nomeCompleto),
+      email: cleanText(payload.email),
+      celularWhatsapp: cleanText(payload.celularWhatsapp),
+      bairro: cleanText(payload.bairro),
+      classificacao: normalizeEncontreiroClassification(payload),
+    },
+  };
+}
+
 function getEncontreirosReadCandidates() {
   const envTable = String(process.env.EAC_SUPABASE_TABLE_ENCONTREIROS || '').trim();
   const tableComTr = `encon${'treiros'}`;
@@ -3654,6 +3738,20 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       }
 
       const tableCandidates = getEncontreirosWriteCandidates();
+      const fallbackToRpc = async () => {
+        const fallback = await saveEncontreiroViaRpc(supabase, ctx.payload);
+        return {
+          ok: true as const,
+          data: {
+            success: true,
+            data: fallback.savedNormalized,
+            pessoa_id: fallback.pessoaId || null,
+            email_confirmacao: { sent: false, reason: 'not_attempted' },
+            table: 'rpc:eac_ensure_encontreiro',
+            source: 'supabase-rpc',
+          }
+        };
+      };
 
       const pessoaId = await upsertPessoaFromEncontreiro(supabase, ctx.payload);
       if (pessoaId) {
@@ -3678,28 +3776,37 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
 
       let saved: any = null;
       let saveError: any = null;
-      const { table } = await queryFirstExistingTable<any[]>(
-        supabase,
-        tableCandidates,
-        async (tableName) => {
-          let result = await runSave(tableName, payloadCamel);
-          if (result.error) {
-            result = await runSave(tableName, payloadSnake);
+      let table = '';
+      try {
+        const found = await queryFirstExistingTable<any[]>(
+          supabase,
+          tableCandidates,
+          async (tableName) => {
+            let result = await runSave(tableName, payloadCamel);
+            if (result.error) {
+              result = await runSave(tableName, payloadSnake);
+            }
+            // Tabelas legadas podem não ter pessoa_id; tenta novamente sem esse campo.
+            if (result.error && pessoaId) {
+              result = await runSave(tableName, payloadCamelBase);
+            }
+            if (result.error && pessoaId) {
+              result = await runSave(tableName, payloadSnakeBase);
+            }
+            if (result.error) {
+              saveError = result.error;
+            }
+            saved = Array.isArray(result.data) ? result.data[0] : null;
+            return { data: result.data as any, error: result.error };
           }
-          // Tabelas legadas podem não ter pessoa_id; tenta novamente sem esse campo.
-          if (result.error && pessoaId) {
-            result = await runSave(tableName, payloadCamelBase);
-          }
-          if (result.error && pessoaId) {
-            result = await runSave(tableName, payloadSnakeBase);
-          }
-          if (result.error) {
-            saveError = result.error;
-          }
-          saved = Array.isArray(result.data) ? result.data[0] : null;
-          return { data: result.data as any, error: result.error };
+        );
+        table = found.table;
+      } catch (e: any) {
+        if (String(e?.message || '').includes('Nenhuma fonte encontrada no schema')) {
+          return await fallbackToRpc();
         }
-      );
+        throw e;
+      }
 
       if (saveError) throw saveError;
       const savedNormalized = normalizeEncontreiro(saved || {}, 0);
