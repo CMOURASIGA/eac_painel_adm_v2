@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import Toast from './Toast';
-import { postJson } from '../services/eacApiClient.ts';
+import { postComunicadosAction } from '../services/eacApiClient.ts';
 import { toCleanString } from '../utils/textEncoding.ts';
 
 type ToastState = { message: string; type: 'success' | 'error' | 'info' } | null;
@@ -108,7 +108,7 @@ const PublicEncontreiroForm: React.FC = () => {
         sugestaoUltimoEncontro: toCleanString(form.observacoes),
         aceite_termos: form.aceite_termos,
       };
-      const r = await postJson<any>('/api/encontreiros/create', payload);
+      const r = await postComunicadosAction<any>('SAVE_ENCONTREIRO', payload);
       if (!r.success) throw new Error((r.raw as any)?.message || r.error || 'Não foi possível enviar o cadastro.');
       setIsSubmitted(true);
       showToast((r.data as any)?.message || SUCCESS_MESSAGE, 'success');
