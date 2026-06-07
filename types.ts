@@ -154,6 +154,7 @@ export interface BairroStat {
 
 export interface EncontreiroRecord {
   id: string;
+  pessoaId?: string;
   rowNumber: number;
   timestamp?: any;
   nomeCompleto: string;

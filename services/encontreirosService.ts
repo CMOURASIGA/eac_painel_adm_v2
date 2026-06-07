@@ -22,7 +22,7 @@ export const encontreirosService = {
     return await postComunicadosAction<any>('SAVE_ENCONTREIRO', payload, opts);
   },
 
-  async excluir(payload: { id: string }, opts: { googleWebAppUrl?: string } = {}): Promise<EacApiResult<any>> {
+  async excluir(payload: { id: string; pessoa_id?: string }, opts: { googleWebAppUrl?: string } = {}): Promise<EacApiResult<any>> {
     return await postComunicadosAction<any>('DELETE_ENCONTREIRO', payload, opts);
   },
 

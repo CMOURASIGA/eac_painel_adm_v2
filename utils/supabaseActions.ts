@@ -143,6 +143,8 @@ const toYesNo = (value: any) => {
 };
 
 const toBool = (value: any) => ['1', 'true', 'sim', 'yes', 'y', 'x'].includes(String(value ?? '').trim().toLowerCase());
+const isUuidLike = (value: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim());
 
 async function queryFirstExistingTable<T>(
   supabase: SupabaseClient,
@@ -959,10 +961,11 @@ function isLikelyReplyMessage(row: any) {
 }
 
 function normalizeEncontreiro(row: any, i: number) {
-  const id = pickFirst(row, ['id', 'uuid']) || `enc-${i + 1}`;
+  const id = pickFirst(row, ['encontreiro_id', 'id', 'uuid']) || `enc-${i + 1}`;
   return {
     ...extractOriginFields(row),
     id,
+    pessoaId: pickFirst(row, ['pessoaId', 'pessoa_id']),
     rowNumber: Number(pickFirst(row, ['rowNumber', 'row_number', 'linha', 'row']) || (i + 2)),
     timestamp: pickFirst(row, ['timestamp', 'data_presenca', 'created_at', 'createdAt', 'criado_em']),
     nomeCompleto: pickFirst(row, ['nomeCompleto', 'nome_completo', 'nome', 'name']),
@@ -3845,19 +3848,25 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
 
     if (ctx.action === 'DELETE_ENCONTREIRO') {
       const id = cleanText(ctx.payload.id);
+      const pessoaId = cleanText(ctx.payload.pessoa_id || ctx.payload.pessoaId);
       if (!id) {
         return { ok: true, data: { success: false, error: 'ID é obrigatório para excluir.' } };
       }
 
       const tableCandidates = getEncontreirosWriteCandidates();
+      const targetColumn = isUuidLike(id) ? 'id' : (isUuidLike(pessoaId) ? 'pessoa_id' : '');
+      if (!targetColumn) {
+        return { ok: true, data: { success: false, error: 'Cadastro legado sem identificador persistido para exclusão. Atualize a lista e tente novamente.' } };
+      }
 
+      const targetValue = targetColumn === 'id' ? id : pessoaId;
       const { table } = await queryFirstExistingTable<any[]>(
         supabase,
         tableCandidates,
-        async (tableName) => await supabase.from(tableName).delete().eq('id', id).select('id').limit(1)
+        async (tableName) => await supabase.from(tableName).delete().eq(targetColumn, targetValue).select('id').limit(1)
       );
 
-      return { ok: true, data: { success: true, id, table, source: 'supabase' } };
+      return { ok: true, data: { success: true, id, pessoa_id: pessoaId || null, table, source: 'supabase', where: targetColumn } };
     }
 
     if (ctx.action === 'NORMALIZE_ENCONTREIRO_WHATSAPP') {

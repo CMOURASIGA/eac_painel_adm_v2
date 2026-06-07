@@ -625,7 +625,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
 
     setIsLoading(true);
     try {
-      const apiRes = await encontreirosService.excluir({ id: record.id }, { googleWebAppUrl });
+      const apiRes = await encontreirosService.excluir({ id: record.id, pessoa_id: toClean((record as any).pessoaId) }, { googleWebAppUrl });
       if (!apiRes.success) throw new Error(apiRes.error || 'Nao foi possivel excluir.');
       await fetchData();
     } catch (err: any) {
