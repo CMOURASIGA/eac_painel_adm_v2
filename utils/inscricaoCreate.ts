@@ -15,6 +15,13 @@ type ExecResult = {
 
 const ENCONTRO_ALLOWED_STATUS = new Set(['ATIVO', 'PLANEJADO']);
 const IDADE_MAX_TRIAGEM = 17;
+const INSCRICAO_DUPLICATE_BLOCK_STATUSES = new Set([
+  'INSCRITO',
+  'FILA',
+  'CONFIRMADO',
+  'NAO_SELECIONADO',
+  'EM_ANALISE',
+]);
 
 const REQUIRED_MESSAGES = {
   nome_adolescente: 'Informe o nome completo do adolescente.',
@@ -29,8 +36,16 @@ export function normalizarTexto(valor: any): string {
   return String(valor ?? '').trim().replace(/\s+/g, ' ');
 }
 
+export function normalizarTextoCanonico(valor: any): string {
+  return normalizarTexto(valor)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '')
+    .toLowerCase();
+}
+
 export function normalizarNome(valor: any): string {
-  return normalizarTexto(valor);
+  return normalizarTextoCanonico(valor);
 }
 
 function somenteDigitos(value: any): string {
@@ -253,29 +268,31 @@ async function enviarEmailConfirmacaoInscricao(opts: {
   return { sent: true as const, reason: 'ok' };
 }
 
-async function findExistingInscricao(supabase: AnySupabaseClient, adolescenteNome: string, dataNascimento: string, telefoneNormalizado: string) {
+async function findExistingInscricao(
+  supabase: AnySupabaseClient,
+  encontroId: string,
+  adolescenteNome: string,
+  dataNascimento: string,
+) {
   const nomeNormalizado = normalizarNome(adolescenteNome);
-
-  const { data: pessoasTelefone, error: erroTelefone } = await supabase
-    .from('pessoas')
-    .select('id')
-    .eq('telefone_normalizado', telefoneNormalizado);
-  if (erroTelefone) throw erroTelefone;
 
   const { data: pessoasNomeNasc, error: erroNomeNasc } = await supabase
     .from('pessoas')
-    .select('id')
-    .eq('nome_normalizado', nomeNormalizado)
+    .select('id, nome_completo, nome_normalizado')
     .eq('data_nascimento', dataNascimento);
   if (erroNomeNasc) throw erroNomeNasc;
 
-  const pessoaIds = Array.from(new Set([...(pessoasTelefone ?? []).map((p: any) => p.id), ...(pessoasNomeNasc ?? []).map((p: any) => p.id)]));
-
+  const pessoaIds = (pessoasNomeNasc ?? [])
+    .filter((p: any) => {
+      const nomePessoa = normalizarTextoCanonico(p?.nome_completo || p?.nome_normalizado);
+      return nomePessoa === nomeNormalizado;
+    })
+    .map((p: any) => p.id);
   if (pessoaIds.length === 0) return null;
 
   const { data: adolescentes, error: erroAdolescentes } = await supabase
     .from('adolescentes')
-    .select('id')
+    .select('id, pessoa_id')
     .in('pessoa_id', pessoaIds);
   if (erroAdolescentes) throw erroAdolescentes;
 
@@ -286,6 +303,9 @@ async function findExistingInscricao(supabase: AnySupabaseClient, adolescenteNom
     .from('inscricoes')
     .select('id, adolescente_id, encontro_id, status, origem_dado, criado_via_sistema, data_inscricao')
     .in('adolescente_id', adolescenteIds)
+    .eq('encontro_id', encontroId)
+    .in('status', Array.from(INSCRICAO_DUPLICATE_BLOCK_STATUSES))
+    .order('data_inscricao', { ascending: true })
     .limit(1);
   if (erroInscricoes) throw erroInscricoes;
 
@@ -386,9 +406,9 @@ export async function executeInscricaoCreate(params: { supabase: AnySupabaseClie
   try {
     duplicate = await findExistingInscricao(
       supabase,
+      encontro.id,
       normalized.nome_adolescente,
       normalized.data_nascimento,
-      normalized.telefone_adolescente,
     );
   } catch (e: any) {
     console.error('[inscricaoCreate] erro ao verificar duplicidade:', e);
@@ -397,12 +417,15 @@ export async function executeInscricaoCreate(params: { supabase: AnySupabaseClie
 
   if (duplicate) {
     return {
-      status: 200,
+      status: 409,
       body: {
-        success: true,
+        success: false,
+        error: 'DUPLICATE_INSCRICAO',
         duplicate: true,
-        data: duplicate,
-        message: 'Inscrição já registrada. Em caso de dúvidas, aguarde o contato da equipe.',
+        data: {
+          inscricao: duplicate,
+        },
+        message: 'Já identificamos uma inscrição para este encontrista neste encontro. Caso precise corrigir alguma informação, entre em contato com a equipe responsável.',
       },
     };
   }
