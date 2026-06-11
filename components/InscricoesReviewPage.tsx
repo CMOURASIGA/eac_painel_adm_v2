@@ -67,6 +67,17 @@ function splitBairroAndEmail(rawBairro: any, fallbackEmail: any) {
   return { bairro: bairro || '-', email: fallback || email || '-' };
 }
 
+function getInitials(name: any) {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 0) return '--';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase();
+}
+
 function getAdminInfo() {
   if (typeof window === 'undefined') return { alterado_por: undefined, alterado_por_nome: undefined };
 
@@ -536,46 +547,73 @@ const InscricoesReviewPage: React.FC = () => {
                 <article key={it.inscricao_id} className="rounded-2xl border border-slate-200 bg-white p-4">
                   {(() => {
                     const parsed = splitBairroAndEmail(it.bairro, it.email_responsavel);
+                    const nome = String(it.nome_adolescente || '-').trim() || '-';
+                    const responsavel = String(it.nome_responsavel || '-').trim() || '-';
                     return (
                       <>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 font-black text-xs">{it.status_inscricao || '-'}</span>
-                    <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">{it.idade_calculada ?? '-'} anos</span>
-                  </div>
-                  <p className="mt-2 text-lg font-black text-slate-900 leading-tight">{it.nome_adolescente || '-'}</p>
-                  <p className="text-sm font-semibold text-slate-600">Data inscrição: {formatDateTime(it.data_inscricao)}</p>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                    <p><span className="font-black text-slate-700">Telefone:</span> {it.telefone_adolescente || '-'}</p>
-                    <p><span className="font-black text-slate-700">Bairro:</span> {parsed.bairro}</p>
-                    <p><span className="font-black text-slate-700">E-mail:</span> {parsed.email}</p>
-                    <p><span className="font-black text-slate-700">Responsável:</span> {it.nome_responsavel || '-'}</p>
-                    <p className="col-span-2"><span className="font-black text-slate-700">Encontro:</span> {it.encontro_nome || '-'}</p>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <div className="flex flex-wrap gap-2">
-                      <ActionIconButton title="Visualizar" onClick={() => setSelected(it)} className="border-slate-300 bg-white text-slate-700">
-                        <EyeIcon />
-                      </ActionIconButton>
-                      <ActionIconButton title="Editar" onClick={() => setSelected(it)} className="border-blue-300 bg-blue-50 text-blue-700">
-                        <PencilIcon />
-                      </ActionIconButton>
-                      <ActionIconButton title="Excluir" onClick={() => handleExcluirInscricao(it)} className="border-rose-300 bg-rose-50 text-rose-700">
-                        <TrashIcon />
-                      </ActionIconButton>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {getAllowedStatusTargets(String(it.status_inscricao || '')).filter((s) => QUICK_STATUS_OPTIONS.includes(s)).map((status) => (
-                        <ActionIconButton
-                          key={`${it.inscricao_id}-${status}`}
-                          title={`Definir ${status}`}
-                          onClick={() => handleQuickStatusFromCard(it, status)}
-                          className="border-emerald-300 bg-emerald-50 text-emerald-700"
-                        >
-                          {status === 'PRIORIZADO' ? <StarIcon /> : status === 'CONFIRMADO' ? <CheckIcon /> : <MinusCircleIcon />}
-                        </ActionIconButton>
-                      ))}
-                    </div>
-                  </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-black text-xs">{it.status_inscricao || '-'}</span>
+                          <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">{it.idade_calculada ?? '-'} anos</span>
+                        </div>
+
+                        <div className="mt-3 flex items-start gap-3 min-w-0">
+                          <div className="h-12 w-12 shrink-0 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center text-sm font-black">
+                            {getInitials(nome)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-lg font-black text-slate-900 leading-tight [overflow-wrap:anywhere]">{nome}</p>
+                            <p className="mt-1 text-sm font-semibold text-slate-500">Inscrito em {formatDateTime(it.data_inscricao)}</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                          <div className="min-w-0 rounded-xl bg-slate-50 px-3 py-2">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Telefone</p>
+                            <p className="mt-1 font-semibold text-slate-700 [overflow-wrap:anywhere]">{it.telefone_adolescente || '-'}</p>
+                          </div>
+                          <div className="min-w-0 rounded-xl bg-slate-50 px-3 py-2">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Bairro</p>
+                            <p className="mt-1 font-semibold text-slate-700 [overflow-wrap:anywhere]">{parsed.bairro}</p>
+                          </div>
+                          <div className="min-w-0 rounded-xl bg-slate-50 px-3 py-2 sm:col-span-2">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">E-mail</p>
+                            <p className="mt-1 font-semibold text-slate-700 [overflow-wrap:anywhere]">{parsed.email}</p>
+                          </div>
+                          <div className="min-w-0 rounded-xl bg-slate-50 px-3 py-2 sm:col-span-2">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Responsável</p>
+                            <p className="mt-1 font-semibold text-slate-700 [overflow-wrap:anywhere]">{responsavel}</p>
+                          </div>
+                          <div className="min-w-0 rounded-xl bg-slate-50 px-3 py-2 sm:col-span-2">
+                            <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Encontro</p>
+                            <p className="mt-1 font-semibold text-slate-700 [overflow-wrap:anywhere]">{it.encontro_nome || '-'}</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between gap-3">
+                          <div className="flex flex-wrap gap-2">
+                            <ActionIconButton title="Visualizar" onClick={() => setSelected(it)} className="border-slate-300 bg-white text-slate-700">
+                              <EyeIcon />
+                            </ActionIconButton>
+                            <ActionIconButton title="Editar" onClick={() => setSelected(it)} className="border-blue-300 bg-blue-50 text-blue-700">
+                              <PencilIcon />
+                            </ActionIconButton>
+                            <ActionIconButton title="Excluir" onClick={() => handleExcluirInscricao(it)} className="border-rose-300 bg-rose-50 text-rose-700">
+                              <TrashIcon />
+                            </ActionIconButton>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {getAllowedStatusTargets(String(it.status_inscricao || '')).filter((s) => QUICK_STATUS_OPTIONS.includes(s)).map((status) => (
+                              <ActionIconButton
+                                key={`${it.inscricao_id}-${status}`}
+                                title={`Definir ${status}`}
+                                onClick={() => handleQuickStatusFromCard(it, status)}
+                                className="border-emerald-300 bg-emerald-50 text-emerald-700"
+                              >
+                                {status === 'PRIORIZADO' ? <StarIcon /> : status === 'CONFIRMADO' ? <CheckIcon /> : <MinusCircleIcon />}
+                              </ActionIconButton>
+                            ))}
+                          </div>
+                        </div>
                       </>
                     );
                   })()}
