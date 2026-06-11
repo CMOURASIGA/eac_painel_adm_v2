@@ -50,6 +50,19 @@ function getStatusPriority(status: any) {
   return STATUS_PRIORITY[String(status || '').trim().toUpperCase()] ?? -1;
 }
 
+function calcAgeFromBirthdate(value: any) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const dt = new Date(`${raw.slice(0, 10)}T12:00:00Z`);
+  if (Number.isNaN(dt.getTime())) return null;
+
+  const now = new Date();
+  let age = now.getUTCFullYear() - dt.getUTCFullYear();
+  const monthDiff = now.getUTCMonth() - dt.getUTCMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getUTCDate() < dt.getUTCDate())) age -= 1;
+  return age;
+}
+
 function pickBestInscricaoRow(current: any, candidate: any) {
   if (!current) return candidate;
 
@@ -96,7 +109,7 @@ async function fetchTriagemRowsByStatus() {
     : ({ data: [] } as any);
 
   const adolescenteToPessoa = new Map((adolescentes || []).map((row: any) => [String(row.id), String(row.pessoa_id || '')]));
-  const pessoaToIdade = new Map((pessoas || []).map((row: any) => [String(row.id), Number(row.idade_calculada)]));
+  const pessoaToMeta = new Map((pessoas || []).map((row: any) => [String(row.id), row]));
 
   const typed = {
     INSCRITO: [] as any[],
@@ -108,9 +121,12 @@ async function fetchTriagemRowsByStatus() {
     const status = String(row?.status || '').trim().toUpperCase();
     if (!(status in typed)) return;
     const pessoaId = adolescenteToPessoa.get(String(row?.adolescente_id || '')) || '';
+    const pessoa = pessoaToMeta.get(pessoaId);
+    const idadePersistida = Number(pessoa?.idade_calculada);
+    const idadeCalculada = calcAgeFromBirthdate(pessoa?.data_nascimento);
     typed[status as 'INSCRITO' | 'PRIORIZADO' | 'CONFIRMADO'].push({
       ...row,
-      idade_calculada: pessoaToIdade.get(pessoaId) ?? null,
+      idade_calculada: Number.isFinite(Number(idadeCalculada)) ? idadeCalculada : (idadePersistida ?? null),
     });
   });
 
@@ -148,7 +164,7 @@ function buildAgeDistributionByStatus(data: Record<'INSCRITO' | 'PRIORIZADO' | '
   (Object.keys(data) as Array<'INSCRITO' | 'PRIORIZADO' | 'CONFIRMADO'>).forEach((status) => {
     data[status].forEach((row: any) => {
       const ageNum = Number(row?.idade_calculada);
-      if (!Number.isFinite(ageNum) || ageNum < 0) return;
+      if (!Number.isFinite(ageNum) || ageNum < 12 || ageNum > 17) return;
       const age = String(Math.floor(ageNum));
       maps[status][age] = (maps[status][age] || 0) + 1;
     });
