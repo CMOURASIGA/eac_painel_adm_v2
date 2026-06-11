@@ -124,11 +124,11 @@ function nomeValido(nome: string): boolean {
 export function validarPayloadInscricao(payload: AnyObject): ValidationResult {
   const normalized: AnyObject = {
     id_encontro: normalizarTexto(payload.id_encontro),
-    nome_adolescente: normalizarNome(payload.nome_adolescente),
+    nome_adolescente: normalizarTexto(payload.nome_adolescente),
     nome_social: normalizarTexto(payload.nome_social) || null,
     data_nascimento: normalizarTexto(payload.data_nascimento),
     telefone_adolescente: normalizarTelefoneBR(payload.telefone_adolescente),
-    nome_responsavel: normalizarNome(payload.nome_responsavel),
+    nome_responsavel: normalizarTexto(payload.nome_responsavel),
     telefone_responsavel: normalizarTelefoneBR(payload.telefone_responsavel),
     aceite_termos: payload.aceite_termos === true,
 
