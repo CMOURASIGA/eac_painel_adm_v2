@@ -159,6 +159,107 @@ const MinusCircleIcon = () => (
   </svg>
 );
 
+function escapeCsvCell(value: any) {
+  const raw = String(value ?? '');
+  if (/[;"\n\r]/.test(raw)) return `"${raw.replace(/"/g, '""')}"`;
+  return raw;
+}
+
+const TRIAGEM_EXPORT_LABELS: Record<string, string> = {
+  inscricao_id: 'Inscrição ID',
+  status_inscricao: 'Status inscrição',
+  origem_inscricao: 'Origem inscrição',
+  criado_via_sistema: 'Criado via sistema',
+  data_inscricao: 'Data inscrição',
+  criado_em: 'Criado em',
+  encontro_id: 'Encontro ID',
+  encontro_nome: 'Encontro',
+  encontro_numero: 'Número encontro',
+  encontro_status: 'Status encontro',
+  data_inicio_encontro: 'Data início encontro',
+  data_fim_encontro: 'Data fim encontro',
+  adolescente_id: 'Adolescente ID',
+  aceite_normas: 'Aceite normas',
+  ja_fez_eac: 'Já fez EAC',
+  pessoa_adolescente_id: 'Pessoa adolescente ID',
+  nome_adolescente: 'Nome adolescente',
+  nome_adolescente_normalizado: 'Nome adolescente normalizado',
+  data_nascimento: 'Data nascimento',
+  sexo: 'Sexo',
+  email_adolescente: 'E-mail adolescente',
+  idade_calculada: 'Idade calculada',
+  telefone_adolescente: 'Telefone adolescente',
+  telefone_adolescente_normalizado: 'Telefone adolescente normalizado',
+  endereco: 'Endereço',
+  bairro: 'Bairro',
+  observacoes: 'Observações',
+  vinculo_responsavel_id: 'Vínculo responsável ID',
+  responsavel_principal: 'Responsável principal',
+  grau_parentesco: 'Grau parentesco',
+  responsavel_id: 'Responsável ID',
+  nome_responsavel: 'Nome responsável',
+  telefone_responsavel: 'Telefone responsável',
+  telefone_responsavel_normalizado: 'Telefone responsável normalizado',
+  email_responsavel: 'E-mail responsável',
+};
+
+const TRIAGEM_EXPORT_PRIORITY = [
+  'inscricao_id',
+  'status_inscricao',
+  'origem_inscricao',
+  'criado_via_sistema',
+  'data_inscricao',
+  'criado_em',
+  'encontro_id',
+  'encontro_nome',
+  'encontro_numero',
+  'encontro_status',
+  'data_inicio_encontro',
+  'data_fim_encontro',
+  'adolescente_id',
+  'aceite_normas',
+  'ja_fez_eac',
+  'pessoa_adolescente_id',
+  'nome_adolescente',
+  'nome_adolescente_normalizado',
+  'data_nascimento',
+  'sexo',
+  'email_adolescente',
+  'idade_calculada',
+  'telefone_adolescente',
+  'telefone_adolescente_normalizado',
+  'endereco',
+  'bairro',
+  'observacoes',
+  'vinculo_responsavel_id',
+  'responsavel_principal',
+  'grau_parentesco',
+  'responsavel_id',
+  'nome_responsavel',
+  'telefone_responsavel',
+  'telefone_responsavel_normalizado',
+  'email_responsavel',
+];
+
+function getTriagemExportColumns(items: InscricaoAdminItem[]) {
+  const keys = new Set<string>();
+  items.forEach((item) => {
+    Object.keys(item || {}).forEach((key) => keys.add(key));
+  });
+  const rest = Array.from(keys).filter((key) => !TRIAGEM_EXPORT_PRIORITY.includes(key)).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  return [...TRIAGEM_EXPORT_PRIORITY.filter((key) => keys.has(key)), ...rest];
+}
+
+function getTriagemExportLabel(key: string) {
+  return TRIAGEM_EXPORT_LABELS[key] || key;
+}
+
+function formatTriagemExportValue(key: string, value: any) {
+  if (key === 'data_inscricao' || key === 'criado_em') return formatDateTime(value);
+  if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
+  return value ?? '';
+}
+
 const InscricoesReviewPage: React.FC = () => {
   const [items, setItems] = useState<InscricaoAdminItem[]>([]);
   const [encontros, setEncontros] = useState<EncontroItem[]>([]);
@@ -172,6 +273,7 @@ const InscricoesReviewPage: React.FC = () => {
   const [justificativa, setJustificativa] = useState('');
   const [submittingStatus, setSubmittingStatus] = useState(false);
   const [submittingCadastro, setSubmittingCadastro] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
   const [statusFeedback, setStatusFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [cadastroFeedback, setCadastroFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [cadastroForm, setCadastroForm] = useState({
@@ -421,6 +523,62 @@ const InscricoesReviewPage: React.FC = () => {
     }
   }, [applied, fetchList]);
 
+  const handleExportCsv = useCallback(async () => {
+    setExportingCsv(true);
+    setError('');
+    try {
+      const pageSize = 100;
+      let page = 1;
+      let totalPages = 1;
+      const allItems: InscricaoAdminItem[] = [];
+
+      do {
+        const r = await inscricoesService.listarInscricoesAdmin({
+          ...applied,
+          page,
+          page_size: pageSize,
+        });
+        if (!r.success) throw new Error(r.error || 'Não foi possível carregar os dados filtrados para exportação.');
+
+        const payload = r.data as any;
+        const chunk = Array.isArray(payload?.data) ? payload.data as InscricaoAdminItem[] : [];
+        const paginationInfo = payload?.pagination || {};
+        allItems.push(...chunk);
+        totalPages = Number(paginationInfo.total_pages || 1) || 1;
+        page += 1;
+      } while (page <= totalPages);
+
+      if (allItems.length === 0) {
+        setError('Nenhuma inscrição encontrada para exportação com os filtros atuais.');
+        return;
+      }
+
+      const columns = getTriagemExportColumns(allItems);
+      const headers = columns.map(getTriagemExportLabel);
+      const rows = allItems.map((item) => columns.map((key) => formatTriagemExportValue(key, (item as any)?.[key])));
+
+      const csv = '\ufeff' + [headers.map(escapeCsvCell).join(';'), ...rows.map((row) => row.map(escapeCsvCell).join(';'))].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const now = new Date();
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, '0');
+      const dd = String(now.getDate()).padStart(2, '0');
+      const fileName = `triagem_inscricoes_${yyyy}-${mm}-${dd}.csv`;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      setError(e?.message || 'Não foi possível exportar o CSV da triagem.');
+    } finally {
+      setExportingCsv(false);
+    }
+  }, [applied]);
+
 
   return (
     <section className="w-full p-4 md:p-6">
@@ -529,6 +687,13 @@ const InscricoesReviewPage: React.FC = () => {
           </div>
 
           <div className="mt-3 flex gap-2 justify-end">
+            <button
+              onClick={handleExportCsv}
+              disabled={exportingCsv}
+              className="px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-700 text-xs font-black uppercase tracking-widest disabled:opacity-50"
+            >
+              {exportingCsv ? 'Exportando...' : 'Exportar CSV'}
+            </button>
             <button onClick={clearFilters} className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-black uppercase tracking-widest">Limpar filtros</button>
             <button onClick={applyFilters} className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-black uppercase tracking-widest">Pesquisar</button>
           </div>
