@@ -58,7 +58,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave }) => {
     setLoadingEncontros(true);
     setEncontrosError('');
     try {
-      const r = await getJson<any>('/api/encontros/admin');
+      const r = await getJson<any>('/api/encontros/abertos?scope=admin');
       if (!r.success) throw new Error(r.error || 'Não foi possível carregar os encontros.');
       setEncontros(Array.isArray((r.data as any)?.data) ? (r.data as any).data : []);
     } catch (e: any) {
@@ -126,8 +126,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave }) => {
       };
 
       const r = editingId
-        ? await patchJson<any>('/api/encontros/admin', { id: editingId, ...payload })
-        : await postJson<any>('/api/encontros/admin', payload);
+        ? await patchJson<any>('/api/encontros/abertos?scope=admin', { id: editingId, ...payload })
+        : await postJson<any>('/api/encontros/abertos?scope=admin', payload);
 
       if (!r.success) throw new Error(r.error || 'Não foi possível salvar o encontro.');
 
