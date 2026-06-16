@@ -255,7 +255,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave }) => {
               <div className="space-y-2">
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Status</label>
                 <select value={encontroForm.status} onChange={(e) => handleChangeEncontro('status', e.target.value)} className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold">
-                  {['PLANEJADO', 'CANCELADO'].map((status) => <option key={status} value={status}>{status}</option>)}
+                  {['PLANEJADO', 'ATIVO', 'ENCERRADO', 'CANCELADO'].map((status) => <option key={status} value={status}>{status}</option>)}
                 </select>
               </div>
               <div className="space-y-2">
@@ -266,10 +266,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave }) => {
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Observações</label>
                 <textarea value={encontroForm.observacoes} onChange={(e) => handleChangeEncontro('observacoes', e.target.value)} rows={3} className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 font-bold resize-y" />
               </div>
-            </div>
-
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-800">
-              A tabela de encontros no banco hoje aceita apenas os status `PLANEJADO` e `CANCELADO`. `ATIVO` e `ENCERRADO` estao bloqueados pela constraint atual do Supabase.
             </div>
 
             {encontrosError ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{encontrosError}</div> : null}
