@@ -2,8 +2,8 @@ import { randomUUID } from 'crypto';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseServerClient } from '../../utils/supabaseServer.js';
 
-const ALLOWED_STATUS = new Set(['ATIVO', 'PLANEJADO']);
-const WRITE_ALLOWED_STATUS = new Set(['PLANEJADO', 'ATIVO', 'ENCERRADO', 'CANCELADO']);
+const ALLOWED_STATUS = new Set(['PLANEJADO']);
+const WRITE_ALLOWED_STATUS = new Set(['PLANEJADO', 'CANCELADO']);
 
 function toCleanString(value: any) {
   return String(value ?? '').trim();
@@ -84,7 +84,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       if (!WRITE_ALLOWED_STATUS.has(status)) {
-        return sendError(res, 400, 'VALIDATION_ERROR', 'Status do encontro invalido.');
+        return sendError(res, 400, 'VALIDATION_ERROR', 'Status do encontro invalido. Use PLANEJADO ou CANCELADO.');
       }
 
       const nowIso = new Date().toISOString();
@@ -104,6 +104,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const { data, error } = await supabase.from(table).insert(payload).select('*').single();
       if (error) {
         console.error('[api/encontros/abertos][POST] erro supabase:', error);
+        if (String(error.code || '') === '23514') {
+          return sendError(res, 400, 'VALIDATION_ERROR', 'A tabela encontros atualmente aceita apenas os status PLANEJADO e CANCELADO.');
+        }
         return sendError(res, 502, 'ERRO_CRIAR_ENCONTRO', 'Nao foi possivel criar o encontro.');
       }
 
@@ -127,7 +130,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return sendError(res, 400, 'VALIDATION_ERROR', 'Nome do encontro e obrigatorio.');
       }
       if (!WRITE_ALLOWED_STATUS.has(status)) {
-        return sendError(res, 400, 'VALIDATION_ERROR', 'Status do encontro invalido.');
+        return sendError(res, 400, 'VALIDATION_ERROR', 'Status do encontro invalido. Use PLANEJADO ou CANCELADO.');
       }
 
       const payload = {
@@ -150,6 +153,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (error) {
         console.error('[api/encontros/abertos][PATCH] erro supabase:', error);
+        if (String(error.code || '') === '23514') {
+          return sendError(res, 400, 'VALIDATION_ERROR', 'A tabela encontros atualmente aceita apenas os status PLANEJADO e CANCELADO.');
+        }
         return sendError(res, 502, 'ERRO_ATUALIZAR_ENCONTRO', 'Nao foi possivel atualizar o encontro.');
       }
 
