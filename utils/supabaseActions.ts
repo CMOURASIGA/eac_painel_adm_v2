@@ -1042,6 +1042,18 @@ function groupCirculos(rows: any[]) {
   return grouped;
 }
 
+function createEmptyCircleGroups() {
+  return {
+    'Circulo 1': [],
+    'Circulo 2': [],
+    'Circulo 3': [],
+    'Circulo 4': [],
+    'Circulo 5': [],
+    'Circulo 6': [],
+    'Circulo Excedente': [],
+  } as Record<string, any[]>;
+}
+
 function buildEncontreiroRowPayload(payload: JsonObject, mode: 'camel' | 'snake') {
   const mapKey = (camel: string, snake: string) => (mode === 'camel' ? camel : snake);
   const out: Record<string, any> = {
@@ -4172,14 +4184,30 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         return { ok: true, data: { success: false, error: 'Faixa etária inválida para distribuição.' } };
       }
 
-      const priTables = [
-        String(process.env.EAC_SUPABASE_TABLE_PRIORITARIOS || '').trim(),
-        'inscricoes_prioritarias',
-        'prioritarios',
-        'inscricoes_prioritarias_view',
-      ].filter(Boolean);
+      const payloadItems = Array.isArray(ctx.payload.items) ? ctx.payload.items : [];
+      const normalizedPayloadItems = payloadItems
+        .map((row: any, index: number) => ({
+          id: cleanText(pickFirst(row, ['id', 'uuid', 'inscricao_id'])) || `payload-${index + 1}`,
+          linhaOrigem: cleanText(pickFirst(row, ['linhaOrigem', 'linha_origem', 'inscricao_id', 'id'])) || `payload-${index + 1}`,
+          nome: pickFirst(row, ['nome', 'nome_completo', 'name']),
+          sexo: pickFirst(row, ['sexo', 'sexo_snapshot']),
+          idade: pickFirst(row, ['idade', 'idade_snapshot', 'age']),
+          bairro: pickFirst(row, ['bairro', 'bairro_snapshot']),
+          status: pickFirst(row, ['status', 'status_inscricao']),
+        }))
+        .filter((row: any) => cleanText(row.nome || row.linhaOrigem || row.id));
 
-      const rows = await fetchAllRows(supabase, priTables, { maxRows: 30000 });
+      let rows = normalizedPayloadItems;
+      if (rows.length === 0) {
+        const priTables = [
+          String(process.env.EAC_SUPABASE_TABLE_PRIORITARIOS || '').trim(),
+          'inscricoes_prioritarias',
+          'prioritarios',
+          'inscricoes_prioritarias_view',
+        ].filter(Boolean);
+
+        rows = await fetchAllRows(supabase, priTables, { maxRows: 30000 });
+      }
       const toAge = (row: any) => {
         const raw = cleanText(pickFirst(row, ['idade', 'idade_snapshot', 'age'])).replace(',', '.');
         const n = Number(raw);
@@ -4187,6 +4215,15 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       };
 
       const allRows = Array.isArray(rows) ? rows : [];
+      if (allRows.length === 0) {
+        return {
+          ok: true,
+          data: {
+            success: false,
+            error: 'Nenhum registro prioritário disponível para distribuição.',
+          },
+        };
+      }
       const eligible = allRows.filter((row) => {
         const age = toAge(row);
         return Number.isFinite(age) && age >= minAge && age <= maxAge;
@@ -4194,15 +4231,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       const nonEligible = allRows.filter((row) => !eligible.includes(row));
 
       const circles = ['Circulo 1', 'Circulo 2', 'Circulo 3', 'Circulo 4', 'Circulo 5', 'Circulo 6'];
-      const grouped: Record<string, any[]> = {
-        'Circulo 1': [],
-        'Circulo 2': [],
-        'Circulo 3': [],
-        'Circulo 4': [],
-        'Circulo 5': [],
-        'Circulo 6': [],
-        'Circulo Excedente': [],
-      };
+      const grouped = createEmptyCircleGroups();
       const sexBucket = (raw: any) => {
         const s = cleanText(raw);
         if (s.startsWith('m')) return 'M';
@@ -4292,60 +4321,6 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         });
       });
 
-      const distributionTables = [
-        String(process.env.EAC_SUPABASE_TABLE_CIRCULOS || '').trim(),
-        'circulos_distribuidos',
-        'circulos',
-        'circles_distribution',
-      ].filter(Boolean);
-
-      const distributionRunId = `run_${Date.now()}`;
-      let persisted = 0;
-      for (const circleName of [...circles, 'Circulo Excedente']) {
-        for (const item of grouped[circleName]) {
-          let inserted = false;
-          for (const tableName of distributionTables) {
-            const attempts = [
-              {
-                nome: item.nome,
-                idade: item.idade,
-                sexo: item.sexo,
-                bairro: item.bairro,
-                circulo: circleName,
-                grupo_sugerido: circleName,
-                linha_origem: item.linhaOrigem || null,
-                run_id: distributionRunId,
-                created_at: new Date().toISOString(),
-              },
-              {
-                nomeCompleto: item.nome,
-                idade: item.idade,
-                sexo: item.sexo,
-                bairro: item.bairro,
-                circulo: circleName,
-                grupoSugerido: circleName,
-                linhaOrigem: item.linhaOrigem || null,
-                runId: distributionRunId,
-                createdAt: new Date().toISOString(),
-              },
-            ];
-            for (const body of attempts) {
-              try {
-                const res = await supabase.from(tableName).insert(body as any);
-                if (!res.error) {
-                  inserted = true;
-                  persisted += 1;
-                  break;
-                }
-              } catch {
-                // tenta próximo payload/tabela
-              }
-            }
-            if (inserted) break;
-          }
-        }
-      }
-
       return {
         ok: true,
         data: {
@@ -4356,7 +4331,8 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           totalPrioritarios: (Array.isArray(rows) ? rows : []).length,
           totalAptos: eligible.length,
           totalDistribuido: Object.values(grouped).reduce((acc, list) => acc + list.length, 0),
-          totalPersistido: persisted,
+          totalPersistido: 0,
+          persistencia: 'client-fallback',
           circulos: grouped,
         },
       };

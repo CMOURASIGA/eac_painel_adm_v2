@@ -39,6 +39,17 @@ interface InscricoesPrioritariasPageProps {
   onOpenCirculos: () => void;
 }
 
+const LAST_CIRCLE_DISTRIBUTION_STORAGE_KEY = 'eac:last-circle-distribution';
+
+function saveLastCircleDistribution(payload: any) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LAST_CIRCLE_DISTRIBUTION_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // fallback silencioso
+  }
+}
+
 const formatDate = (value: any) => {
   if (!value) return '-';
   const raw = toCleanString(value);
@@ -590,9 +601,29 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     setIsDistributing(true);
     setError('');
     try {
-      const r = await inscricoesService.executarDistribuicaoCirculos({ minAge, maxAge }, { googleWebAppUrl });
+      const distributionItems = items.map((item) => ({
+        id: item.id || item.inscricao_id || item.linhaOrigem || '',
+        inscricao_id: item.inscricao_id || item.id || '',
+        linhaOrigem: item.linhaOrigem || item.inscricao_id || item.id || '',
+        nome: item.nome || item.nome_completo || '',
+        sexo: item.sexo || '',
+        idade: item.idade ?? '',
+        bairro: item.bairro || '',
+        status: item.status || 'PRIORIZADO',
+      }));
+      const r = await inscricoesService.executarDistribuicaoCirculos(
+        { minAge, maxAge, items: distributionItems },
+        { googleWebAppUrl }
+      );
 
       if (!r.success) throw new Error(r.error || 'Não foi possível executar a distribuição de círculos.');
+
+      saveLastCircleDistribution({
+        generatedAt: new Date().toISOString(),
+        faixa: { minAge, maxAge },
+        total: distributionItems.length,
+        circulos: (r.data as any)?.circulos || {},
+      });
 
       const successMessage = `Distribuição feita com sucesso. Faixa aplicada: ${faixaLabel}.`;
       showInfo(successMessage);

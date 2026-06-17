@@ -16,6 +16,8 @@ interface CirculosDistribuidosPageProps {
   onBack: () => void;
 }
 
+const LAST_CIRCLE_DISTRIBUTION_STORAGE_KEY = 'eac:last-circle-distribution';
+
 const CIRCLE_NAMES = [
   'Circulo 1',
   'Circulo 2',
@@ -137,6 +139,34 @@ function normalizeCirculosPayload(input: any) {
   return grouped;
 }
 
+function getStoredCircleDistribution() {
+  if (typeof window === 'undefined') return createEmptyGroups();
+  try {
+    const raw = window.localStorage.getItem(LAST_CIRCLE_DISTRIBUTION_STORAGE_KEY);
+    if (!raw) return createEmptyGroups();
+    const parsed = JSON.parse(raw);
+    return normalizeCirculosPayload(parsed?.circulos);
+  } catch {
+    return createEmptyGroups();
+  }
+}
+
+function saveStoredCircleDistribution(circulos: Record<string, PessoaCirculo[]>) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      LAST_CIRCLE_DISTRIBUTION_STORAGE_KEY,
+      JSON.stringify({ generatedAt: new Date().toISOString(), circulos })
+    );
+  } catch {
+    // fallback silencioso
+  }
+}
+
+function hasAnyCircleEntries(circulos: Record<string, PessoaCirculo[]>) {
+  return CIRCLE_NAMES.some((name) => Array.isArray(circulos[name]) && circulos[name].length > 0);
+}
+
 function getSexoKey(value: any) {
   const norm = normalizeHeaderLite(value);
   if (norm === 'masculino' || norm === 'masc' || norm === 'm') return 'masculino';
@@ -203,10 +233,22 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
         throw new Error(json?.error || 'Falha ao carregar distribuição de círculos.');
       }
 
-      setCirculos(normalizeCirculosPayload(json?.circulos));
+      const normalized = normalizeCirculosPayload(json?.circulos);
+      if (hasAnyCircleEntries(normalized)) {
+        setCirculos(normalized);
+        saveStoredCircleDistribution(normalized);
+      } else {
+        const stored = getStoredCircleDistribution();
+        setCirculos(stored);
+      }
     } catch (err: any) {
-      setCirculos(createEmptyGroups());
-      setError(err?.message || 'Erro ao carregar distribuição de círculos.');
+      const stored = getStoredCircleDistribution();
+      setCirculos(stored);
+      setError(
+        hasAnyCircleEntries(stored)
+          ? 'Exibindo a última distribuição gerada neste navegador porque o backend ainda está vazio.'
+          : (err?.message || 'Erro ao carregar distribuição de círculos.')
+      );
     } finally {
       setLoading(false);
     }
@@ -399,6 +441,19 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
     setMovingParticipantId(participantId);
     setError('');
     try {
+      const applyLocalMove = () => {
+        setCirculos((prev) => {
+          const next = createEmptyGroups();
+          CIRCLE_NAMES.forEach((name) => {
+            next[name] = Array.isArray(prev[name]) ? prev[name].map((entry) => ({ ...entry })) : [];
+          });
+          next[fromCirculo] = (next[fromCirculo] || []).filter((entry) => toCleanString(entry?.id) !== participantId);
+          next[toCirculo] = [...(next[toCirculo] || []), { ...item, grupoSugerido: toCirculo }];
+          saveStoredCircleDistribution(next);
+          return next;
+        });
+      };
+
       const response = await fetch('/api/circulos-distribuidos/mover', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -414,7 +469,9 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
       if (!raw) throw new Error(`Resposta vazia da API (HTTP ${response.status}).`);
       const json = sanitizeTextDeep(JSON.parse(raw));
       if (!response.ok || !(json?.success ?? json?.ok)) {
-        throw new Error(json?.error || 'Nao foi possivel mover participante.');
+        applyLocalMove();
+        setError('Movimento salvo apenas neste navegador porque a persistência do backend não está disponível.');
+        return;
       }
 
       await fetchData();

@@ -124,7 +124,7 @@ export const inscricoesService = {
   },
 
   async executarDistribuicaoCirculos(
-    payload: { minAge?: number | null; maxAge?: number | null } = {},
+    payload: { minAge?: number | null; maxAge?: number | null; items?: any[] } = {},
     opts: { googleWebAppUrl?: string } = {}
   ): Promise<EacApiResult<any>> {
     // Endpoint dedicado (hoje proxy do /api/comunicados), para permitir evoluir a implementação sem mudar o frontend.
