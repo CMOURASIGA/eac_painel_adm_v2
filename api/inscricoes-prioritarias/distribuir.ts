@@ -16,9 +16,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const googleWebAppUrl = String(req.body?.googleWebAppUrl || '').trim();
     const minAge = normalizeOptionalInt(req.body?.minAge);
     const maxAge = normalizeOptionalInt(req.body?.maxAge);
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
     const data: Record<string, unknown> = {};
     if (minAge !== null) data.minAge = minAge;
     if (maxAge !== null) data.maxAge = maxAge;
+    if (items.length > 0) data.items = items;
 
     const protocol = (req.headers['x-forwarded-proto'] as string) || 'http';
     const host = req.headers.host || 'localhost:3000';

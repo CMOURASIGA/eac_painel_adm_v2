@@ -18,6 +18,7 @@ export async function POST(req: Request) {
     const googleWebAppUrl = String(body?.googleWebAppUrl || '').trim();
     const minAge = body?.minAge;
     const maxAge = body?.maxAge;
+    const items = Array.isArray(body?.items) ? body.items : [];
 
     const proxyUrl = new URL('/api/comunicados', req.url).toString();
     const proxyResponse = await fetch(proxyUrl, {
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
         data: {
           ...(minAge !== undefined ? { minAge } : {}),
           ...(maxAge !== undefined ? { maxAge } : {}),
+          ...(items.length > 0 ? { items } : {}),
         },
         ...(googleWebAppUrl ? { googleWebAppUrl } : {})
       })
