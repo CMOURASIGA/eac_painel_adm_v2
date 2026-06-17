@@ -27,7 +27,7 @@ const STATUS_CHANGE_OPTIONS = [
 ];
 
 const JUSTIFICATIVA_OBRIGATORIA_STATUS = new Set(['NAO_SELECIONADO', 'DESISTENTE', 'CANCELADO']);
-const QUICK_STATUS_OPTIONS = ['EM_ANALISE', 'PRIORIZADO', 'CONFIRMADO', 'NAO_SELECIONADO'];
+const QUICK_STATUS_OPTIONS = ['EM_ANALISE', 'PRIORIZADO', 'FILA', 'CONFIRMADO'];
 const STATUS_TRANSITIONS_ALLOWED: Record<string, string[]> = {
   INSCRITO: ['EM_ANALISE', 'PRIORIZADO', 'NAO_SELECIONADO', 'CANCELADO'],
   EM_ANALISE: ['PRIORIZADO', 'FILA', 'CONFIRMADO', 'NAO_SELECIONADO', 'DESISTENTE', 'CANCELADO'],
@@ -583,8 +583,19 @@ const InscricoesReviewPage: React.FC = () => {
   return (
     <section className="w-full p-4 md:p-6">
       <div className="max-w-[1400px] mx-auto">
-        <h1 className="text-2xl font-black text-slate-900">Triagem de Inscrições</h1>
-        <p className="mt-1 text-sm text-slate-600">Acompanhe inscrições recebidas e revise os dados operacionais.</p>
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h1 className="text-2xl font-black text-slate-900">Triagem de Inscrições</h1>
+            <p className="mt-1 text-sm text-slate-600">Acompanhe inscrições recebidas e revise os dados operacionais.</p>
+          </div>
+          <button
+            onClick={handleExportCsv}
+            disabled={exportingCsv}
+            className="self-start px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-700 text-xs font-black uppercase tracking-widest disabled:opacity-50"
+          >
+            {exportingCsv ? 'Exportando...' : 'Exportar CSV'}
+          </button>
+        </div>
 
         <div className="mt-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           <button
@@ -687,13 +698,6 @@ const InscricoesReviewPage: React.FC = () => {
           </div>
 
           <div className="mt-3 flex gap-2 justify-end">
-            <button
-              onClick={handleExportCsv}
-              disabled={exportingCsv}
-              className="px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-700 text-xs font-black uppercase tracking-widest disabled:opacity-50"
-            >
-              {exportingCsv ? 'Exportando...' : 'Exportar CSV'}
-            </button>
             <button onClick={clearFilters} className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 text-xs font-black uppercase tracking-widest">Limpar filtros</button>
             <button onClick={applyFilters} className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-black uppercase tracking-widest">Pesquisar</button>
           </div>
