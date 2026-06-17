@@ -518,21 +518,31 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
         origem: row?.origem_inscricao || '',
       }));
 
-      const canonical = rPrior.success ? fromPrior : fromAdmin;
-      const normalizedPriorizados = canonical
-        .filter(hasIdentity)
-        .filter((item: any) => normalize(item?.status) === 'priorizado');
-
-      const deduped = new Map<string, any>();
-      normalizedPriorizados.forEach((item: any) => {
+      const mergedByKey = new Map<string, any>();
+      const mergeCandidate = (item: any) => {
         const keyByInscricao = toCleanString(item?.inscricao_id || item?.linhaOrigem || '').trim();
         const keyByIdentity = `${normalize(item?.nome)}|${toCleanString(item?.telefone || '').replace(/\D/g, '')}`;
         const key = keyByInscricao || keyByIdentity;
         if (!key) return;
-        if (!deduped.has(key)) deduped.set(key, item);
-      });
 
-      setItems(Array.from(deduped.values()));
+        const current = mergedByKey.get(key) || {};
+        mergedByKey.set(key, {
+          ...current,
+          ...item,
+          id: item?.id || current?.id || key,
+          inscricao_id: item?.inscricao_id || current?.inscricao_id || '',
+          linhaOrigem: item?.linhaOrigem || current?.linhaOrigem || item?.inscricao_id || current?.inscricao_id || '',
+          status: item?.status || current?.status || 'PRIORIZADO',
+        });
+      };
+
+      fromPrior.forEach(mergeCandidate);
+      fromAdmin.forEach(mergeCandidate);
+
+      const normalizedPriorizados = Array.from(mergedByKey.values())
+        .filter(hasIdentity)
+        .filter((item: any) => normalize(item?.status) === 'priorizado');
+      setItems(normalizedPriorizados);
     } catch (err: any) {
       setItems([]);
       setError(err?.message || 'Erro ao carregar inscrições prioritárias.');
