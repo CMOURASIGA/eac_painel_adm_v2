@@ -1,7 +1,7 @@
 ﻿import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseServerClient } from '../../utils/supabaseServer.js';
 import { executeInscricoesAdminList } from '../../utils/inscricoesAdmin.js';
-import { executeAlterarStatusInscricao, executeExcluirInscricao } from '../../utils/inscricoesStatus.js';
+import { executeAlterarStatusInscricao, executeAtualizarCadastroInscricao, executeExcluirInscricao } from '../../utils/inscricoesStatus.js';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
@@ -20,10 +20,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   if (req.method === 'PATCH') {
     try {
-      const result = await executeAlterarStatusInscricao({
-        supabase: getSupabaseServerClient(),
-        body: req.body ?? {},
-      });
+      const body = req.body ?? {};
+      const result = String(body?.action || '').trim().toUpperCase() === 'UPDATE_RECORD'
+        ? await executeAtualizarCadastroInscricao({
+            supabase: getSupabaseServerClient(),
+            body,
+          })
+        : await executeAlterarStatusInscricao({
+            supabase: getSupabaseServerClient(),
+            body,
+          });
 
       return res.status(result.status).json(result.body);
     } catch (e: any) {
