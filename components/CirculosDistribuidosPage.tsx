@@ -586,12 +586,24 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
                       </p>
                       {totalCirculo > 0 && (
                         <>
-                          <p className={`text-[11px] font-black uppercase tracking-widest mt-2 ${theme.title}`}>
-                            {formatAdolescentesCount(totalCirculo)}
-                          </p>
-                          <p className="text-[11px] font-black uppercase tracking-widest text-slate-600 mt-1">
-                            {meninos.length} meninos • {meninas.length} meninas
-                          </p>
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <div className="rounded-xl border border-white/80 bg-white/80 px-3 py-2">
+                              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Total</p>
+                              <p className={`text-sm font-black mt-1 ${theme.title}`}>{totalCirculo}</p>
+                            </div>
+                            <div className="rounded-xl border border-white/80 bg-white/80 px-3 py-2">
+                              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Meninos</p>
+                              <p className="text-sm font-black text-sky-700 mt-1">{meninos.length}</p>
+                            </div>
+                            <div className="rounded-xl border border-white/80 bg-white/80 px-3 py-2">
+                              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Meninas</p>
+                              <p className="text-sm font-black text-pink-700 mt-1">{meninas.length}</p>
+                            </div>
+                            <div className="rounded-xl border border-white/80 bg-white/80 px-3 py-2">
+                              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Não informado</p>
+                              <p className="text-sm font-black text-slate-700 mt-1">{outros.length}</p>
+                            </div>
+                          </div>
                         </>
                       )}
                     </div>
@@ -613,7 +625,7 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
                               <ul className="space-y-2">
                                 {meninos.map((item, idx) => (
                                   <li key={`${groupName}-m-${idx}`} className="text-xs">
-                                    <p className="font-black text-slate-900 leading-tight">ðŸ”µ {item.nome || '-'}</p>
+                                    <p className="font-black text-slate-900 leading-tight">{item.nome || '-'}</p>
                                     <p className="font-bold text-slate-600 mt-0.5">
                                       {formatIdadeBairro(item.idade, item.bairro)}
                                     </p>
@@ -641,7 +653,7 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
                               <ul className="space-y-2">
                                 {meninas.map((item, idx) => (
                                   <li key={`${groupName}-f-${idx}`} className="text-xs">
-                                    <p className="font-black text-slate-900 leading-tight">ðŸŸ£ {item.nome || '-'}</p>
+                                    <p className="font-black text-slate-900 leading-tight">{item.nome || '-'}</p>
                                     <p className="font-bold text-slate-600 mt-0.5">
                                       {formatIdadeBairro(item.idade, item.bairro)}
                                     </p>

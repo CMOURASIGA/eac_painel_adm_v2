@@ -524,7 +524,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
         dataCadastro: row?.data_inscricao || '',
         dataNascimento: row?.data_nascimento || '',
         idade: row?.idade_calculada ?? '',
-        sexo: '',
+        sexo: String(row?.sexo || row?.sexo_adolescente || row?.sexo_snapshot || ''),
         encontro: row?.encontro_nome || '',
         origem: row?.origem_inscricao || '',
       }));
