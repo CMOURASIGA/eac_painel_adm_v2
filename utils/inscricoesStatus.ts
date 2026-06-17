@@ -691,7 +691,17 @@ export async function executeAtualizarCadastroInscricao(params: {
       if (inscricaoPatchError) throw inscricaoPatchError;
     }
 
-    return { status: 200, body: { success: true, message: 'Cadastro atualizado com sucesso.', data: { inscricao_id: inscricaoId } } };
+    return {
+      status: 200,
+      body: {
+        success: true,
+        message: 'Cadastro atualizado com sucesso.',
+        data: {
+          inscricao_id: inscricaoId,
+          status_inscricao_atual: toCleanString((inscricao as any)?.status || ''),
+        },
+      },
+    };
   } catch (e) {
     console.error('[executeAtualizarCadastroInscricao] falha:', e);
     return { status: 500, body: { success: false, error: 'INTERNAL_ERROR', message: 'Erro ao atualizar cadastro da inscrição.' } };

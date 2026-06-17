@@ -475,6 +475,39 @@ const InscricoesReviewPage: React.FC = () => {
         setCadastroFeedback({ type: 'error', text: (r.raw as any)?.message || 'Não foi possível salvar o cadastro.' });
         return;
       }
+      const updated = {
+        ...selected,
+        nome_adolescente: cadastroForm.nome_adolescente || selected.nome_adolescente,
+        data_nascimento: cadastroForm.data_nascimento || selected.data_nascimento,
+        sexo: cadastroForm.sexo || (selected as any).sexo,
+        endereco: cadastroForm.endereco || (selected as any).endereco,
+        email_adolescente: cadastroForm.email_adolescente || (selected as any).email_adolescente,
+        telefone_adolescente: cadastroForm.telefone_adolescente || selected.telefone_adolescente,
+        bairro: cadastroForm.bairro || selected.bairro,
+        nome_responsavel: cadastroForm.nome_responsavel || selected.nome_responsavel,
+        email_responsavel: cadastroForm.email_responsavel || selected.email_responsavel,
+        telefone_responsavel: cadastroForm.telefone_responsavel || selected.telefone_responsavel,
+        status_inscricao: (r.data as any)?.data?.status_inscricao_atual || selected.status_inscricao,
+      };
+      setSelected(updated);
+      setItems((prev) => prev.map((it) => (
+        it.inscricao_id === updated.inscricao_id
+          ? {
+              ...it,
+              nome_adolescente: updated.nome_adolescente,
+              data_nascimento: updated.data_nascimento,
+              sexo: (updated as any).sexo,
+              endereco: (updated as any).endereco,
+              email_adolescente: (updated as any).email_adolescente,
+              telefone_adolescente: updated.telefone_adolescente,
+              bairro: updated.bairro,
+              nome_responsavel: updated.nome_responsavel,
+              email_responsavel: updated.email_responsavel,
+              telefone_responsavel: updated.telefone_responsavel,
+              status_inscricao: updated.status_inscricao,
+            }
+          : it
+      )));
       setCadastroFeedback({ type: 'success', text: 'Cadastro atualizado com sucesso.' });
       await fetchList(applied);
     } catch {
@@ -893,6 +926,7 @@ const InscricoesReviewPage: React.FC = () => {
 
             <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
               <p className="text-xs uppercase tracking-widest text-slate-500 font-black">Editar cadastro</p>
+              <p className="text-[11px] font-bold text-slate-500 mt-1">Disponível para qualquer status da inscrição.</p>
               <div className="mt-2 grid grid-cols-1 gap-2">
                 <input
                   value={cadastroForm.nome_adolescente}
