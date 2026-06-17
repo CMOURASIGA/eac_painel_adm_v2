@@ -638,7 +638,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     } finally {
       setIsDistributing(false);
     }
-  }, [distributionRange.maxAge, distributionRange.minAge, googleWebAppUrl, showInfo]);
+  }, [distributionRange.maxAge, distributionRange.minAge, googleWebAppUrl, items, showInfo]);
 
   const bairroOptions = useMemo(() => uniqueOptions(items.map((it) => it.bairro)), [items]);
   const sexoOptions = useMemo(() => uniqueOptions(items.map((it) => it.sexo)), [items]);
