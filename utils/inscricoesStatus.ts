@@ -80,6 +80,15 @@ function normalizeNome(value: any) {
   return toCleanString(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
+function normalizeSexoValue(value: any) {
+  const raw = toCleanString(value);
+  const normalized = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (!normalized) return '';
+  if (normalized === 'm' || normalized === 'masc' || normalized === 'masculino') return 'Masculino';
+  if (normalized === 'f' || normalized === 'fem' || normalized === 'feminino') return 'Feminino';
+  return raw;
+}
+
 function parseFlexibleDate(value: any) {
   const raw = toCleanString(value);
   if (!raw) return null;
@@ -571,7 +580,7 @@ export async function executeAtualizarCadastroInscricao(params: {
   const emailAdolescente = toCleanString(body.email_adolescente);
   const nomeAdolescente = toCleanString(body.nome_adolescente);
   const dataNascimento = parseFlexibleDate(body.data_nascimento);
-  const sexo = toCleanString(body.sexo);
+  const sexo = normalizeSexoValue(body.sexo);
   const endereco = toCleanString(body.endereco);
   const telefoneAdolescente = toCleanString(body.telefone_adolescente);
   const bairro = toCleanString(body.bairro);

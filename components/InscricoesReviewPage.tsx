@@ -940,12 +940,15 @@ const InscricoesReviewPage: React.FC = () => {
                   placeholder="Nascimento do adolescente"
                   className="px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold"
                 />
-                <input
+                <select
                   value={cadastroForm.sexo}
                   onChange={(e) => setCadastroForm((prev) => ({ ...prev, sexo: e.target.value }))}
-                  placeholder="Sexo"
-                  className="px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold"
-                />
+                  className="px-3 py-2 rounded-xl border border-slate-300 text-sm font-semibold bg-white"
+                >
+                  <option value="">Selecione o sexo</option>
+                  <option value="Masculino">Masculino</option>
+                  <option value="Feminino">Feminino</option>
+                </select>
                 <input
                   value={cadastroForm.endereco}
                   onChange={(e) => setCadastroForm((prev) => ({ ...prev, endereco: e.target.value }))}
