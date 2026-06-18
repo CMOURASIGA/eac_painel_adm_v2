@@ -803,7 +803,6 @@ declare
   v_sexo text;
   v_bairro text;
   v_nascimento date;
-  v_sexo text;
   v_observacoes text;
   v_resp_nome text;
   v_resp_email text;
