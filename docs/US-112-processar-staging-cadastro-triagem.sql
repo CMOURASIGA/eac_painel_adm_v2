@@ -970,9 +970,9 @@ declare
   v_nome text;
   v_email text;
   v_telefone text;
+  v_sexo text;
   v_bairro text;
   v_nascimento date;
-  v_sexo text;
   v_resp_nome text;
   v_resp_email text;
   v_resp_tel text;
@@ -1150,6 +1150,7 @@ declare
   v_nome text;
   v_email text;
   v_telefone text;
+  v_sexo text;
   v_bairro text;
   v_endereco text;
   v_nascimento date;
