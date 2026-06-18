@@ -42,6 +42,7 @@ const PublicInscricaoForm: React.FC = () => {
     nome_adolescente: '',
     nome_social: '',
     data_nascimento: '',
+    sexo: '',
     telefone_adolescente: '',
     email_adolescente: '',
     nome_responsavel: '',
@@ -75,6 +76,7 @@ const PublicInscricaoForm: React.FC = () => {
 
     const nascimento = parseDateOnly(form.data_nascimento);
     if (!nascimento || nascimento.getTime() > Date.now()) errors.data_nascimento = 'Informe uma data de nascimento válida.';
+    if (!toCleanString(form.sexo)) errors.sexo = 'Informe o sexo do adolescente.';
 
     const telA = toCleanString(form.telefone_adolescente).replace(/\D/g, '');
     if (telA.length < 10 || /^0+$/.test(telA)) errors.telefone_adolescente = 'Informe um telefone válido do adolescente.';
@@ -110,6 +112,7 @@ const PublicInscricaoForm: React.FC = () => {
         nome_adolescente: toCleanString(form.nome_adolescente),
         nome_social: toCleanString(form.nome_social),
         data_nascimento: toCleanString(form.data_nascimento),
+        sexo: toCleanString(form.sexo),
         idade: computedAge ? Number(computedAge) : undefined,
         telefone_adolescente: toCleanString(form.telefone_adolescente),
         email_adolescente: toCleanString(form.email_adolescente),
@@ -218,6 +221,19 @@ const PublicInscricaoForm: React.FC = () => {
                     className={inputClass('data_nascimento')}
                   />
                   {fieldErrors.data_nascimento ? <p className="mt-1 text-xs text-red-600">{fieldErrors.data_nascimento}</p> : null}
+                </div>
+                <div>
+                  <label className={labelClass}>Sexo *</label>
+                  <select
+                    value={form.sexo}
+                    onChange={(e) => setForm((prev) => ({ ...prev, sexo: e.target.value }))}
+                    className={inputClass('sexo')}
+                  >
+                    <option value="">Selecione</option>
+                    <option value="Masculino">Masculino</option>
+                    <option value="Feminino">Feminino</option>
+                  </select>
+                  {fieldErrors.sexo ? <p className="mt-1 text-xs text-red-600">{fieldErrors.sexo}</p> : null}
                 </div>
               </div>
 

@@ -26,6 +26,7 @@ const INSCRICAO_DUPLICATE_BLOCK_STATUSES = new Set([
 const REQUIRED_MESSAGES = {
   nome_adolescente: 'Informe o nome completo do adolescente.',
   data_nascimento: 'Informe uma data de nascimento válida.',
+  sexo: 'Informe o sexo do adolescente.',
   telefone_adolescente: 'Informe um telefone válido do adolescente.',
   nome_responsavel: 'Informe o nome do responsável.',
   telefone_responsavel: 'Informe um telefone válido do responsável.',
@@ -46,6 +47,15 @@ export function normalizarTextoCanonico(valor: any): string {
 
 export function normalizarNome(valor: any): string {
   return normalizarTextoCanonico(valor);
+}
+
+export function normalizarSexo(valor: any): string {
+  const raw = normalizarTexto(valor);
+  const normalized = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (!normalized) return '';
+  if (normalized === 'm' || normalized === 'masc' || normalized === 'masculino') return 'Masculino';
+  if (normalized === 'f' || normalized === 'fem' || normalized === 'feminino') return 'Feminino';
+  return raw;
 }
 
 function somenteDigitos(value: any): string {
@@ -127,6 +137,7 @@ export function validarPayloadInscricao(payload: AnyObject): ValidationResult {
     nome_adolescente: normalizarTexto(payload.nome_adolescente),
     nome_social: normalizarTexto(payload.nome_social) || null,
     data_nascimento: normalizarTexto(payload.data_nascimento),
+    sexo: normalizarSexo(payload.sexo),
     telefone_adolescente: normalizarTelefoneBR(payload.telefone_adolescente),
     nome_responsavel: normalizarTexto(payload.nome_responsavel),
     telefone_responsavel: normalizarTelefoneBR(payload.telefone_responsavel),
@@ -152,6 +163,9 @@ export function validarPayloadInscricao(payload: AnyObject): ValidationResult {
   }
   if (!validarDataNascimento(normalized.data_nascimento)) {
     fields.data_nascimento = REQUIRED_MESSAGES.data_nascimento;
+  }
+  if (!normalized.sexo) {
+    fields.sexo = REQUIRED_MESSAGES.sexo;
   }
   if (!validarTelefoneBR(normalized.telefone_adolescente)) {
     fields.telefone_adolescente = REQUIRED_MESSAGES.telefone_adolescente;
@@ -437,6 +451,7 @@ export async function executeInscricaoCreate(params: { supabase: AnySupabaseClie
     nome_normalizado: normalizarNome(normalized.nome_adolescente),
     nome_social: normalized.nome_social,
     data_nascimento: normalized.data_nascimento,
+    sexo: normalized.sexo,
     idade_calculada: idade,
     telefone: normalized.telefone_adolescente,
     telefone_normalizado: normalized.telefone_adolescente,
