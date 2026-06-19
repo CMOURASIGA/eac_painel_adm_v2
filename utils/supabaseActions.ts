@@ -340,6 +340,47 @@ function calcCurrentAgeFromBirthDate(value: any) {
   return age;
 }
 
+function parseLooseAge(value: any) {
+  const raw = cleanText(value);
+  if (!raw) return NaN;
+
+  const numeric = Number(raw.replace(',', '.'));
+  if (Number.isFinite(numeric)) return Math.floor(numeric);
+
+  const digits = raw.match(/\d{1,3}/g);
+  if (!digits || digits.length === 0) return NaN;
+
+  for (const token of digits) {
+    const n = Number(token);
+    if (Number.isFinite(n) && n >= 0 && n <= 120) return Math.floor(n);
+  }
+
+  return NaN;
+}
+
+function isEligibleForCircleByAge(age: number, birthDate: any, minAge: number, maxAge: number) {
+  if (!Number.isFinite(age)) return false;
+  if (age >= minAge && age <= maxAge) return true;
+
+  if (age !== 12) return false;
+
+  const iso = parseMemberBirthDate(birthDate);
+  if (!iso) return false;
+  const birth = new Date(`${iso}T12:00:00Z`);
+  if (Number.isNaN(birth.getTime())) return false;
+
+  const turns13At = new Date(Date.UTC(
+    birth.getUTCFullYear() + 13,
+    birth.getUTCMonth(),
+    birth.getUTCDate(),
+    12, 0, 0, 0
+  ));
+  const now = new Date();
+  const diffMs = turns13At.getTime() - now.getTime();
+  const sixMonthsMs = 183 * 24 * 60 * 60 * 1000;
+  return diffMs >= 0 && diffMs <= sixMonthsMs;
+}
+
 function buildMemberRecord(params: {
   cadastro: any;
   pessoa: any;
@@ -4486,18 +4527,18 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       };
 
       const resolveAge = (row: any) => {
+        const person = resolvePerson(row);
         const birthDate =
           parseMemberBirthDate(pickFirst(row, ['data_nascimento', 'dataNascimento', 'nascimento'])) ||
-          parseMemberBirthDate(resolvePerson(row)?.data_nascimento);
+          parseMemberBirthDate(person?.data_nascimento);
 
         const ageFromBirthDate = calcCurrentAgeFromBirthDate(birthDate);
         if (Number.isFinite(Number(ageFromBirthDate))) return Math.floor(Number(ageFromBirthDate));
 
-        const persistedAge = Number(resolvePerson(row)?.idade_calculada);
+        const persistedAge = parseLooseAge(person?.idade_calculada);
         if (Number.isFinite(persistedAge)) return Math.floor(persistedAge);
 
-        const raw = cleanText(pickFirst(row, ['idade', 'idade_snapshot', 'age'])).replace(',', '.');
-        const n = Number(raw);
+        const n = parseLooseAge(pickFirst(row, ['idade', 'idade_snapshot', 'age']));
         return Number.isFinite(n) ? Math.floor(n) : NaN;
       };
 
@@ -4518,7 +4559,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
 
       const eligible = enrichedRows.filter((row) => {
         const age = Number(row?.idade_resolvida);
-        return Number.isFinite(age) && age >= minAge && age <= maxAge;
+        return isEligibleForCircleByAge(age, row?.data_nascimento_resolvida, minAge, maxAge);
       });
       const nonEligible = enrichedRows.filter((row) => !eligible.includes(row));
 
