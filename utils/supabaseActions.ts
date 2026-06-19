@@ -4637,7 +4637,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       const circles = ['Circulo 1', 'Circulo 2', 'Circulo 3', 'Circulo 4', 'Circulo 5', 'Circulo 6'];
       const grouped = createEmptyCircleGroups();
       const sexBucket = (raw: any) => {
-        const s = cleanText(raw);
+        const s = cleanText(raw).toLowerCase();
         if (s.startsWith('m')) return 'M';
         if (s.startsWith('f')) return 'F';
         return 'O';
