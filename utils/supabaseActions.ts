@@ -2112,10 +2112,23 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         async (tableName) => await supabase.from(tableName).select('*').limit(1)
       );
 
+      const existingImportedRes = await supabase
+        .from(targetTable)
+        .select('id,id_origem_planilha,origem_dado,origemDado')
+        .or('origem_dado.eq.PLANILHA,origemDado.eq.PLANILHA');
+      if (existingImportedRes.error) throw existingImportedRes.error;
+
+      const existingImportedRows = Array.isArray(existingImportedRes.data) ? existingImportedRes.data : [];
+      const existingImportedBySourceKey = new Map<string, any>();
+      existingImportedRows.forEach((row: any) => {
+        const sourceKey = cleanText(row?.id_origem_planilha || row?.idOrigemPlanilha);
+        if (sourceKey) existingImportedBySourceKey.set(sourceKey, row);
+      });
+
       let imported = 0;
       let updated = 0;
       let ignored = 0;
-      const sourceIds = new Set<string>();
+      const sourceKeys = new Set<string>();
 
       for (const row of rows) {
         const atividade = cleanText(pickFirst(row, ['atividade', 'titulo', 'title', 'nome', 'evento']));
@@ -2136,16 +2149,19 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         }
 
         const externalId = cleanText(pickFirst(row, ['id', 'id_externo', 'external_id', 'linha', 'row_number']));
-        const generatedId = externalId
-          ? `ext-2026-${externalId}`
-          : `ext-2026-${cleanText(atividade).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${inicioIso.slice(0, 10)}`;
-        const id = generatedId.slice(0, 120);
-        sourceIds.add(id);
         const nowIso = new Date().toISOString();
-        const idOrigemPlanilha = cleanText(pickFirst(row, ['id_origem_planilha', 'idOrigemPlanilha', 'id']));
+        const generatedSourceKey = externalId
+          ? `ext-2026-${externalId}`
+          : `sheet-${cleanText(atividade).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${inicioIso.slice(0, 10)}`;
+        const sourceKey = (
+          cleanText(pickFirst(row, ['id_origem_planilha', 'idOrigemPlanilha'])) ||
+          generatedSourceKey
+        ).slice(0, 120);
+        sourceKeys.add(sourceKey);
+        const existingImported = existingImportedBySourceKey.get(sourceKey);
+        const rowId = cleanText(existingImported?.id);
 
         const payloadSnake = {
-          id,
           atividade,
           tipo,
           inicio: inicioIso,
@@ -2156,13 +2172,12 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           encontro_id: encontroId || null,
           observacoes: observacoes || null,
           origem_dado: sourceLabel === 'google_sheet_calendario' ? 'PLANILHA' : 'calendario_2026_externos',
-          id_origem_planilha: idOrigemPlanilha || null,
+          id_origem_planilha: sourceKey,
           data_importacao: nowIso,
           ultima_sincronizacao: nowIso,
           updated_at: nowIso,
         };
         const payloadCamel = {
-          id,
           atividade,
           tipo,
           inicio: inicioIso,
@@ -2173,24 +2188,28 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           encontroId: encontroId || null,
           observacoes: observacoes || null,
           origemDado: sourceLabel === 'google_sheet_calendario' ? 'PLANILHA' : 'calendario_2026_externos',
-          idOrigemPlanilha: idOrigemPlanilha || null,
+          idOrigemPlanilha: sourceKey,
           dataImportacao: nowIso,
           ultimaSincronizacao: nowIso,
           updatedAt: nowIso,
         };
 
-        const existsRes = await supabase.from(targetTable).select('id').eq('id', id).limit(1);
-        if (existsRes.error) throw existsRes.error;
-        const exists = Array.isArray(existsRes.data) && existsRes.data.length > 0;
-
-        if (exists) {
-          let update = await supabase.from(targetTable).update(payloadSnake as any).eq('id', id).select('*').limit(1);
-          if (update.error) update = await supabase.from(targetTable).update(payloadCamel as any).eq('id', id).select('*').limit(1);
+        if (rowId) {
+          let update = await supabase.from(targetTable).update(payloadSnake as any).eq('id', rowId).select('*').limit(1);
+          if (update.error) update = await supabase.from(targetTable).update(payloadCamel as any).eq('id', rowId).select('*').limit(1);
           if (update.error) throw update.error;
           updated += 1;
         } else {
-          const insertSnake = { ...payloadSnake, created_at: new Date().toISOString() };
-          const insertCamel = { ...payloadCamel, createdAt: new Date().toISOString() };
+          const insertSnake = {
+            id: globalThis.crypto?.randomUUID?.(),
+            ...payloadSnake,
+            created_at: nowIso,
+          };
+          const insertCamel = {
+            id: insertSnake.id,
+            ...payloadCamel,
+            createdAt: nowIso,
+          };
           let insert = await supabase.from(targetTable).insert(insertSnake as any).select('*').limit(1);
           if (insert.error) insert = await supabase.from(targetTable).insert(insertCamel as any).select('*').limit(1);
           if (insert.error) throw insert.error;
@@ -2198,15 +2217,13 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         }
       }
 
-      const existingImportedRes = await supabase
-        .from(targetTable)
-        .select('id,origem_dado,origemDado')
-        .or('origem_dado.eq.PLANILHA,origemDado.eq.PLANILHA');
-      if (existingImportedRes.error) throw existingImportedRes.error;
-
-      const staleIds = (Array.isArray(existingImportedRes.data) ? existingImportedRes.data : [])
+      const staleIds = existingImportedRows
+        .filter((row: any) => {
+          const sourceKey = cleanText(row?.id_origem_planilha || row?.idOrigemPlanilha);
+          return sourceKey && !sourceKeys.has(sourceKey);
+        })
         .map((row: any) => cleanText(row?.id))
-        .filter((id: string) => id && !sourceIds.has(id));
+        .filter(Boolean);
 
       if (staleIds.length > 0) {
         const del = await supabase.from(targetTable).delete().in('id', staleIds);
