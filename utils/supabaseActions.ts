@@ -4449,8 +4449,78 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         }))
         .filter((row: any) => cleanText(row.nome || row.linhaOrigem || row.id));
 
+      const loadRowsFromPrioritizedInscriptions = async () => {
+        const { data: prioritizedInscriptions, error: prioritizedError } = await supabase
+          .from('inscricoes')
+          .select('id,status,adolescente_id,data_inscricao')
+          .eq('status', 'PRIORIZADO')
+          .limit(5000);
+
+        if (prioritizedError || !Array.isArray(prioritizedInscriptions) || prioritizedInscriptions.length === 0) {
+          return [] as any[];
+        }
+
+        const prioritizedAdolescenteIds = Array.from(
+          new Set(prioritizedInscriptions.map((row: any) => cleanText(row?.adolescente_id)).filter(Boolean))
+        );
+
+        const prioritizedAdolescentes: any[] = [];
+        for (let i = 0; i < prioritizedAdolescenteIds.length; i += 200) {
+          const chunk = prioritizedAdolescenteIds.slice(i, i + 200);
+          const { data, error } = await supabase.from('adolescentes').select('id,pessoa_id').in('id', chunk);
+          if (error) continue;
+          prioritizedAdolescentes.push(...(data || []));
+        }
+
+        const prioritizedPessoaIds = Array.from(
+          new Set(prioritizedAdolescentes.map((row: any) => cleanText(row?.pessoa_id)).filter(Boolean))
+        );
+        const prioritizedPessoas: any[] = [];
+        for (let i = 0; i < prioritizedPessoaIds.length; i += 200) {
+          const chunk = prioritizedPessoaIds.slice(i, i + 200);
+          const { data, error } = await supabase
+            .from('pessoas')
+            .select('id,nome_completo,data_nascimento,idade_calculada,sexo,bairro')
+            .in('id', chunk);
+          if (error) continue;
+          prioritizedPessoas.push(...(data || []));
+        }
+
+        const adolescenteToPessoa = new Map(
+          prioritizedAdolescentes.map((row: any) => [cleanText(row?.id), cleanText(row?.pessoa_id)])
+        );
+        const pessoaById = new Map(
+          prioritizedPessoas.map((row: any) => [cleanText(row?.id), row])
+        );
+
+        return prioritizedInscriptions.map((row: any) => {
+          const adolescenteId = cleanText(row?.adolescente_id);
+          const pessoaId = adolescenteToPessoa.get(adolescenteId) || '';
+          const pessoa = pessoaById.get(pessoaId) || {};
+          return {
+            id: cleanText(row?.id),
+            inscricao_id: cleanText(row?.id),
+            linhaOrigem: cleanText(row?.id),
+            adolescente_id: adolescenteId || null,
+            pessoa_id: pessoaId || null,
+            nome: pickFirst(pessoa, ['nome_completo']),
+            sexo: pickFirst(pessoa, ['sexo']),
+            idade: pickFirst(pessoa, ['idade_calculada']),
+            bairro: pickFirst(pessoa, ['bairro']),
+            data_nascimento: pickFirst(pessoa, ['data_nascimento']),
+            status: cleanText(row?.status || 'PRIORIZADO') || 'PRIORIZADO',
+            data_inscricao: pickFirst(row, ['data_inscricao']),
+          };
+        });
+      };
+
       let rows = normalizedPayloadItems;
+      let rowsSource: 'payload' | 'inscricoes' | 'prioritarios' = rows.length > 0 ? 'payload' : 'inscricoes';
       if (rows.length === 0) {
+        rows = await loadRowsFromPrioritizedInscriptions();
+      }
+
+      if ((!Array.isArray(rows) || rows.length === 0) && payloadItems.length === 0) {
         const priTables = [
           String(process.env.EAC_SUPABASE_TABLE_PRIORITARIOS || '').trim(),
           'inscricoes_prioritarias',
@@ -4459,69 +4529,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         ].filter(Boolean);
 
         rows = await fetchAllRows(supabase, priTables, { maxRows: 30000 });
-      }
-
-      if (!Array.isArray(rows) || rows.length === 0) {
-        const { data: prioritizedInscriptions, error: prioritizedError } = await supabase
-          .from('inscricoes')
-          .select('id,status,adolescente_id,data_inscricao')
-          .eq('status', 'PRIORIZADO')
-          .limit(5000);
-
-        if (!prioritizedError && Array.isArray(prioritizedInscriptions) && prioritizedInscriptions.length > 0) {
-          const prioritizedAdolescenteIds = Array.from(
-            new Set(prioritizedInscriptions.map((row: any) => cleanText(row?.adolescente_id)).filter(Boolean))
-          );
-
-          const prioritizedAdolescentes: any[] = [];
-          for (let i = 0; i < prioritizedAdolescenteIds.length; i += 200) {
-            const chunk = prioritizedAdolescenteIds.slice(i, i + 200);
-            const { data, error } = await supabase.from('adolescentes').select('id,pessoa_id').in('id', chunk);
-            if (error) continue;
-            prioritizedAdolescentes.push(...(data || []));
-          }
-
-          const prioritizedPessoaIds = Array.from(
-            new Set(prioritizedAdolescentes.map((row: any) => cleanText(row?.pessoa_id)).filter(Boolean))
-          );
-          const prioritizedPessoas: any[] = [];
-          for (let i = 0; i < prioritizedPessoaIds.length; i += 200) {
-            const chunk = prioritizedPessoaIds.slice(i, i + 200);
-            const { data, error } = await supabase
-              .from('pessoas')
-              .select('id,nome_completo,data_nascimento,idade_calculada,sexo,bairro')
-              .in('id', chunk);
-            if (error) continue;
-            prioritizedPessoas.push(...(data || []));
-          }
-
-          const adolescenteToPessoa = new Map(
-            prioritizedAdolescentes.map((row: any) => [cleanText(row?.id), cleanText(row?.pessoa_id)])
-          );
-          const pessoaById = new Map(
-            prioritizedPessoas.map((row: any) => [cleanText(row?.id), row])
-          );
-
-          rows = prioritizedInscriptions.map((row: any) => {
-            const adolescenteId = cleanText(row?.adolescente_id);
-            const pessoaId = adolescenteToPessoa.get(adolescenteId) || '';
-            const pessoa = pessoaById.get(pessoaId) || {};
-            return {
-              id: cleanText(row?.id),
-              inscricao_id: cleanText(row?.id),
-              linhaOrigem: cleanText(row?.id),
-              adolescente_id: adolescenteId || null,
-              pessoa_id: pessoaId || null,
-              nome: pickFirst(pessoa, ['nome_completo']),
-              sexo: pickFirst(pessoa, ['sexo']),
-              idade: pickFirst(pessoa, ['idade_calculada']),
-              bairro: pickFirst(pessoa, ['bairro']),
-              data_nascimento: pickFirst(pessoa, ['data_nascimento']),
-              status: cleanText(row?.status || 'PRIORIZADO') || 'PRIORIZADO',
-              data_inscricao: pickFirst(row, ['data_inscricao']),
-            };
-          });
-        }
+        if (Array.isArray(rows) && rows.length > 0) rowsSource = 'prioritarios';
       }
 
       const allRows = Array.isArray(rows) ? rows : [];
@@ -4723,6 +4731,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           success: true,
           source: 'supabase',
           message: 'Distribuição de círculos executada com sucesso.',
+          origemDadosDistribuicao: rowsSource,
           faixa: { minAge, maxAge },
           totalPrioritarios: (Array.isArray(rows) ? rows : []).length,
           totalAptos: eligible.length,
