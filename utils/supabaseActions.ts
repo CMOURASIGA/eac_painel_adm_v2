@@ -4654,6 +4654,9 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         { key: '15-16', ages: [15, 16] },
         { key: '16-17', ages: [16, 17] },
       ].filter((window) => window.ages.some((age) => age >= minAge - 1 && age <= maxAge));
+      const fallbackAgeWindows = [
+        { key: '15-17', ages: [15, 16, 17] },
+      ].filter((window) => window.ages.some((age) => age >= minAge && age <= maxAge));
 
       const makeRowToken = (row: any) =>
         cleanText(pickFirst(row, ['id', 'uuid', 'linhaOrigem', 'linha_origem', 'inscricao_id'])) ||
@@ -4802,6 +4805,43 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           assignedTokens.add(makeRowToken(row));
           grouped[circleName].push(
             buildCircleEntry(row, circleName, { janelaEtaria: bestWindow?.key || '' })
+          );
+        });
+      });
+
+      circles.forEach((circleName) => {
+        if ((grouped[circleName] || []).length > 0) return;
+
+        let bestWindow: { key: string; ages: number[] } | null = null;
+        let bestScore = Number.NEGATIVE_INFINITY;
+
+        fallbackAgeWindows.forEach((window) => {
+          const fit = estimateWindowFit(
+            remainingEligible.filter((row) => !assignedTokens.has(makeRowToken(row))),
+            window.ages
+          );
+          if (!fit.canFormFullCircle) return;
+
+          const score = (fit.assignable * 100) - (fit.sexGap * 5) + fit.maleCount + fit.femaleCount;
+          if (score > bestScore) {
+            bestScore = score;
+            bestWindow = window;
+          }
+        });
+
+        if (!bestWindow) return;
+
+        const selectedRows = selectRowsForWindow(
+          remainingEligible.filter((row) => !assignedTokens.has(makeRowToken(row))),
+          bestWindow.ages
+        );
+        if (!selectedRows.length) return;
+
+        circleWindows[circleName] = bestWindow.key;
+        selectedRows.forEach((row) => {
+          assignedTokens.add(makeRowToken(row));
+          grouped[circleName].push(
+            buildCircleEntry(row, circleName, { janelaEtaria: bestWindow?.key || '', regraFallback: 'EXCEDENTE_15_17' })
           );
         });
       });
