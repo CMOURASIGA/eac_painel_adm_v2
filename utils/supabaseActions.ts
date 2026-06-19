@@ -2114,8 +2114,8 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
 
       const existingImportedRes = await supabase
         .from(targetTable)
-        .select('id,id_origem_planilha,origem_dado,origemDado')
-        .or('origem_dado.eq.PLANILHA,origemDado.eq.PLANILHA');
+        .select('id,id_origem_planilha,origem_dado')
+        .eq('origem_dado', 'PLANILHA');
       if (existingImportedRes.error) throw existingImportedRes.error;
 
       const existingImportedRows = Array.isArray(existingImportedRes.data) ? existingImportedRes.data : [];
