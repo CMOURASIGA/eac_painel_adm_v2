@@ -4643,6 +4643,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         return 'O';
       };
       const maxPerCircle = Number(ctx.payload.maxPerCircle ?? 12);
+      const targetPerSex = Math.max(1, Math.floor(maxPerCircle / 2));
       const allowedAgeWindows = [
         { key: '12-13', ages: [12, 13] },
         { key: '13-13', ages: [13] },
@@ -4708,16 +4709,20 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         const maleCount = candidates.filter((row) => sexBucket(row?.sexo_resolvido ?? pickFirst(row, ['sexo', 'sexo_snapshot'])) === 'M').length;
         const femaleCount = candidates.filter((row) => sexBucket(row?.sexo_resolvido ?? pickFirst(row, ['sexo', 'sexo_snapshot'])) === 'F').length;
         const otherCount = candidates.length - maleCount - femaleCount;
-        const assignable = Math.min(maxPerCircle, Math.min(6, maleCount) + Math.min(6, femaleCount) + otherCount);
+        const pairCount = Math.min(maleCount, femaleCount);
+        const balancedPairs = Math.min(targetPerSex, pairCount);
+        const assignable = balancedPairs * 2;
         const sexGap = Math.abs(maleCount - femaleCount);
-        return { candidates, maleCount, femaleCount, otherCount, assignable, sexGap };
+        const canFormFullCircle = maleCount >= targetPerSex && femaleCount >= targetPerSex;
+        return { candidates, maleCount, femaleCount, otherCount, pairCount, balancedPairs, assignable, sexGap, canFormFullCircle };
       };
 
       const selectRowsForWindow = (pool: any[], ages: number[]) => {
         const candidates = getWindowRows(pool, ages);
         const male = candidates.filter((row) => sexBucket(row?.sexo_resolvido ?? pickFirst(row, ['sexo', 'sexo_snapshot'])) === 'M');
         const female = candidates.filter((row) => sexBucket(row?.sexo_resolvido ?? pickFirst(row, ['sexo', 'sexo_snapshot'])) === 'F');
-        const other = candidates.filter((row) => sexBucket(row?.sexo_resolvido ?? pickFirst(row, ['sexo', 'sexo_snapshot'])) === 'O');
+        const fit = estimateWindowFit(pool, ages);
+        if (!fit.canFormFullCircle) return [];
 
         const selected: any[] = [];
         const ageCounts: Record<string, number> = {};
@@ -4725,11 +4730,9 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         let femaleSelected = 0;
 
         while (selected.length < maxPerCircle) {
-          const canTakeMale = male.length > 0 && maleSelected < 6;
-          const canTakeFemale = female.length > 0 && femaleSelected < 6;
-          const canTakeOther = other.length > 0;
-
-          if (!canTakeMale && !canTakeFemale && !canTakeOther) break;
+          const canTakeMale = male.length > 0 && maleSelected < targetPerSex;
+          const canTakeFemale = female.length > 0 && femaleSelected < targetPerSex;
+          if (!canTakeMale && !canTakeFemale) break;
 
           let selectedRow: any = null;
           if (canTakeMale && canTakeFemale) {
@@ -4749,14 +4752,16 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           } else if (canTakeFemale) {
             selectedRow = pickNextRowForCircle(female, ageCounts);
             if (selectedRow) femaleSelected += 1;
-          } else if (canTakeOther) {
-            selectedRow = pickNextRowForCircle(other, ageCounts);
           }
 
           if (!selectedRow) break;
           const ageKey = String(Number(selectedRow?.idade_resolvida || 0));
           ageCounts[ageKey] = (ageCounts[ageKey] || 0) + 1;
           selected.push(selectedRow);
+        }
+
+        if (maleSelected !== targetPerSex || femaleSelected !== targetPerSex || selected.length !== maxPerCircle) {
+          return [];
         }
 
         return selected;
@@ -4775,9 +4780,9 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
             remainingEligible.filter((row) => !assignedTokens.has(makeRowToken(row))),
             window.ages
           );
-          if (fit.assignable <= 0) return;
+          if (!fit.canFormFullCircle) return;
 
-          const score = (fit.assignable * 100) - (fit.sexGap * 5) - (window.ages.length === 1 ? 4 : 0);
+          const score = (fit.assignable * 100) - (fit.sexGap * 5) - (window.ages.length === 1 ? 4 : 0) + fit.maleCount + fit.femaleCount;
           if (score > bestScore) {
             bestScore = score;
             bestWindow = window;
@@ -4830,7 +4835,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       leftoverEligible.forEach((row) => {
         grouped['Circulo Excedente'].push({
           ...buildCircleEntry(row, 'Circulo Excedente'),
-          motivoExcedente: 'SEM_ENCAIXE',
+          motivoExcedente: 'SEM_PARIDADE_6X6',
         });
       });
 
