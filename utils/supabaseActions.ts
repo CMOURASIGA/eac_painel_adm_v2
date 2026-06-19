@@ -2177,18 +2177,20 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           ultima_sincronizacao: nowIso,
           updated_at: nowIso,
         };
+        const writablePayload = await pickPayloadByExistingColumns(supabase, targetTable, payloadSnake);
 
         if (rowId) {
-          const update = await supabase.from(targetTable).update(payloadSnake as any).eq('id', rowId).select('*').limit(1);
+          const update = await supabase.from(targetTable).update(writablePayload as any).eq('id', rowId).select('*').limit(1);
           if (update.error) throw update.error;
           updated += 1;
         } else {
           const insertSnake = {
             id: globalThis.crypto?.randomUUID?.(),
-            ...payloadSnake,
+            ...writablePayload,
             created_at: nowIso,
           };
-          const insert = await supabase.from(targetTable).insert(insertSnake as any).select('*').limit(1);
+          const insertPayload = await pickPayloadByExistingColumns(supabase, targetTable, insertSnake);
+          const insert = await supabase.from(targetTable).insert(insertPayload as any).select('*').limit(1);
           if (insert.error) throw insert.error;
           imported += 1;
         }

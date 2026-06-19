@@ -35,6 +35,19 @@ function toWriteTableCandidates(candidates: string[]) {
   return Array.from(normalized).filter(Boolean);
 }
 
+async function pickPayloadByExistingColumns(
+  supabase: AnySupabaseClient,
+  table: string,
+  payload: Record<string, any>
+) {
+  const filtered: Record<string, any> = {};
+  for (const [key, value] of Object.entries(payload || {})) {
+    const probe = await supabase.from(table).select(key).limit(1);
+    if (!probe.error) filtered[key] = value;
+  }
+  return Object.keys(filtered).length > 0 ? filtered : payload;
+}
+
 export async function saveEventService(supabase: AnySupabaseClient, payload: JsonObject): Promise<ServiceResult> {
   const id = cleanText(payload.id) || (globalThis.crypto?.randomUUID?.() || `evt-${Date.now()}`);
   const atividade = cleanText(payload.atividade);
@@ -76,20 +89,7 @@ export async function saveEventService(supabase: AnySupabaseClient, payload: Jso
     criado_via_sistema: true,
     updated_at: nowIso,
   };
-  const payloadCamel = {
-    id,
-    atividade,
-    tipo,
-    inicio,
-    termino,
-    local: local || null,
-    proprietario: proprietario || null,
-    status,
-    encontroId: encontroId || null,
-    origemDado: 'SISTEMA',
-    criadoViaSistema: true,
-    updatedAt: nowIso,
-  };
+  const writablePayload = await pickPayloadByExistingColumns(supabase, table, payloadSnake);
 
   const existing = await supabase.from(table).select('*').eq('id', id).limit(1);
   if (existing.error) throw existing.error;
@@ -110,23 +110,19 @@ export async function saveEventService(supabase: AnySupabaseClient, payload: Jso
 
   let result: any = null;
   if (exists) {
-    let update = await supabase.from(table).update(payloadSnake as any).eq('id', id).select('*').limit(1);
-    if (update.error) update = await supabase.from(table).update(payloadCamel as any).eq('id', id).select('*').limit(1);
+    const update = await supabase.from(table).update(writablePayload as any).eq('id', id).select('*').limit(1);
     if (update.error) throw update.error;
     result = Array.isArray(update.data) ? update.data[0] : null;
   } else {
-    let insert = await supabase
+    const insertPayload = await pickPayloadByExistingColumns(supabase, table, {
+      ...writablePayload,
+      created_at: nowIso,
+    });
+    const insert = await supabase
       .from(table)
-      .insert({ ...payloadSnake, created_at: nowIso } as any)
+      .insert(insertPayload as any)
       .select('*')
       .limit(1);
-    if (insert.error) {
-      insert = await supabase
-        .from(table)
-        .insert({ ...payloadCamel, createdAt: nowIso } as any)
-        .select('*')
-        .limit(1);
-    }
     if (insert.error) throw insert.error;
     result = Array.isArray(insert.data) ? insert.data[0] : null;
   }
