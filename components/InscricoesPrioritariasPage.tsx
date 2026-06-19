@@ -601,27 +601,18 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     setIsDistributing(true);
     setError('');
     try {
-      const distributionItems = items.map((item) => ({
-        id: item.id || item.inscricao_id || item.linhaOrigem || '',
-        inscricao_id: item.inscricao_id || item.id || '',
-        linhaOrigem: item.linhaOrigem || item.inscricao_id || item.id || '',
-        nome: item.nome || item.nome_completo || '',
-        sexo: item.sexo || '',
-        idade: item.idade ?? '',
-        bairro: item.bairro || '',
-        status: item.status || 'PRIORIZADO',
-      }));
       const r = await inscricoesService.executarDistribuicaoCirculos(
-        { minAge, maxAge, items: distributionItems },
+        { minAge, maxAge },
         { googleWebAppUrl }
       );
 
       if (!r.success) throw new Error(r.error || 'Não foi possível executar a distribuição de círculos.');
 
+      const totalDistribuido = Number((r.data as any)?.totalPrioritarios || items.length || 0);
       saveLastCircleDistribution({
         generatedAt: new Date().toISOString(),
         faixa: { minAge, maxAge },
-        total: distributionItems.length,
+        total: totalDistribuido,
         circulos: (r.data as any)?.circulos || {},
       });
 
