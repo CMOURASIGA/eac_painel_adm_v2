@@ -931,24 +931,54 @@ function normalizeEventStatus(value: any) {
   return cleanText(value).toUpperCase();
 }
 
+function formatCalendarLocalDateTime(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  second: number
+) {
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:${String(second).padStart(2, '0')}`;
+}
+
 function parseExternalCalendarDate(value: any, fallbackHour = 19) {
   const raw = cleanText(value);
   if (!raw) return '';
-  const direct = new Date(raw);
-  if (!Number.isNaN(direct.getTime())) {
-    if (direct.getHours() === 0 && direct.getMinutes() === 0 && direct.getSeconds() === 0) {
-      direct.setHours(fallbackHour, 0, 0, 0);
-    }
-    return direct.toISOString();
-  }
 
-  const match = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  const match = raw.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:[T\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
   if (match) {
     const day = Number(match[1]);
     const month = Number(match[2]);
     const year = Number(match[3].length === 2 ? `20${match[3]}` : match[3]);
-    const date = new Date(year, month - 1, day, fallbackHour, 0, 0, 0);
-    if (!Number.isNaN(date.getTime())) return date.toISOString();
+    let hour = match[4] != null ? Number(match[4]) : fallbackHour;
+    let minute = match[5] != null ? Number(match[5]) : 0;
+    let second = match[6] != null ? Number(match[6]) : 0;
+    if (hour === 0 && minute === 0 && second === 0) {
+      hour = fallbackHour;
+    }
+    const date = new Date(year, month - 1, day, hour, minute, second, 0);
+    if (!Number.isNaN(date.getTime())) {
+      return formatCalendarLocalDateTime(year, month, day, hour, minute, second);
+    }
+  }
+
+  const direct = new Date(raw);
+  if (!Number.isNaN(direct.getTime())) {
+    let hour = direct.getHours();
+    let minute = direct.getMinutes();
+    let second = direct.getSeconds();
+    if (hour === 0 && minute === 0 && second === 0) {
+      hour = fallbackHour;
+    }
+    return formatCalendarLocalDateTime(
+      direct.getFullYear(),
+      direct.getMonth() + 1,
+      direct.getDate(),
+      hour,
+      minute,
+      second
+    );
   }
   return '';
 }
@@ -2119,10 +2149,29 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       if (existingImportedRes.error) throw existingImportedRes.error;
 
       const existingImportedRows = Array.isArray(existingImportedRes.data) ? existingImportedRes.data : [];
-      const existingImportedBySourceKey = new Map<string, any>();
+      const existingImportedBySourceKey = new Map<string, any[]>();
       existingImportedRows.forEach((row: any) => {
         const sourceKey = cleanText(row?.id_origem_planilha || row?.idOrigemPlanilha);
-        if (sourceKey) existingImportedBySourceKey.set(sourceKey, row);
+        if (!sourceKey) return;
+        const items = existingImportedBySourceKey.get(sourceKey) || [];
+        items.push(row);
+        existingImportedBySourceKey.set(sourceKey, items);
+      });
+
+      const keepImportedBySourceKey = new Map<string, any>();
+      const duplicateImportedIds = new Set<string>();
+      existingImportedBySourceKey.forEach((items, sourceKey) => {
+        const ranked = [...items].sort((a: any, b: any) => {
+          const tsA = Date.parse(String(a?.ultima_sincronizacao || a?.data_importacao || '')) || 0;
+          const tsB = Date.parse(String(b?.ultima_sincronizacao || b?.data_importacao || '')) || 0;
+          return tsB - tsA;
+        });
+        const keepRow = ranked[0];
+        if (keepRow) keepImportedBySourceKey.set(sourceKey, keepRow);
+        ranked.slice(1).forEach((row: any) => {
+          const duplicateId = cleanText(row?.id);
+          if (duplicateId) duplicateImportedIds.add(duplicateId);
+        });
       });
 
       let imported = 0;
@@ -2158,7 +2207,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           generatedSourceKey
         ).slice(0, 120);
         sourceKeys.add(sourceKey);
-        const existingImported = existingImportedBySourceKey.get(sourceKey);
+        const existingImported = keepImportedBySourceKey.get(sourceKey);
         const rowId = cleanText(existingImported?.id);
 
         const payloadSnake = {
@@ -2204,8 +2253,10 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         .map((row: any) => cleanText(row?.id))
         .filter(Boolean);
 
-      if (staleIds.length > 0) {
-        const del = await supabase.from(targetTable).delete().in('id', staleIds);
+      const cleanupIds = Array.from(new Set([...staleIds, ...Array.from(duplicateImportedIds)]));
+
+      if (cleanupIds.length > 0) {
+        const del = await supabase.from(targetTable).delete().in('id', cleanupIds);
         if (del.error) throw del.error;
       }
 
@@ -2218,10 +2269,10 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           table: targetTable,
           imported,
           updated,
-          removed: staleIds.length,
+          removed: cleanupIds.length,
           ignored,
           totalSource: rows.length,
-          message: `Importação de calendário concluída (${sourceLabel}). Novos: ${imported}. Atualizados: ${updated}. Removidos: ${staleIds.length}. Ignorados: ${ignored}.`,
+          message: `Importação de calendário concluída (${sourceLabel}). Novos: ${imported}. Atualizados: ${updated}. Removidos: ${cleanupIds.length}. Ignorados: ${ignored}.`,
         },
       };
     }
