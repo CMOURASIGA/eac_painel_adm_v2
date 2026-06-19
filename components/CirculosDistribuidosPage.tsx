@@ -400,8 +400,13 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
       if (!response.ok || !(json?.success ?? json?.ok)) {
         throw new Error(json?.error || 'Não foi possível atualizar a distribuição.');
       }
-
-      await fetchData();
+      const normalized = normalizeCirculosPayload(json?.circulos);
+      if (hasAnyCircleEntries(normalized)) {
+        setCirculos(normalized);
+        saveStoredCircleDistribution(normalized);
+      } else {
+        await fetchData();
+      }
     } catch (err: any) {
       setError(err?.message || 'Erro ao atualizar distribuição.');
     } finally {
