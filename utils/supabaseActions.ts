@@ -327,6 +327,19 @@ function parseMemberBirthDate(value: any) {
   return dt.toISOString().slice(0, 10);
 }
 
+function calcCurrentAgeFromBirthDate(value: any) {
+  const iso = parseMemberBirthDate(value);
+  if (!iso) return null;
+  const dt = new Date(`${iso}T12:00:00Z`);
+  if (Number.isNaN(dt.getTime())) return null;
+
+  const now = new Date();
+  let age = now.getUTCFullYear() - dt.getUTCFullYear();
+  const monthDiff = now.getUTCMonth() - dt.getUTCMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && now.getUTCDate() < dt.getUTCDate())) age -= 1;
+  return age;
+}
+
 function buildMemberRecord(params: {
   cadastro: any;
   pessoa: any;
@@ -4406,11 +4419,6 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
 
         rows = await fetchAllRows(supabase, priTables, { maxRows: 30000 });
       }
-      const toAge = (row: any) => {
-        const raw = cleanText(pickFirst(row, ['idade', 'idade_snapshot', 'age'])).replace(',', '.');
-        const n = Number(raw);
-        return Number.isFinite(n) ? Math.floor(n) : NaN;
-      };
 
       const allRows = Array.isArray(rows) ? rows : [];
       if (allRows.length === 0) {
@@ -4422,11 +4430,97 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           },
         };
       }
-      const eligible = allRows.filter((row) => {
-        const age = toAge(row);
+
+      const pessoaIds = Array.from(new Set(
+        allRows
+          .map((row) => cleanText(pickFirst(row, ['pessoa_id', 'pessoaId', 'id_pessoa', 'idPessoa'])))
+          .filter(Boolean)
+      ));
+      const adolescenteIds = Array.from(new Set(
+        allRows
+          .map((row) => cleanText(pickFirst(row, ['adolescente_id', 'adolescenteId'])))
+          .filter(Boolean)
+      ));
+
+      const adolescentesById = new Map<string, any>();
+      if (adolescenteIds.length > 0) {
+        for (let i = 0; i < adolescenteIds.length; i += 200) {
+          const chunk = adolescenteIds.slice(i, i + 200);
+          const { data, error } = await supabase.from('adolescentes').select('id,pessoa_id').in('id', chunk);
+          if (!error) {
+            (data || []).forEach((row: any) => adolescentesById.set(cleanText(row?.id), row));
+          }
+        }
+      }
+
+      adolescentesById.forEach((row: any) => {
+        const pessoaId = cleanText(row?.pessoa_id);
+        if (pessoaId) pessoaIds.push(pessoaId);
+      });
+
+      const uniquePessoaIds = Array.from(new Set(pessoaIds.filter(Boolean)));
+      const pessoasById = new Map<string, any>();
+      if (uniquePessoaIds.length > 0) {
+        for (let i = 0; i < uniquePessoaIds.length; i += 200) {
+          const chunk = uniquePessoaIds.slice(i, i + 200);
+          const { data, error } = await supabase
+            .from('pessoas')
+            .select('id,data_nascimento,idade_calculada,sexo,bairro,nome_completo')
+            .in('id', chunk);
+          if (!error) {
+            (data || []).forEach((row: any) => pessoasById.set(cleanText(row?.id), row));
+          }
+        }
+      }
+
+      const resolvePerson = (row: any) => {
+        const directPessoaId = cleanText(pickFirst(row, ['pessoa_id', 'pessoaId', 'id_pessoa', 'idPessoa']));
+        if (directPessoaId && pessoasById.has(directPessoaId)) return pessoasById.get(directPessoaId);
+
+        const adolescenteId = cleanText(pickFirst(row, ['adolescente_id', 'adolescenteId']));
+        const adolescente = adolescenteId ? adolescentesById.get(adolescenteId) : null;
+        const pessoaIdFromAdolescente = cleanText(adolescente?.pessoa_id);
+        if (pessoaIdFromAdolescente && pessoasById.has(pessoaIdFromAdolescente)) return pessoasById.get(pessoaIdFromAdolescente);
+
+        return null;
+      };
+
+      const resolveAge = (row: any) => {
+        const birthDate =
+          parseMemberBirthDate(pickFirst(row, ['data_nascimento', 'dataNascimento', 'nascimento'])) ||
+          parseMemberBirthDate(resolvePerson(row)?.data_nascimento);
+
+        const ageFromBirthDate = calcCurrentAgeFromBirthDate(birthDate);
+        if (Number.isFinite(Number(ageFromBirthDate))) return Math.floor(Number(ageFromBirthDate));
+
+        const persistedAge = Number(resolvePerson(row)?.idade_calculada);
+        if (Number.isFinite(persistedAge)) return Math.floor(persistedAge);
+
+        const raw = cleanText(pickFirst(row, ['idade', 'idade_snapshot', 'age'])).replace(',', '.');
+        const n = Number(raw);
+        return Number.isFinite(n) ? Math.floor(n) : NaN;
+      };
+
+      const enrichedRows = allRows.map((row) => {
+        const person = resolvePerson(row);
+        const resolvedAge = resolveAge(row);
+        return {
+          ...row,
+          idade_resolvida: Number.isFinite(resolvedAge) ? resolvedAge : null,
+          data_nascimento_resolvida:
+            parseMemberBirthDate(pickFirst(row, ['data_nascimento', 'dataNascimento', 'nascimento'])) ||
+            parseMemberBirthDate(person?.data_nascimento),
+          sexo_resolvido: pickFirst(row, ['sexo', 'sexo_snapshot']) || pickFirst(person, ['sexo']),
+          bairro_resolvido: pickFirst(row, ['bairro', 'bairro_snapshot']) || pickFirst(person, ['bairro']),
+          nome_resolvido: pickFirst(row, ['nome', 'nome_completo', 'name']) || pickFirst(person, ['nome_completo']),
+        };
+      });
+
+      const eligible = enrichedRows.filter((row) => {
+        const age = Number(row?.idade_resolvida);
         return Number.isFinite(age) && age >= minAge && age <= maxAge;
       });
-      const nonEligible = allRows.filter((row) => !eligible.includes(row));
+      const nonEligible = enrichedRows.filter((row) => !eligible.includes(row));
 
       const circles = ['Circulo 1', 'Circulo 2', 'Circulo 3', 'Circulo 4', 'Circulo 5', 'Circulo 6'];
       const grouped = createEmptyCircleGroups();
@@ -4452,15 +4546,15 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         );
 
       const orderedEligible = [...eligible].sort((a, b) => {
-        const ageA = Number(pickFirst(a, ['idade', 'idade_snapshot', 'age']) || 0);
-        const ageB = Number(pickFirst(b, ['idade', 'idade_snapshot', 'age']) || 0);
+        const ageA = Number(a?.idade_resolvida || 0);
+        const ageB = Number(b?.idade_resolvida || 0);
         return ageB - ageA;
       });
 
       const maxPerCircle = Number(ctx.payload.maxPerCircle ?? 12);
       orderedEligible.forEach((row) => {
-        const sBucket = sexBucket(pickFirst(row, ['sexo', 'sexo_snapshot']));
-        const iBucket = ageBucket(pickFirst(row, ['idade', 'idade_snapshot', 'age']));
+        const sBucket = sexBucket(row?.sexo_resolvido ?? pickFirst(row, ['sexo', 'sexo_snapshot']));
+        const iBucket = ageBucket(row?.idade_resolvida);
         let bestCircle = circles[0];
         let bestScore = Number.POSITIVE_INFINITY;
 
@@ -4481,10 +4575,10 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           grouped['Circulo Excedente'].push({
             id: pickFirst(row, ['id', 'uuid']),
             linhaOrigem: pickFirst(row, ['linhaOrigem', 'linha_origem', 'linha_origem_nao_inscritos']),
-            nome: pickFirst(row, ['nome', 'nome_completo', 'name']),
-            sexo: pickFirst(row, ['sexo', 'sexo_snapshot']),
-            idade: pickFirst(row, ['idade', 'idade_snapshot', 'age']),
-            bairro: pickFirst(row, ['bairro', 'bairro_snapshot']),
+            nome: row?.nome_resolvido ?? pickFirst(row, ['nome', 'nome_completo', 'name']),
+            sexo: row?.sexo_resolvido ?? pickFirst(row, ['sexo', 'sexo_snapshot']),
+            idade: row?.idade_resolvida ?? pickFirst(row, ['idade', 'idade_snapshot', 'age']),
+            bairro: row?.bairro_resolvido ?? pickFirst(row, ['bairro', 'bairro_snapshot']),
             circulo: 'Circulo Excedente',
             motivoExcedente: 'CAPACIDADE',
           });
@@ -4494,10 +4588,10 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         grouped[bestCircle].push({
           id: pickFirst(row, ['id', 'uuid']),
           linhaOrigem: pickFirst(row, ['linhaOrigem', 'linha_origem', 'linha_origem_nao_inscritos']),
-          nome: pickFirst(row, ['nome', 'nome_completo', 'name']),
-          sexo: pickFirst(row, ['sexo', 'sexo_snapshot']),
-          idade: pickFirst(row, ['idade', 'idade_snapshot', 'age']),
-          bairro: pickFirst(row, ['bairro', 'bairro_snapshot']),
+          nome: row?.nome_resolvido ?? pickFirst(row, ['nome', 'nome_completo', 'name']),
+          sexo: row?.sexo_resolvido ?? pickFirst(row, ['sexo', 'sexo_snapshot']),
+          idade: row?.idade_resolvida ?? pickFirst(row, ['idade', 'idade_snapshot', 'age']),
+          bairro: row?.bairro_resolvido ?? pickFirst(row, ['bairro', 'bairro_snapshot']),
           circulo: bestCircle,
         });
 
@@ -4510,10 +4604,10 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         grouped['Circulo Excedente'].push({
           id: pickFirst(row, ['id', 'uuid']),
           linhaOrigem: pickFirst(row, ['linhaOrigem', 'linha_origem', 'linha_origem_nao_inscritos']),
-          nome: pickFirst(row, ['nome', 'nome_completo', 'name']),
-          sexo: pickFirst(row, ['sexo', 'sexo_snapshot']),
-          idade: pickFirst(row, ['idade', 'idade_snapshot', 'age']),
-          bairro: pickFirst(row, ['bairro', 'bairro_snapshot']),
+          nome: row?.nome_resolvido ?? pickFirst(row, ['nome', 'nome_completo', 'name']),
+          sexo: row?.sexo_resolvido ?? pickFirst(row, ['sexo', 'sexo_snapshot']),
+          idade: row?.idade_resolvida ?? pickFirst(row, ['idade', 'idade_snapshot', 'age']),
+          bairro: row?.bairro_resolvido ?? pickFirst(row, ['bairro', 'bairro_snapshot']),
           circulo: 'Circulo Excedente',
           motivoExcedente: 'FORA_FAIXA',
         });
