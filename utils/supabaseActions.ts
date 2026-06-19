@@ -923,12 +923,12 @@ function parseDateFlexible(value: any): Date | null {
 
 function normalizeEventStatus(value: any) {
   const raw = cleanText(value).toLowerCase();
-  if (!raw) return 'Agendado';
-  if (raw.includes('confirm')) return 'Confirmado';
-  if (raw.includes('cancel')) return 'Cancelado';
-  if (raw.includes('a confirmar') || raw.includes('a_confirmar')) return 'A confirmar';
-  if (raw.includes('agend')) return 'Agendado';
-  return cleanText(value);
+  if (!raw) return 'AGENDADO';
+  if (raw.includes('confirm')) return 'CONFIRMADO';
+  if (raw.includes('cancel')) return 'CANCELADO';
+  if (raw.includes('a confirmar') || raw.includes('a_confirmar')) return 'AGENDADO';
+  if (raw.includes('agend')) return 'AGENDADO';
+  return cleanText(value).toUpperCase();
 }
 
 function parseExternalCalendarDate(value: any, fallbackHour = 19) {

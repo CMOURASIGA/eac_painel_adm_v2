@@ -6,6 +6,16 @@ type ServiceResult = { ok: true; data: JsonObject };
 
 const cleanText = (value: any) => String(value ?? '').trim();
 
+function normalizeEventStatusForDb(value: any) {
+  const raw = cleanText(value).toLowerCase();
+  if (!raw) return 'CONFIRMADO';
+  if (raw.includes('confirm')) return 'CONFIRMADO';
+  if (raw.includes('agend')) return 'AGENDADO';
+  if (raw.includes('cancel')) return 'CANCELADO';
+  if (raw.includes('a confirmar') || raw === 'aconfirmar') return 'AGENDADO';
+  return cleanText(value).toUpperCase();
+}
+
 async function findFirstTable(supabase: AnySupabaseClient, candidates: string[]) {
   let lastErr: any = null;
   for (const table of candidates) {
@@ -56,7 +66,7 @@ export async function saveEventService(supabase: AnySupabaseClient, payload: Jso
   const termino = cleanText(payload.termino);
   const local = cleanText(payload.local);
   const proprietario = cleanText(payload.proprietario);
-  const status = cleanText(payload.status) || 'Confirmado';
+  const status = normalizeEventStatusForDb(payload.status);
   const encontroId = cleanText(payload.encontroId || payload.encontro_id);
 
   if (!atividade || !inicio || !termino) {
