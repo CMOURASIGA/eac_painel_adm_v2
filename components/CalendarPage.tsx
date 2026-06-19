@@ -1,5 +1,5 @@
 ﻿
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { CalendarEvent, User, SystemSettings } from '../types.ts';
 import Badge from './Badge.tsx';
 import { showAppConfirm } from '../utils/appDialog.ts';
@@ -37,6 +37,11 @@ const normalizeStatus = (value: any) => {
   return toCleanString(value);
 };
 
+const isSheetManagedEvent = (ev: CalendarEvent | null | undefined) => {
+  const origin = toCleanString((ev as any)?.origem_dado || (ev as any)?.origemDado).toUpperCase();
+  return origin === 'PLANILHA';
+};
+
 export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProps) {
   const [internalEvents, setInternalEvents] = useState<CalendarEvent[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -53,9 +58,25 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
   const [formData, setFormData] = useState<CalendarEvent>({
     atividade: '', tipo: 'Encontro', inicio: '', termino: '', local: '', proprietario: '', status: 'Confirmado', encontroId: ''
   });
+  const bootstrapAttemptedRef = useRef(false);
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
+
+  const importCalendarFromSource = useCallback(async () => {
+    try {
+      const response = await fetch('/api/comunicados', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'IMPORT_CALENDAR_2026_EXTERNOS', googleWebAppUrl })
+      });
+      const data = sanitizeTextDeep(await response.json());
+      return data;
+    } catch (e) {
+      console.error('Erro ao importar calendário:', e);
+      return { success: false };
+    }
+  }, [googleWebAppUrl]);
 
   const fetchInternalEvents = useCallback(async () => {
     setIsLoading(true);
@@ -66,10 +87,27 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         body: JSON.stringify({ action: 'GET_EVENTS', googleWebAppUrl })
       });
       const data = sanitizeTextDeep(await response.json());
-      if (data.success && data.events) setInternalEvents(Array.isArray(data.events) ? data.events : []);
+      const events = data.success && Array.isArray(data.events) ? data.events : [];
+      setInternalEvents(events);
+
+      if (events.length === 0 && !bootstrapAttemptedRef.current) {
+        bootstrapAttemptedRef.current = true;
+        const syncRes = await importCalendarFromSource();
+        if (syncRes?.success) {
+          const retry = await fetch('/api/comunicados', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'GET_EVENTS', googleWebAppUrl })
+          });
+          const retryData = sanitizeTextDeep(await retry.json());
+          if (retryData.success && Array.isArray(retryData.events)) {
+            setInternalEvents(retryData.events);
+          }
+        }
+      }
     } catch (e) { console.error('Erro:', e); }
     finally { setIsLoading(false); }
-  }, [googleWebAppUrl]);
+  }, [googleWebAppUrl, importCalendarFromSource]);
 
   useEffect(() => {
     fetchInternalEvents();
@@ -137,6 +175,11 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
   };
 
   const handleDeleteEvent = async (ev: CalendarEvent) => {
+    if (isSheetManagedEvent(ev)) {
+      alert('Este evento veio da planilha. Exclua ou edite a linha na planilha; o sincronismo automático atualiza o painel.');
+      return;
+    }
+
     const confirmed = await showAppConfirm({
       title: 'Excluir evento',
       message: `Confirma a exclusão do evento "${toCleanString(ev.atividade) || 'Sem título'}"?`,
@@ -164,27 +207,22 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
     }
   };
 
-  const handleImportExternos2026 = async () => {
+  const handleImportExternos2026 = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/comunicados', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'IMPORT_CALENDAR_2026_EXTERNOS', googleWebAppUrl })
-      });
-      const data = sanitizeTextDeep(await response.json());
+      const data = await importCalendarFromSource();
       if (!data?.success) {
-        alert(data?.error || 'Não foi possível importar a aba Externos 2026.');
+        alert(data?.error || 'Não foi possível sincronizar o calendário.');
         return;
       }
       alert(data?.message || 'Importação concluída.');
       fetchInternalEvents();
     } catch (e) {
-      alert('Erro ao importar calendário 2026 (Externos).');
+      alert('Erro ao sincronizar calendário.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [fetchInternalEvents, importCalendarFromSource]);
 
   const renderCalendar = () => {
     const totalDays = new Date(year, month + 1, 0).getDate();
@@ -227,7 +265,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         </div>
         <div className="flex gap-3">
           <button 
-             onClick={fetchInternalEvents}
+             onClick={handleImportExternos2026}
              className="px-6 py-4 bg-white border-2 border-slate-200 rounded-2xl font-black text-slate-700 hover:bg-slate-50 shadow-sm transition-all text-[10px] uppercase tracking-widest"
           >
             Sincronizar
@@ -320,7 +358,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
             </div>
             
             <div className="space-y-4 flex-grow overflow-y-auto max-h-[600px] pr-2 scrollbar-hide">
-              {selectedDayEvents.length === 0 ? (
+             {selectedDayEvents.length === 0 ? (
                 <div className="text-center py-24 bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-100">
                    <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em] italic">Agenda Livre</p>
                 </div>
@@ -333,14 +371,26 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                       </div>
                       <div className="flex gap-2">
                          {canEdit && (
-                           <button onClick={() => { setFormData({...ev}); setIsModalOpen(true); }} className="p-2 text-blue-600 hover:bg-white rounded-xl transition-all shadow-sm">
+                           <button
+                             onClick={() => {
+                               if (isSheetManagedEvent(ev)) {
+                                 alert('Este evento veio da planilha. Edite a linha na planilha para que a alteração permaneça após o sincronismo.');
+                                 return;
+                               }
+                               setFormData({ ...ev });
+                               setIsModalOpen(true);
+                             }}
+                             className={`p-2 rounded-xl transition-all shadow-sm ${isSheetManagedEvent(ev) ? 'text-slate-300 cursor-not-allowed' : 'text-blue-600 hover:bg-white'}`}
+                             title={isSheetManagedEvent(ev) ? 'Editar na planilha de origem' : 'Editar evento'}
+                           >
                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" strokeWidth="3"/></svg>
                            </button>
                          )}
                          {canDelete && (
                            <button 
                              onClick={() => { void handleDeleteEvent(ev); }}
-                             className="p-2 text-red-500 hover:bg-white rounded-xl transition-all shadow-sm"
+                             className={`p-2 rounded-xl transition-all shadow-sm ${isSheetManagedEvent(ev) ? 'text-slate-300 cursor-not-allowed' : 'text-red-500 hover:bg-white'}`}
+                             title={isSheetManagedEvent(ev) ? 'Excluir na planilha de origem' : 'Excluir evento'}
                            >
                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="3"/></svg>
                            </button>
@@ -356,6 +406,11 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                            <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">#</span> {toCleanString(ev.encontroId)}</p>
                          )}
                       </div>
+                      {isSheetManagedEvent(ev) && (
+                        <p className="mt-3 text-[10px] font-black uppercase tracking-widest text-amber-600">
+                          Gerenciado pela planilha
+                        </p>
+                      )}
                     </div>
                   </div>
                 ))

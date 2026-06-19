@@ -953,6 +953,122 @@ function parseExternalCalendarDate(value: any, fallbackHour = 19) {
   return '';
 }
 
+function extractSpreadsheetId(value: string) {
+  const raw = cleanText(value);
+  if (!raw) return '';
+  const match = raw.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (match?.[1]) return match[1];
+  if (/^[a-zA-Z0-9-_]{20,}$/.test(raw)) return raw;
+  return '';
+}
+
+function parseCsvLine(line: string) {
+  const cells: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    const next = line[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      cells.push(current);
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  cells.push(current);
+  return cells.map((cell) => cell.replace(/\r/g, '').trim());
+}
+
+function parseCsvText(text: string) {
+  const rows: string[][] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '""';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+        current += char;
+      }
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && next === '\n') i += 1;
+      if (current.trim()) rows.push(parseCsvLine(current));
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.trim()) rows.push(parseCsvLine(current));
+  return rows;
+}
+
+async function fetchPublicGoogleCalendarRows() {
+  const configuredId = extractSpreadsheetId(String(process.env.EAC_GOOGLE_SHEET_CALENDAR_ID || ''));
+  const configuredUrl = cleanText(process.env.EAC_GOOGLE_SHEET_CALENDAR_URL || '');
+  const spreadsheetId =
+    configuredId ||
+    extractSpreadsheetId(configuredUrl) ||
+    '1IXyy-Ozpst82DNwtypaDHUpEH4P5MfPEsnMOjw3wM9c';
+  const gid = cleanText(process.env.EAC_GOOGLE_SHEET_CALENDAR_GID || '0') || '0';
+
+  const exportUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${encodeURIComponent(gid)}`;
+  const response = await fetch(exportUrl, {
+    method: 'GET',
+    cache: 'no-store',
+    headers: { accept: 'text/csv,text/plain;q=0.9,*/*;q=0.8' },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Falha ao ler planilha pública do calendário (${response.status}).`);
+  }
+
+  const csvText = await response.text();
+  const parsedRows = parseCsvText(csvText);
+  if (parsedRows.length <= 1) return [];
+
+  return parsedRows
+    .slice(1)
+    .map((row, index) => ({
+      id: `sheet-cal-${index + 2}`,
+      atividade: cleanText(row[0]),
+      tipo: cleanText(row[1]),
+      inicio: cleanText(row[2]),
+      termino: cleanText(row[3]),
+      local: cleanText(row[4]),
+      proprietario: cleanText(row[5]),
+      status: cleanText(row[6]) || 'Confirmado',
+      id_origem_planilha: `${gid}:${index + 2}`,
+      origem_dado: 'PLANILHA',
+    }))
+    .filter((row) => row.atividade);
+}
+
 function isLikelyReplyMessage(row: any) {
   const direction = cleanText(pickFirst(row, ['direction', 'direcao', 'tipo', 'message_type', 'tipo_mensagem'])).toLowerCase();
   if (['reply', 'resposta', 'received', 'inbound', 'entrada'].includes(direction)) return true;
@@ -1965,7 +2081,19 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         'calendar_events',
       ].filter(Boolean);
 
-      const sourceRows = await fetchAllRows(supabase, sourceTables, { maxRows: 30000 });
+      let sourceRows: any[] = [];
+      let sourceLabel = 'supabase_staging';
+      try {
+        sourceRows = await fetchAllRows(supabase, sourceTables, { maxRows: 30000 });
+      } catch {
+        sourceRows = [];
+      }
+
+      if (!Array.isArray(sourceRows) || sourceRows.length === 0) {
+        sourceRows = await fetchPublicGoogleCalendarRows();
+        sourceLabel = 'google_sheet_calendario';
+      }
+
       const rows = Array.isArray(sourceRows) ? sourceRows : [];
       if (rows.length === 0) {
         return {
@@ -1973,7 +2101,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           data: {
             success: false,
             source: 'supabase',
-            error: 'Nenhum registro encontrado na fonte de Externos 2026.',
+            error: 'Nenhum registro encontrado na fonte de calendário.',
           },
         };
       }
@@ -1987,6 +2115,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       let imported = 0;
       let updated = 0;
       let ignored = 0;
+      const sourceIds = new Set<string>();
 
       for (const row of rows) {
         const atividade = cleanText(pickFirst(row, ['atividade', 'titulo', 'title', 'nome', 'evento']));
@@ -2011,6 +2140,9 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           ? `ext-2026-${externalId}`
           : `ext-2026-${cleanText(atividade).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${inicioIso.slice(0, 10)}`;
         const id = generatedId.slice(0, 120);
+        sourceIds.add(id);
+        const nowIso = new Date().toISOString();
+        const idOrigemPlanilha = cleanText(pickFirst(row, ['id_origem_planilha', 'idOrigemPlanilha', 'id']));
 
         const payloadSnake = {
           id,
@@ -2023,10 +2155,11 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           status,
           encontro_id: encontroId || null,
           observacoes: observacoes || null,
-          origem_dado: 'calendario_2026_externos',
-          data_importacao: new Date().toISOString(),
-          ultima_sincronizacao: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          origem_dado: sourceLabel === 'google_sheet_calendario' ? 'PLANILHA' : 'calendario_2026_externos',
+          id_origem_planilha: idOrigemPlanilha || null,
+          data_importacao: nowIso,
+          ultima_sincronizacao: nowIso,
+          updated_at: nowIso,
         };
         const payloadCamel = {
           id,
@@ -2039,10 +2172,11 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           status,
           encontroId: encontroId || null,
           observacoes: observacoes || null,
-          origemDado: 'calendario_2026_externos',
-          dataImportacao: new Date().toISOString(),
-          ultimaSincronizacao: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          origemDado: sourceLabel === 'google_sheet_calendario' ? 'PLANILHA' : 'calendario_2026_externos',
+          idOrigemPlanilha: idOrigemPlanilha || null,
+          dataImportacao: nowIso,
+          ultimaSincronizacao: nowIso,
+          updatedAt: nowIso,
         };
 
         const existsRes = await supabase.from(targetTable).select('id').eq('id', id).limit(1);
@@ -2064,17 +2198,34 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         }
       }
 
+      const existingImportedRes = await supabase
+        .from(targetTable)
+        .select('id,origem_dado,origemDado')
+        .or('origem_dado.eq.PLANILHA,origemDado.eq.PLANILHA');
+      if (existingImportedRes.error) throw existingImportedRes.error;
+
+      const staleIds = (Array.isArray(existingImportedRes.data) ? existingImportedRes.data : [])
+        .map((row: any) => cleanText(row?.id))
+        .filter((id: string) => id && !sourceIds.has(id));
+
+      if (staleIds.length > 0) {
+        const del = await supabase.from(targetTable).delete().in('id', staleIds);
+        if (del.error) throw del.error;
+      }
+
       return {
         ok: true,
         data: {
           success: true,
           source: 'supabase',
+          sourceLabel,
           table: targetTable,
           imported,
           updated,
+          removed: staleIds.length,
           ignored,
           totalSource: rows.length,
-          message: `Importação de Externos 2026 concluída. Novos: ${imported}. Atualizados: ${updated}. Ignorados: ${ignored}.`,
+          message: `Importação de calendário concluída (${sourceLabel}). Novos: ${imported}. Atualizados: ${updated}. Removidos: ${staleIds.length}. Ignorados: ${ignored}.`,
         },
       };
     }

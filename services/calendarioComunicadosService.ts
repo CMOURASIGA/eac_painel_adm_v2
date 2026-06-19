@@ -61,12 +61,52 @@ export async function saveEventService(supabase: AnySupabaseClient, payload: Jso
   ].filter(Boolean);
   const table = await findFirstTable(supabase, toWriteTableCandidates(eventCandidates));
 
-  const payloadSnake = { id, atividade, tipo, inicio, termino, local: local || null, proprietario: proprietario || null, status, encontro_id: encontroId || null, updated_at: new Date().toISOString() };
-  const payloadCamel = { id, atividade, tipo, inicio, termino, local: local || null, proprietario: proprietario || null, status, encontroId: encontroId || null, updatedAt: new Date().toISOString() };
+  const nowIso = new Date().toISOString();
+  const payloadSnake = {
+    id,
+    atividade,
+    tipo,
+    inicio,
+    termino,
+    local: local || null,
+    proprietario: proprietario || null,
+    status,
+    encontro_id: encontroId || null,
+    origem_dado: 'SISTEMA',
+    criado_via_sistema: true,
+    updated_at: nowIso,
+  };
+  const payloadCamel = {
+    id,
+    atividade,
+    tipo,
+    inicio,
+    termino,
+    local: local || null,
+    proprietario: proprietario || null,
+    status,
+    encontroId: encontroId || null,
+    origemDado: 'SISTEMA',
+    criadoViaSistema: true,
+    updatedAt: nowIso,
+  };
 
-  const existing = await supabase.from(table).select('id').eq('id', id).limit(1);
+  const existing = await supabase.from(table).select('*').eq('id', id).limit(1);
   if (existing.error) throw existing.error;
   const exists = Array.isArray(existing.data) && existing.data.length > 0;
+  const existingRow = exists ? existing.data[0] : null;
+  const existingOrigin = cleanText(existingRow?.origem_dado || existingRow?.origemDado).toUpperCase();
+
+  if (exists && existingOrigin === 'PLANILHA') {
+    return {
+      ok: true,
+      data: {
+        success: false,
+        source: 'supabase',
+        error: 'Eventos importados da planilha devem ser alterados na planilha. O sincronismo automático sobrescreve esse tipo de registro.',
+      },
+    };
+  }
 
   let result: any = null;
   if (exists) {
@@ -75,8 +115,18 @@ export async function saveEventService(supabase: AnySupabaseClient, payload: Jso
     if (update.error) throw update.error;
     result = Array.isArray(update.data) ? update.data[0] : null;
   } else {
-    let insert = await supabase.from(table).insert({ ...payloadSnake, created_at: new Date().toISOString() } as any).select('*').limit(1);
-    if (insert.error) insert = await supabase.from(table).insert({ ...payloadCamel, createdAt: new Date().toISOString() } as any).select('*').limit(1);
+    let insert = await supabase
+      .from(table)
+      .insert({ ...payloadSnake, created_at: nowIso } as any)
+      .select('*')
+      .limit(1);
+    if (insert.error) {
+      insert = await supabase
+        .from(table)
+        .insert({ ...payloadCamel, createdAt: nowIso } as any)
+        .select('*')
+        .limit(1);
+    }
     if (insert.error) throw insert.error;
     result = Array.isArray(insert.data) ? insert.data[0] : null;
   }
@@ -98,6 +148,22 @@ export async function deleteEventService(supabase: AnySupabaseClient, payload: J
     'eventos_agenda_view',
   ].filter(Boolean);
   const table = await findFirstTable(supabase, toWriteTableCandidates(eventCandidates));
+
+  const existing = await supabase.from(table).select('*').eq('id', id).limit(1);
+  if (existing.error) throw existing.error;
+  const row = Array.isArray(existing.data) ? existing.data[0] : null;
+  const origin = cleanText(row?.origem_dado || row?.origemDado).toUpperCase();
+  if (origin === 'PLANILHA') {
+    return {
+      ok: true,
+      data: {
+        success: false,
+        source: 'supabase',
+        id,
+        error: 'Eventos importados da planilha devem ser excluídos na planilha. O sincronismo automático recriaria esse registro.',
+      },
+    };
+  }
 
   const del = await supabase.from(table).delete().eq('id', id);
   if (del.error) throw del.error;

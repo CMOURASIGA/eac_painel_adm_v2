@@ -111,6 +111,16 @@ export interface CalendarEvent {
   proprietario?: string;
   status?: string;
   encontroId?: string;
+  origem_dado?: string;
+  origemDado?: string;
+  criado_via_sistema?: boolean;
+  criadoViaSistema?: boolean;
+  id_origem_planilha?: string;
+  idOrigemPlanilha?: string;
+  data_importacao?: string;
+  dataImportacao?: string;
+  ultima_sincronizacao?: string;
+  ultimaSincronizacao?: string;
 }
 
 export interface Adolescente {
