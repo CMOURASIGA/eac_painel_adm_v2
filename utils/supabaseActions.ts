@@ -2177,26 +2177,9 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           ultima_sincronizacao: nowIso,
           updated_at: nowIso,
         };
-        const payloadCamel = {
-          atividade,
-          tipo,
-          inicio: inicioIso,
-          termino: terminoIso,
-          local: local || null,
-          proprietario: proprietario || null,
-          status,
-          encontroId: encontroId || null,
-          observacoes: observacoes || null,
-          origemDado: sourceLabel === 'google_sheet_calendario' ? 'PLANILHA' : 'calendario_2026_externos',
-          idOrigemPlanilha: sourceKey,
-          dataImportacao: nowIso,
-          ultimaSincronizacao: nowIso,
-          updatedAt: nowIso,
-        };
 
         if (rowId) {
-          let update = await supabase.from(targetTable).update(payloadSnake as any).eq('id', rowId).select('*').limit(1);
-          if (update.error) update = await supabase.from(targetTable).update(payloadCamel as any).eq('id', rowId).select('*').limit(1);
+          const update = await supabase.from(targetTable).update(payloadSnake as any).eq('id', rowId).select('*').limit(1);
           if (update.error) throw update.error;
           updated += 1;
         } else {
@@ -2205,13 +2188,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
             ...payloadSnake,
             created_at: nowIso,
           };
-          const insertCamel = {
-            id: insertSnake.id,
-            ...payloadCamel,
-            createdAt: nowIso,
-          };
-          let insert = await supabase.from(targetTable).insert(insertSnake as any).select('*').limit(1);
-          if (insert.error) insert = await supabase.from(targetTable).insert(insertCamel as any).select('*').limit(1);
+          const insert = await supabase.from(targetTable).insert(insertSnake as any).select('*').limit(1);
           if (insert.error) throw insert.error;
           imported += 1;
         }
