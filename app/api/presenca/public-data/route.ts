@@ -34,13 +34,19 @@ export async function GET() {
     const nome = toClean(row?.nomeCompleto || row?.nome || row?.nome_completo || row?.name);
     if (!nome) return;
     const telefone = toClean(row?.celularWhatsapp || row?.telefone || row?.whatsapp || row?.celular || row?.phone);
+    const email = toClean(row?.email || row?.email_adolescente || row?.email_responsavel);
+    const pessoaId = toClean(row?.pessoaId || row?.pessoa_id);
     const telKey = normalizeDigits(telefone);
-    const key = telKey ? `tel:${telKey}` : `nome:${normalizeText(nome)}`;
+    const key = pessoaId ? `pessoa:${pessoaId}` : (telKey ? `tel:${telKey}` : `nome:${normalizeText(nome)}`);
     const prev = map.get(key);
     map.set(key, {
       key,
+      pessoaId: pessoaId || prev?.pessoaId || '',
       nome,
       telefone: telefone || prev?.telefone || '',
+      email: email || prev?.email || '',
+      hasPhone: Boolean(telefone || prev?.telefone),
+      hasEmail: Boolean(email || prev?.email),
       circulo: toClean(row?.circulo || row?.grupoSugerido || row?.grupo_sugerido || row?.circuloInformado || row?.circulo_informado || prev?.circulo || ''),
       origem: prev && prev.origem !== origem ? 'AMBOS' : (prev?.origem || origem),
     });
@@ -56,13 +62,19 @@ export async function GET() {
       const nome = toClean(row?.nome || row?.nome_digitado || row?.nome_completo);
       if (!nome) return;
       const telefone = toClean(row?.telefone || row?.telefone_digitado || row?.telefone_normalizado);
+      const email = toClean(row?.email || row?.email_adolescente || row?.email_responsavel);
+      const pessoaId = toClean(row?.pessoaId || row?.pessoa_id);
       const telKey = normalizeDigits(telefone);
-      const key = telKey ? `tel:${telKey}` : `nome:${normalizeText(nome)}`;
+      const key = pessoaId ? `pessoa:${pessoaId}` : (telKey ? `tel:${telKey}` : `nome:${normalizeText(nome)}`);
       if (map.has(key)) return;
       map.set(key, {
         key,
+        pessoaId,
         nome,
         telefone,
+        email,
+        hasPhone: Boolean(telefone),
+        hasEmail: Boolean(email),
         circulo: toClean(row?.circulo || row?.circulo_informado),
         origem: 'ENCONTREIRO',
       });

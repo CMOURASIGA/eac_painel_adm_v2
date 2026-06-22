@@ -11,8 +11,12 @@ interface PresenceCandidate {
   key: string;
   nome: string;
   telefone: string;
+  email?: string;
   circulo: string;
   origem: 'ENCONTREIRO' | 'ENCONTRISTA' | 'AMBOS';
+  pessoaId?: string;
+  hasPhone?: boolean;
+  hasEmail?: boolean;
 }
 
 const PublicPresenceForm: React.FC = () => {
@@ -26,6 +30,10 @@ const PublicPresenceForm: React.FC = () => {
   const [audienceType, setAudienceType] = useState<AudienceType>('TODOS');
   const [selectedKey, setSelectedKey] = useState('');
   const [circulo, setCirculo] = useState('');
+  const [telefoneAtualizado, setTelefoneAtualizado] = useState('');
+  const [forcarCorrecaoTelefone, setForcarCorrecaoTelefone] = useState(false);
+  const [emailAtualizado, setEmailAtualizado] = useState('');
+  const [forcarCorrecaoEmail, setForcarCorrecaoEmail] = useState(false);
   const [candidates, setCandidates] = useState<PresenceCandidate[]>([]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info') => {
@@ -119,8 +127,17 @@ const PublicPresenceForm: React.FC = () => {
       return;
     }
 
-    if (!toCleanString(selectedCandidate.telefone)) {
+    const precisaCorrigirTelefone = !toCleanString(selectedCandidate.telefone) || forcarCorrecaoTelefone;
+    const precisaCorrigirEmail = !toCleanString(selectedCandidate.email) || forcarCorrecaoEmail;
+    if (precisaCorrigirTelefone && !toCleanString(telefoneAtualizado)) {
       const msg = 'Este cadastro não possui telefone válido para registro.';
+      setError(msg);
+      showToast(msg, 'info');
+      return;
+    }
+
+    if (precisaCorrigirEmail && !toCleanString(emailAtualizado)) {
+      const msg = 'Informe o e-mail atualizado para concluir o registro de presenÃ§a.';
       setError(msg);
       showToast(msg, 'info');
       return;
@@ -132,6 +149,9 @@ const PublicPresenceForm: React.FC = () => {
         tipoEvento: eventType,
         nome: selectedCandidate.nome,
         telefone: selectedCandidate.telefone,
+        pessoaId: selectedCandidate.pessoaId || undefined,
+        telefoneAtualizado: precisaCorrigirTelefone ? telefoneAtualizado : undefined,
+        emailAtualizado: precisaCorrigirEmail ? emailAtualizado : undefined,
         circulo: toCleanString(circulo) || toCleanString(selectedCandidate.circulo),
         origemPublico: selectedCandidate.origem,
       });
@@ -140,6 +160,10 @@ const PublicPresenceForm: React.FC = () => {
       setIsSubmitted(true);
       setSelectedKey('');
       setCirculo('');
+      setTelefoneAtualizado('');
+      setForcarCorrecaoTelefone(false);
+      setEmailAtualizado('');
+      setForcarCorrecaoEmail(false);
       showToast((r.data as any)?.message || 'Presença registrada com sucesso!', 'success');
     } catch (e: any) {
       const msg = e?.message || 'Falha ao registrar presença.';
@@ -191,6 +215,10 @@ const PublicPresenceForm: React.FC = () => {
                     setAudienceType(e.target.value as AudienceType);
                     setSelectedKey('');
                     setCirculo('');
+                    setTelefoneAtualizado('');
+                    setForcarCorrecaoTelefone(false);
+                    setEmailAtualizado('');
+                    setForcarCorrecaoEmail(false);
                   }}
                   className="w-full h-12 px-4 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                 >
@@ -204,7 +232,13 @@ const PublicPresenceForm: React.FC = () => {
                 <label className="block text-sm font-extrabold text-slate-800 mb-1">Nome completo *</label>
                 <select
                   value={selectedKey}
-                  onChange={(e) => setSelectedKey(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedKey(e.target.value);
+                    setTelefoneAtualizado('');
+                    setForcarCorrecaoTelefone(false);
+                    setEmailAtualizado('');
+                    setForcarCorrecaoEmail(false);
+                  }}
                   disabled={isLoadingBase}
                   className="w-full h-12 px-4 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 disabled:opacity-60"
                 >
@@ -230,6 +264,65 @@ const PublicPresenceForm: React.FC = () => {
                   <p className="mt-1 text-xs font-semibold text-slate-500">
                     Círculo definido automaticamente como Encontreiro para este tipo de evento.
                   </p>
+                ) : null}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <label className="flex items-start gap-3 text-sm font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={forcarCorrecaoTelefone || !toCleanString(selectedCandidate?.telefone)}
+                    onChange={(e) => setForcarCorrecaoTelefone(e.target.checked)}
+                    disabled={!selectedCandidate || !toCleanString(selectedCandidate?.telefone)}
+                    className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
+                  />
+                  <span>Meu telefone estÃ¡ ausente ou desatualizado neste cadastro.</span>
+                </label>
+                {!toCleanString(selectedCandidate?.telefone) ? (
+                  <p className="mt-2 text-xs font-semibold text-amber-700">
+                    Este nome estÃ¡ sem telefone vinculado. Informe o nÃºmero atualizado para registrar a presenÃ§a e corrigir o cadastro.
+                  </p>
+                ) : null}
+                {(forcarCorrecaoTelefone || !toCleanString(selectedCandidate?.telefone)) ? (
+                  <div className="mt-3">
+                    <label className="block text-sm font-extrabold text-slate-800 mb-1">Telefone atualizado *</label>
+                    <input
+                      value={telefoneAtualizado}
+                      onChange={(e) => setTelefoneAtualizado(e.target.value)}
+                      placeholder="Ex.: (21) 99999-9999"
+                      className="w-full h-12 px-4 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                    />
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <label className="flex items-start gap-3 text-sm font-semibold text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={forcarCorrecaoEmail || !toCleanString(selectedCandidate?.email)}
+                    onChange={(e) => setForcarCorrecaoEmail(e.target.checked)}
+                    disabled={!selectedCandidate || !toCleanString(selectedCandidate?.email)}
+                    className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
+                  />
+                  <span>Meu e-mail estÃ¡ ausente ou desatualizado neste cadastro.</span>
+                </label>
+                {!toCleanString(selectedCandidate?.email) ? (
+                  <p className="mt-2 text-xs font-semibold text-amber-700">
+                    Este nome estÃ¡ sem e-mail vinculado. Informe o e-mail atualizado para registrar a presenÃ§a e corrigir o cadastro.
+                  </p>
+                ) : null}
+                {(forcarCorrecaoEmail || !toCleanString(selectedCandidate?.email)) ? (
+                  <div className="mt-3">
+                    <label className="block text-sm font-extrabold text-slate-800 mb-1">E-mail atualizado *</label>
+                    <input
+                      type="email"
+                      value={emailAtualizado}
+                      onChange={(e) => setEmailAtualizado(e.target.value)}
+                      placeholder="Ex.: nome@email.com"
+                      className="w-full h-12 px-4 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+                    />
+                  </div>
                 ) : null}
               </div>
 

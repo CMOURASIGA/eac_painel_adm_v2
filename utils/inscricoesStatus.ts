@@ -587,11 +587,12 @@ export async function executeAtualizarCadastroInscricao(params: {
   const nomeResponsavel = toCleanString(body.nome_responsavel);
   const emailResponsavel = toCleanString(body.email_responsavel);
   const telefoneResponsavel = toCleanString(body.telefone_responsavel);
+  const nowIso = new Date().toISOString();
 
   try {
     const { data: inscricao, error: inscricaoError } = await supabase
       .from('inscricoes')
-      .select('adolescente_id')
+      .select('adolescente_id,status')
       .eq('id', inscricaoId)
       .limit(1)
       .maybeSingle();
@@ -611,7 +612,7 @@ export async function executeAtualizarCadastroInscricao(params: {
       return { status: 404, body: { success: false, error: 'ADOLESCENTE_NAO_ENCONTRADO', message: 'Adolescente da inscrição não encontrado.' } };
     }
 
-    const pessoaPatch: Record<string, any> = { atualizado_em: new Date().toISOString() };
+    const pessoaPatch: Record<string, any> = { atualizado_em: nowIso, ultima_sincronizacao: nowIso };
     if (nomeAdolescente) {
       pessoaPatch.nome_completo = nomeAdolescente;
       pessoaPatch.nome_normalizado = normalizeNome(nomeAdolescente);
@@ -653,7 +654,7 @@ export async function executeAtualizarCadastroInscricao(params: {
           .maybeSingle();
         if (responsavelAtualError) throw responsavelAtualError;
 
-        const respPatch: Record<string, any> = { atualizado_em: new Date().toISOString() };
+        const respPatch: Record<string, any> = { atualizado_em: nowIso, ultima_sincronizacao: nowIso };
         if (nomeResponsavel) respPatch.nome = nomeResponsavel;
         if (emailResponsavel) {
           respPatch.email = emailResponsavel;
@@ -667,7 +668,7 @@ export async function executeAtualizarCadastroInscricao(params: {
         if (respError) throw respError;
 
         if (responsavelAtual?.pessoa_id) {
-          const pessoaResponsavelPatch: Record<string, any> = { atualizado_em: new Date().toISOString() };
+          const pessoaResponsavelPatch: Record<string, any> = { atualizado_em: nowIso, ultima_sincronizacao: nowIso };
           if (nomeResponsavel) {
             pessoaResponsavelPatch.nome_completo = nomeResponsavel;
             pessoaResponsavelPatch.nome_normalizado = normalizeNome(nomeResponsavel);
@@ -691,10 +692,12 @@ export async function executeAtualizarCadastroInscricao(params: {
       }
     }
 
-    const inscricaoPatch: Record<string, any> = { ultima_sincronizacao: new Date().toISOString() };
+    const inscricaoPatch: Record<string, any> = { ultima_sincronizacao: nowIso };
     if (emailAdolescente) inscricaoPatch.email_adolescente_snapshot = emailAdolescente;
     if (emailResponsavel) inscricaoPatch.email_responsavel_snapshot = emailResponsavel;
     if (emailResponsavel || emailAdolescente) inscricaoPatch.email_destino_snapshot = emailResponsavel || emailAdolescente;
+    if (telefoneAdolescente) inscricaoPatch.telefone_adolescente_snapshot = telefoneAdolescente;
+    if (telefoneResponsavel) inscricaoPatch.telefone_responsavel_snapshot = telefoneResponsavel;
     if (Object.keys(inscricaoPatch).length > 1) {
       const { error: inscricaoPatchError } = await supabase.from('inscricoes').update(inscricaoPatch).eq('id', inscricaoId);
       if (inscricaoPatchError) throw inscricaoPatchError;

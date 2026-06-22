@@ -15,16 +15,28 @@ export async function POST(req: Request) {
     }
 
     const telefone = String(body?.telefone || '').trim();
+    const pessoaId = String(body?.pessoaId || body?.pessoa_id || '').trim();
+    const telefoneAtualizado = String(body?.telefoneAtualizado || body?.telefone_atualizado || '').trim();
+    const emailAtualizado = String(body?.emailAtualizado || body?.email_atualizado || '').trim();
     const nome = String(body?.nome || '').trim();
     const circulo = String(body?.circulo || '').trim();
     const tipoEvento = String(body?.tipoEvento || '').trim();
     const origemPublico = String(body?.origemPublico || '').trim();
 
-    if (!telefone) {
+    if (!telefone && !telefoneAtualizado && !pessoaId) {
       return NextResponse.json({ success: false, error: 'Telefone é obrigatório.' }, { status: 400 });
     }
 
-    const supa = await handleSupabaseAction('MARK_PRESENCE', { telefone, nome, circulo, tipoEvento, origemPublico });
+    const supa = await handleSupabaseAction('MARK_PRESENCE', {
+      telefone,
+      pessoaId,
+      telefoneAtualizado,
+      emailAtualizado,
+      nome,
+      circulo,
+      tipoEvento,
+      origemPublico,
+    });
     if (!supa.ok) {
       return NextResponse.json(
         { success: false, error: supa.error || 'Falha ao registrar presença.' },
