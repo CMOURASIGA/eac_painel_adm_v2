@@ -112,13 +112,15 @@ export async function markPresenceService(supabase: AnySupabaseClient, payload: 
   const circuloInput = cleanText(payload.circulo);
   const origemPublico = cleanText(payload.origemPublico || payload.origem_publico) || 'PUBLICO';
 
-  const digits = normalizeDigits(telefoneAtualizadoInput || telefoneInput);
-  if (!digits || digits.length < 10) {
-    return { ok: true, data: { success: false, error: 'Telefone invalido para registrar presenca.' } };
+  const digitsInput = normalizeDigits(telefoneAtualizadoInput || telefoneInput);
+  const hasValidPhoneInput = Boolean(digitsInput && digitsInput.length >= 10);
+  if (!pessoaIdInput && !hasValidPhoneInput) {
+    return { ok: true, data: { success: false, error: 'Selecione um participante valido ou informe um telefone.' } };
   }
 
-  const telNorm = digits.startsWith('55') ? digits : `55${digits}`;
-  const telefonePersistido = telefoneAtualizadoInput || telefoneInput || digits;
+  const telNormInput = hasValidPhoneInput ? (digitsInput.startsWith('55') ? digitsInput : `55${digitsInput}`) : '';
+  let telefonePersistido = hasValidPhoneInput ? (telefoneAtualizadoInput || telefoneInput || digitsInput) : '';
+  let telefoneNormalizado = telNormInput;
   const now = new Date();
   const month = now.getMonth() + 1;
   const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0).toISOString();
@@ -132,7 +134,7 @@ export async function markPresenceService(supabase: AnySupabaseClient, payload: 
     .limit(1);
   const dupToday = pessoaIdInput
     ? await dupBase.eq('pessoa_id', pessoaIdInput)
-    : await dupBase.eq('telefone_normalizado', telNorm);
+    : await dupBase.eq('telefone_normalizado', telNormInput);
 
   if (dupToday.error) throw dupToday.error;
   if (Array.isArray(dupToday.data) && dupToday.data.length > 0) {
@@ -157,7 +159,7 @@ export async function markPresenceService(supabase: AnySupabaseClient, payload: 
     .limit(1);
   const pessoaRes = pessoaIdInput
     ? await pessoaBase.eq('id', pessoaIdInput)
-    : await pessoaBase.in('telefone_normalizado', [telNorm, digits]);
+    : await pessoaBase.in('telefone_normalizado', [telNormInput, digitsInput]);
   if (pessoaRes.error) throw pessoaRes.error;
   if (Array.isArray(pessoaRes.data) && pessoaRes.data[0]?.id) {
     const pessoa = pessoaRes.data[0];
@@ -166,23 +168,29 @@ export async function markPresenceService(supabase: AnySupabaseClient, payload: 
     statusConciliacao = 'CONCILIADO';
 
     const telefoneAtualBase = normalizeDigits(pessoa.telefone_normalizado || pessoa.telefone);
-    if (telefoneAtualBase !== digits) {
+    if (!telefonePersistido && cleanText(pessoa.telefone)) telefonePersistido = cleanText(pessoa.telefone);
+    if (!telefoneNormalizado && telefoneAtualBase) {
+      telefoneNormalizado = telefoneAtualBase.startsWith('55') ? telefoneAtualBase : `55${telefoneAtualBase}`;
+    }
+    if (hasValidPhoneInput && telefoneAtualBase !== digitsInput) {
       const pessoaUpdate = await supabase
         .from('pessoas')
         .update({
           telefone: telefonePersistido,
-          telefone_normalizado: telNorm,
+          telefone_normalizado: telNormInput,
           atualizado_em: now.toISOString(),
           ultima_sincronizacao: now.toISOString(),
         } as any)
         .eq('id', pessoaId);
       if (pessoaUpdate.error) throw pessoaUpdate.error;
 
+      telefoneNormalizado = telNormInput;
+
       await updateEncontreiroPhoneIfPossible(supabase, {
         pessoaId,
         nome: pessoaNome || nomeInput,
         telefoneOriginal: telefonePersistido,
-        telefoneNormalizado: telNorm,
+        telefoneNormalizado: telNormInput,
       });
     }
 
@@ -234,8 +242,8 @@ export async function markPresenceService(supabase: AnySupabaseClient, payload: 
     circulo_id: circuloId,
     data_presenca: now.toISOString(),
     mes: month,
-    telefone_digitado: telefonePersistido,
-    telefone_normalizado: telNorm,
+    telefone_digitado: telefonePersistido || null,
+    telefone_normalizado: telefoneNormalizado || null,
     nome_digitado: pessoaNome || nomeInput || '',
     status_conciliacao: statusConciliacao,
     origem: origemPublico === 'PAINEL_INTERNO' ? 'SISTEMA_CHECKIN' : 'SISTEMA_CHECKIN_PUBLICO',
@@ -243,11 +251,11 @@ export async function markPresenceService(supabase: AnySupabaseClient, payload: 
     status_presenca: 'REGISTRADA',
     criado_via_sistema: true,
     payload: {
-      telefone: telefonePersistido,
+      telefone: telefonePersistido || null,
       emailAtualizado: emailAtualizadoInput || null,
       nome: pessoaNome || nomeInput || '',
       circulo: circuloInput || '',
-      telefoneAtualizado: Boolean(telefoneAtualizadoInput),
+      telefoneAtualizado: Boolean(telefoneAtualizadoInput && telefonePersistido),
       pessoaId: pessoaId || null,
       canal: 'PAINEL_PRESENCA',
     },

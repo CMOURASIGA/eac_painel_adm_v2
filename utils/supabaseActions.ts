@@ -772,14 +772,23 @@ function buildPublicPresenceCandidates(payload: {
   const presence = Array.isArray(payload?.presence) ? payload.presence : [];
 
   const map = new Map<string, any>();
+  const identityToKey = new Map<string, string>();
   const upsert = (row: any, origem: 'ENCONTREIRO' | 'ENCONTRISTA') => {
     const nome = toClean(row?.nomeCompleto || row?.nome || row?.nome_completo || row?.name);
     if (!nome) return;
     const telefone = toClean(row?.celularWhatsapp || row?.telefone || row?.whatsapp || row?.celular || row?.phone);
     const email = toClean(row?.email || row?.email_adolescente || row?.email_responsavel);
     const pessoaId = toClean(row?.pessoaId || row?.pessoa_id);
-    const telKey = normalizeDigitsLocal(telefone);
-    const key = pessoaId ? `pessoa:${pessoaId}` : (telKey ? `tel:${telKey}` : `nome:${normalizeTextLocal(nome)}`);
+    const identities = [
+      pessoaId ? `pessoa:${pessoaId}` : '',
+      normalizeDigitsLocal(telefone) ? `tel:${normalizeDigitsLocal(telefone)}` : '',
+      email ? `email:${normalizeTextLocal(email)}` : '',
+      `nome:${normalizeTextLocal(nome)}`,
+    ].filter(Boolean);
+    const key =
+      identities.map((identity) => identityToKey.get(identity)).find(Boolean) ||
+      identities[0] ||
+      `nome:${normalizeTextLocal(nome)}`;
     const prev = map.get(key);
     map.set(key, {
       key,
@@ -798,8 +807,9 @@ function buildPublicPresenceCandidates(payload: {
         prev?.circulo ||
         ''
       ),
-      origem: prev && prev.origem !== origem ? 'AMBOS' : (prev?.origem || origem),
+      origem: prev?.origem === 'ENCONTRISTA' || origem === 'ENCONTRISTA' ? 'ENCONTRISTA' : 'ENCONTREIRO',
     });
+    identities.forEach((identity) => identityToKey.set(identity, key));
   };
 
   encontreiros.forEach((r: any) => upsert(r, 'ENCONTREIRO'));

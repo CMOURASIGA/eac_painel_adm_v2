@@ -47,21 +47,21 @@ const PublicPresenceForm: React.FC = () => {
       setIsLoadingBase(true);
       try {
         const r = await postComunicadosAction<any>('GET_PUBLIC_PRESENCE_DATA', {});
-        if (!r.success) throw new Error(r.error || 'Falha ao carregar lista de presença.');
+        if (!r.success) throw new Error(r.error || 'Falha ao carregar lista de presenca.');
         if (!active) return;
         const items = Array.isArray((r.data as any)?.candidates) ? (r.data as any).candidates : [];
         setCandidates(items);
         if (items.length === 0) {
           const debug = (r.data as any)?.debug;
           const msg = debug
-            ? `Sem nomes para listar. Fontes: encontreiros=${debug.encontreirosCount}, encontristas=${debug.encontristasCount}, presença=${debug.presenceCount}.`
+            ? `Sem nomes para listar. Fontes: encontreiros=${debug.encontreirosCount}, encontristas=${debug.encontristasCount}, presenca=${debug.presenceCount}.`
             : 'Sem nomes para listar no momento.';
           setError(msg);
           showToast(msg, 'info');
         }
       } catch (e: any) {
         if (!active) return;
-        const msg = e?.message || 'Não foi possível carregar a base do formulário.';
+        const msg = e?.message || 'Nao foi possivel carregar a base do formulario.';
         setError(msg);
         showToast(msg, 'error');
       } finally {
@@ -121,23 +121,33 @@ const PublicPresenceForm: React.FC = () => {
     setError(null);
 
     if (!selectedCandidate) {
-      const msg = 'Selecione o nome para registrar a presença.';
+      const msg = 'Selecione o nome para registrar a presenca.';
       setError(msg);
       showToast(msg, 'info');
       return;
     }
 
-    const precisaCorrigirTelefone = !toCleanString(selectedCandidate.telefone) || forcarCorrecaoTelefone;
-    const precisaCorrigirEmail = !toCleanString(selectedCandidate.email) || forcarCorrecaoEmail;
-    if (precisaCorrigirTelefone && !toCleanString(telefoneAtualizado)) {
-      const msg = 'Este cadastro não possui telefone válido para registro.';
+    const semTelefone = !toCleanString(selectedCandidate.telefone);
+    const semEmail = !toCleanString(selectedCandidate.email);
+    const querAtualizarTelefone = semTelefone || forcarCorrecaoTelefone;
+    const querAtualizarEmail = semEmail || forcarCorrecaoEmail;
+
+    if (forcarCorrecaoTelefone && !toCleanString(telefoneAtualizado)) {
+      const msg = 'Informe o telefone atualizado ou desmarque a opcao de correcao.';
       setError(msg);
       showToast(msg, 'info');
       return;
     }
 
-    if (precisaCorrigirEmail && !toCleanString(emailAtualizado)) {
-      const msg = 'Informe o e-mail atualizado para concluir o registro de presenÃ§a.';
+    if (forcarCorrecaoEmail && !toCleanString(emailAtualizado)) {
+      const msg = 'Informe o e-mail atualizado ou desmarque a opcao de correcao.';
+      setError(msg);
+      showToast(msg, 'info');
+      return;
+    }
+
+    if (semTelefone && !toCleanString(selectedCandidate.pessoaId) && !toCleanString(telefoneAtualizado)) {
+      const msg = 'Este nome esta sem identificador suficiente. Informe um telefone para registrar a presenca.';
       setError(msg);
       showToast(msg, 'info');
       return;
@@ -150,12 +160,12 @@ const PublicPresenceForm: React.FC = () => {
         nome: selectedCandidate.nome,
         telefone: selectedCandidate.telefone,
         pessoaId: selectedCandidate.pessoaId || undefined,
-        telefoneAtualizado: precisaCorrigirTelefone ? telefoneAtualizado : undefined,
-        emailAtualizado: precisaCorrigirEmail ? emailAtualizado : undefined,
+        telefoneAtualizado: querAtualizarTelefone && toCleanString(telefoneAtualizado) ? telefoneAtualizado : undefined,
+        emailAtualizado: querAtualizarEmail && toCleanString(emailAtualizado) ? emailAtualizado : undefined,
         circulo: toCleanString(circulo) || toCleanString(selectedCandidate.circulo),
         origemPublico: selectedCandidate.origem,
       });
-      if (!r.success) throw new Error((r.raw as any)?.error || r.error || 'Não foi possível registrar presença.');
+      if (!r.success) throw new Error((r.raw as any)?.error || r.error || 'Nao foi possivel registrar presenca.');
 
       setIsSubmitted(true);
       setSelectedKey('');
@@ -164,9 +174,9 @@ const PublicPresenceForm: React.FC = () => {
       setForcarCorrecaoTelefone(false);
       setEmailAtualizado('');
       setForcarCorrecaoEmail(false);
-      showToast((r.data as any)?.message || 'Presença registrada com sucesso!', 'success');
+      showToast((r.data as any)?.message || 'Presenca registrada com sucesso!', 'success');
     } catch (e: any) {
-      const msg = e?.message || 'Falha ao registrar presença.';
+      const msg = e?.message || 'Falha ao registrar presenca.';
       setError(msg);
       showToast(msg, 'error');
     } finally {
@@ -183,12 +193,12 @@ const PublicPresenceForm: React.FC = () => {
           </div>
 
           <div className="p-7 md:p-8">
-            <h1 className="text-3xl font-black text-slate-900 text-center mb-2">Registro de Presença</h1>
-            <p className="text-center text-slate-600 mb-7">Selecione o evento e o nome para confirmar sua presença.</p>
+            <h1 className="text-3xl font-black text-slate-900 text-center mb-2">Registro de Presenca</h1>
+            <p className="text-center text-slate-600 mb-7">Selecione o evento e o nome para confirmar sua presenca.</p>
 
             {isSubmitted && (
               <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800 font-semibold">
-                Presença registrada com sucesso.
+                Presenca registrada com sucesso.
               </div>
             )}
 
@@ -202,8 +212,8 @@ const PublicPresenceForm: React.FC = () => {
                   }}
                   className="w-full h-12 px-4 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                 >
-                  <option value="POS_ENCONTRO">Pós-Encontro (encontreiro + encontrista)</option>
-                  <option value="REUNIAO_CIRCULO">Reunião de Círculo (somente encontrista)</option>
+                  <option value="POS_ENCONTRO">Pos-Encontro (encontreiro + encontrista)</option>
+                  <option value="REUNIAO_CIRCULO">Reuniao de Circulo (somente encontrista)</option>
                 </select>
               </div>
 
@@ -252,17 +262,17 @@ const PublicPresenceForm: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-extrabold text-slate-800 mb-1">Círculo *</label>
+                <label className="block text-sm font-extrabold text-slate-800 mb-1">Circulo *</label>
                 <input
                   value={circulo}
                   onChange={(e) => setCirculo(e.target.value)}
                   disabled={isLockedEncontreiroCircle}
-                  placeholder="Ex.: Azul / Círculo 1"
+                  placeholder="Ex.: Azul / Circulo 1"
                   className="w-full h-12 px-4 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-500"
                 />
                 {isLockedEncontreiroCircle ? (
                   <p className="mt-1 text-xs font-semibold text-slate-500">
-                    Círculo definido automaticamente como Encontreiro para este tipo de evento.
+                    Circulo definido automaticamente como Encontreiro para este tipo de evento.
                   </p>
                 ) : null}
               </div>
@@ -271,21 +281,23 @@ const PublicPresenceForm: React.FC = () => {
                 <label className="flex items-start gap-3 text-sm font-semibold text-slate-700">
                   <input
                     type="checkbox"
-                    checked={forcarCorrecaoTelefone || !toCleanString(selectedCandidate?.telefone)}
+                    checked={forcarCorrecaoTelefone}
                     onChange={(e) => setForcarCorrecaoTelefone(e.target.checked)}
-                    disabled={!selectedCandidate || !toCleanString(selectedCandidate?.telefone)}
+                    disabled={!selectedCandidate}
                     className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
                   />
-                  <span>Meu telefone estÃ¡ ausente ou desatualizado neste cadastro.</span>
+                  <span>Meu telefone esta ausente ou desatualizado neste cadastro.</span>
                 </label>
                 {!toCleanString(selectedCandidate?.telefone) ? (
                   <p className="mt-2 text-xs font-semibold text-amber-700">
-                    Este nome estÃ¡ sem telefone vinculado. Informe o nÃºmero atualizado para registrar a presenÃ§a e corrigir o cadastro.
+                    Este nome esta sem telefone vinculado. Se quiser, informe agora para atualizar o cadastro junto com a presenca.
                   </p>
                 ) : null}
                 {(forcarCorrecaoTelefone || !toCleanString(selectedCandidate?.telefone)) ? (
                   <div className="mt-3">
-                    <label className="block text-sm font-extrabold text-slate-800 mb-1">Telefone atualizado *</label>
+                    <label className="block text-sm font-extrabold text-slate-800 mb-1">
+                      {toCleanString(selectedCandidate?.telefone) ? 'Telefone atualizado *' : 'Telefone atualizado'}
+                    </label>
                     <input
                       value={telefoneAtualizado}
                       onChange={(e) => setTelefoneAtualizado(e.target.value)}
@@ -300,21 +312,23 @@ const PublicPresenceForm: React.FC = () => {
                 <label className="flex items-start gap-3 text-sm font-semibold text-slate-700">
                   <input
                     type="checkbox"
-                    checked={forcarCorrecaoEmail || !toCleanString(selectedCandidate?.email)}
+                    checked={forcarCorrecaoEmail}
                     onChange={(e) => setForcarCorrecaoEmail(e.target.checked)}
-                    disabled={!selectedCandidate || !toCleanString(selectedCandidate?.email)}
+                    disabled={!selectedCandidate}
                     className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
                   />
-                  <span>Meu e-mail estÃ¡ ausente ou desatualizado neste cadastro.</span>
+                  <span>Meu e-mail esta ausente ou desatualizado neste cadastro.</span>
                 </label>
                 {!toCleanString(selectedCandidate?.email) ? (
                   <p className="mt-2 text-xs font-semibold text-amber-700">
-                    Este nome estÃ¡ sem e-mail vinculado. Informe o e-mail atualizado para registrar a presenÃ§a e corrigir o cadastro.
+                    Este nome esta sem e-mail vinculado. Se quiser, informe agora para atualizar o cadastro junto com a presenca.
                   </p>
                 ) : null}
                 {(forcarCorrecaoEmail || !toCleanString(selectedCandidate?.email)) ? (
                   <div className="mt-3">
-                    <label className="block text-sm font-extrabold text-slate-800 mb-1">E-mail atualizado *</label>
+                    <label className="block text-sm font-extrabold text-slate-800 mb-1">
+                      {toCleanString(selectedCandidate?.email) ? 'E-mail atualizado *' : 'E-mail atualizado'}
+                    </label>
                     <input
                       type="email"
                       value={emailAtualizado}
@@ -331,7 +345,7 @@ const PublicPresenceForm: React.FC = () => {
                 disabled={isLoading || isLoadingBase}
                 className="w-full bg-gradient-to-r from-[#0a4a86] to-[#1f64bb] text-white font-black py-3.5 px-4 rounded-xl hover:brightness-105 disabled:bg-slate-400 transition-colors duration-300 uppercase tracking-wide"
               >
-                {isLoading ? 'Registrando presença...' : 'Registrar presença'}
+                {isLoading ? 'Registrando presenca...' : 'Registrar presenca'}
               </button>
 
               {error ? <p className="text-sm text-red-600 text-center">{error}</p> : null}
