@@ -10,7 +10,7 @@ function buildAllowedModules(role: string, modules: string[]) {
   if (role === 'ADMIN') {
     return [
       'dashboard', 'dispatches', 'calendar', 'comunicados', 'logs', 'users', 'settings', 'help',
-      'members', 'inscricoes_prioritarias', 'inscricoes_prioritarias_circulos', 'encontreiros', 'presence', 'inscricoes_review',
+      'members', 'inscricoes_prioritarias', 'inscricoes_prioritarias_circulos', 'visitacao', 'encontreiros', 'presence', 'inscricoes_review',
     ];
   }
   const safe = new Set(['dashboard']);
@@ -18,6 +18,7 @@ function buildAllowedModules(role: string, modules: string[]) {
     const x = String(m || '').trim();
     if (x) safe.add(x);
   });
+  if (safe.has('inscricoes_prioritarias') && !safe.has('visitacao')) safe.add('visitacao');
   return Array.from(safe);
 }
 

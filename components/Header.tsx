@@ -23,6 +23,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onNavigate, currentView
     if (item.view === 'dashboard') return true;
     if (item.view === 'members') return allowed.includes('members');
     if (item.view === 'inscricoes_prioritarias') return allowed.includes('inscricoes_prioritarias');
+    if (item.view === 'visitacao') return allowed.includes('visitacao');
     if (item.view === 'inscricoes_review') return allowed.includes('inscricoes_review');
     if (item.view === 'encontreiros') return allowed.includes('encontreiros');
     if (item.view === 'presence') return allowed.includes('presence');

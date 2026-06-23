@@ -11,6 +11,7 @@ export const NAVIGATION_ROADMAP: NavigationItem[] = [
   { label: 'Início', view: 'dashboard', enabled: true },
   { label: 'Cadastro de Encontrista', view: 'members', enabled: true },
   { label: 'Inscrições Prioritárias', view: 'inscricoes_prioritarias', enabled: true },
+  { label: 'Visitação', view: 'visitacao', enabled: true },
   { label: 'Triagem de Inscrições', view: 'inscricoes_review', enabled: true },
   { label: 'Cadastro de Encontreiro', view: 'encontreiros', enabled: true },
   { label: 'Presença', view: 'presence', enabled: true },

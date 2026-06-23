@@ -40,7 +40,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, googleWebAppUrl }) => {
             canEdit: true,
             canView: true,
             canDelete: true,
-            allowedModules: ['dashboard','dispatches','calendar','comunicados','logs','users','settings','help','members','inscricoes_prioritarias','inscricoes_prioritarias_circulos','encontreiros','presence'],
+            allowedModules: ['dashboard','dispatches','calendar','comunicados','logs','users','settings','help','members','inscricoes_prioritarias','inscricoes_prioritarias_circulos','visitacao','encontreiros','presence'],
             modulePermissions: {
               encontreiros: { canCreate: true, canEdit: true, canView: true, canDelete: true }
             }
@@ -104,6 +104,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, googleWebAppUrl }) => {
         const hasCirculosConfigured = toCleanString(u.circulos) !== '';
         if (isAdmin || boolSim(u.circulos) || (!hasCirculosConfigured && (boolSim(u.prioritarios) || boolSim(u.cadastro)))) {
           pushUnique('inscricoes_prioritarias_circulos');
+        }
+        const hasVisitacaoConfigured = toCleanString((u as any).visitacao) !== '';
+        if (isAdmin || boolSim((u as any).visitacao) || (!hasVisitacaoConfigured && boolSim(u.prioritarios))) {
+          pushUnique('visitacao');
         }
         const hasPresencaConfigured = toCleanString(u.presenca) !== '';
         if (isAdmin || boolSim(u.presenca) || (!hasPresencaConfigured && boolSim(u.cadastro))) {

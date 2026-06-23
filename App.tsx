@@ -17,10 +17,12 @@ import InscricoesReviewPage from './components/InscricoesReviewPage.tsx';
 import CirculosDistribuidosPage from './components/CirculosDistribuidosPage.tsx';
 import EncontreiroPage from './components/EncontreiroPage.tsx';
 import PresencePage from './components/PresencePage.tsx';
+import VisitacaoPage from './components/VisitacaoPage.tsx';
 import PublicInterestForm from './components/PublicInterestForm.tsx';
 import PublicInscricaoForm from './components/PublicInscricaoForm.tsx';
 import PublicEncontreiroForm from './components/PublicEncontreiroForm.tsx';
 import PublicPresenceForm from './components/PublicPresenceForm.tsx';
+import VisitacaoForm from './components/VisitacaoForm.tsx';
 import Toast from './components/Toast.tsx';
 import AppDialog from './components/AppDialog.tsx';
 import { AppDialogRequest, installWindowAlertBridge, registerAppDialogHandler } from './utils/appDialog.ts';
@@ -32,6 +34,7 @@ const viewPathMap: Partial<Record<View, string>> = {
   members: '/cadastro',
   presence: '/cadastro/presenca',
   inscricoes_prioritarias: '/prioritarios',
+  visitacao: '/visitacao',
   inscricoes_review: '/inscricoes/revisao',
   inscricoes_prioritarias_circulos: '/distribuicao-circulos',
   encontreiros: '/encontreiros',
@@ -41,6 +44,7 @@ const pathViewMap: Record<string, View> = {
   '/cadastro': 'members',
   '/cadastro/presenca': 'presence',
   '/prioritarios': 'inscricoes_prioritarias',
+  '/visitacao': 'visitacao',
   '/inscricoes/revisao': 'inscricoes_review',
   '/distribuicao-circulos': 'inscricoes_prioritarias_circulos',
   '/encontreiros': 'encontreiros',
@@ -347,7 +351,7 @@ const App: React.FC = () => {
   // Sempre que o usuÃ¡rio navegar para uma tela operacional, forÃ§a nova sincronizaÃ§Ã£o
   useEffect(() => {
     if (!user) return;
-    const viewsThatNeedSync: View[] = ['dashboard', 'members', 'inscricoes_prioritarias', 'inscricoes_prioritarias_circulos', 'encontreiros', 'presence', 'dispatches', 'calendar', 'comunicados', 'logs'];
+    const viewsThatNeedSync: View[] = ['dashboard', 'members', 'inscricoes_prioritarias', 'inscricoes_prioritarias_circulos', 'visitacao', 'encontreiros', 'presence', 'dispatches', 'calendar', 'comunicados', 'logs'];
     if (viewsThatNeedSync.includes(currentView)) {
       fetchSpreadsheetData();
     }
@@ -365,6 +369,11 @@ const App: React.FC = () => {
     if (currentView === 'inscricoes_prioritarias_circulos' && !allowed.includes('inscricoes_prioritarias_circulos')) {
       setCurrentView('dashboard');
       showToast('Seu usuÃ¡rio nÃ£o possui acesso Ã  subtela de DistribuiÃ§Ã£o de CÃ­rculos.', 'error');
+      return;
+    }
+    if (currentView === 'visitacao' && !allowed.includes('visitacao')) {
+      setCurrentView('dashboard');
+      showToast('Seu usuÃ¡rio nÃ£o possui acesso ao mÃ³dulo de VisitaÃ§Ã£o.', 'error');
       return;
     }
     if (currentView === 'inscricoes_review' && !allowed.includes('inscricoes_review')) {
@@ -578,6 +587,16 @@ const App: React.FC = () => {
     );
   }
 
+  if (queryParams.mode === 'visitacao_form') {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <VisitacaoForm token={queryParams.token} />
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        {dialogNode}
+      </div>
+    );
+  }
+
   if (!user) return (
     <>
       <LoginPage onLogin={(u) => { setUser(u); localStorage.setItem('eac_user', JSON.stringify(u)); handleNavigate(pathViewMap[window.location.pathname.replace(/\/+$/, '') || '/'] || 'dashboard'); }} googleWebAppUrl={effectiveGoogleWebAppUrl} />
@@ -603,6 +622,7 @@ const App: React.FC = () => {
             onOpenCirculos={() => handleNavigate('inscricoes_prioritarias_circulos')}
           />
         )}
+        {currentView === 'visitacao' && <VisitacaoPage user={user} />}
         {currentView === 'inscricoes_review' && <InscricoesReviewPage />}
         {currentView === 'inscricoes_prioritarias_circulos' && (
           <CirculosDistribuidosPage

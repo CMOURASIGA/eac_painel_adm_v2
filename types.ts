@@ -8,6 +8,7 @@ export type View =
   | 'members'
   | 'inscricoes_prioritarias'
   | 'inscricoes_prioritarias_circulos'
+  | 'visitacao'
   | 'inscricoes_review'
   | 'encontreiros'
   | 'presence'
@@ -205,6 +206,71 @@ export interface PresenceRecord {
   mes?: string;
   telCadastrado?: string;
   presente?: boolean;
+}
+
+export type VisitacaoStatus =
+  | 'NENHUMA_ACAO'
+  | 'CONTATO_INICIAL_FEITO'
+  | 'VISITACAO_REALIZADA'
+  | 'NAO_CONSEGUIU_CONTATO'
+  | 'AGUARDANDO_RETORNO'
+  | 'NAO_DESEJA_VISITA';
+
+export interface VisitacaoPriorizado {
+  inscricao_id: string;
+  encontro_id?: string | null;
+  encontro_nome?: string | null;
+  encontro_numero?: string | number | null;
+  adolescente_id?: string | null;
+  pessoa_adolescente_id?: string | null;
+  nome?: string | null;
+  email?: string | null;
+  telefone?: string | null;
+  telefone_normalizado?: string | null;
+  bairro?: string | null;
+  data_nascimento?: string | null;
+  idade?: number | null;
+  sexo?: string | null;
+  responsavel_nome?: string | null;
+  responsavel_telefone?: string | null;
+  responsavel_email?: string | null;
+  data_cadastro?: string | null;
+  status_inscricao?: string | null;
+  origem_inscricao?: string | null;
+  visitacao_id?: string | null;
+  status_visitacao: VisitacaoStatus;
+  contato_inicial_realizado: boolean;
+  data_contato_inicial?: string | null;
+  visitacao_realizada: boolean;
+  data_visitacao?: string | null;
+  responsavel_acao?: string | null;
+  observacao?: string | null;
+  origem_registro?: string | null;
+  atualizado_em?: string | null;
+}
+
+export interface VisitacaoIndicadores {
+  total: number;
+  nenhumaAcao: number;
+  contatoInicialFeito: number;
+  visitacaoRealizada: number;
+  pendentesVisitacao: number;
+  naoConseguiuContato: number;
+  aguardandoRetorno: number;
+  naoDesejaVisita: number;
+}
+
+export interface VisitacaoHistoricoItem {
+  id: string;
+  visitacao_id?: string | null;
+  inscricao_id: string;
+  tipo_acao: string;
+  status_anterior?: string | null;
+  status_novo?: string | null;
+  descricao?: string | null;
+  responsavel_acao?: string | null;
+  origem_registro?: string | null;
+  criado_em: string;
 }
 
 export interface NonEnrolledMember {
