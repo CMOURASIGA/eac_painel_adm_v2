@@ -381,7 +381,7 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
     setIsUpdatingDistribution(true);
     setError('');
     try {
-      const response = await fetch('/api/inscricoes-prioritarias/distribuir', {
+      const response = await fetch('/api/inscricoes-prioritarias', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ googleWebAppUrl })

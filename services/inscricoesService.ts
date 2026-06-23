@@ -128,7 +128,7 @@ export const inscricoesService = {
     opts: { googleWebAppUrl?: string } = {}
   ): Promise<EacApiResult<any>> {
     // Endpoint dedicado (hoje proxy do /api/comunicados), para permitir evoluir a implementação sem mudar o frontend.
-    return await postJson('/api/inscricoes-prioritarias/distribuir', { ...payload, ...(opts.googleWebAppUrl ? { googleWebAppUrl: opts.googleWebAppUrl } : {}) });
+    return await postJson('/api/inscricoes-prioritarias', { ...payload, ...(opts.googleWebAppUrl ? { googleWebAppUrl: opts.googleWebAppUrl } : {}) });
   },
 
   async priorizarNaoInscrito(

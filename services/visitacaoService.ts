@@ -40,11 +40,11 @@ export const visitacaoService = {
       token?: string;
     }
   ): Promise<EacApiResult<{ item: VisitacaoPriorizado }>> {
-    return await postJson<any>(`/api/visitacoes/${encodeURIComponent(inscricaoId)}`, payload);
+    return await postJson<any>(`/api/visitacoes?inscricaoId=${encodeURIComponent(inscricaoId)}`, payload);
   },
 
   async historico(inscricaoId: string): Promise<EacApiResult<{ items: VisitacaoHistoricoItem[] }>> {
-    const result = await getJson<any>(`/api/visitacoes/historico/${encodeURIComponent(inscricaoId)}`);
+    const result = await getJson<any>(`/api/visitacoes?action=history&inscricaoId=${encodeURIComponent(inscricaoId)}`);
     if (!result.success) return result as any;
     return emptyOk({
       items: Array.isArray((result.data as any)?.items) ? (result.data as any).items : [],
