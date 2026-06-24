@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseServerClient } from '../utils/supabaseServer.js';
-import { getVisitacaoHistorico, listVisitacoes, registerVisitacao, validateVisitacaoFormToken } from '../services/visitacaoBusinessService.ts';
+import { getVisitacaoHistorico, listVisitacoes, registerVisitacao, validateVisitacaoFormToken } from '../services/visitacaoBusinessService.js';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
