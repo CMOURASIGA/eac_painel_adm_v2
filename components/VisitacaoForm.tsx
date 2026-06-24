@@ -3,11 +3,11 @@ import { visitacaoService } from '../services/visitacaoService.ts';
 import type { VisitacaoPriorizado, VisitacaoStatus } from '../types.ts';
 
 const STATUS_OPTIONS: Array<{ value: VisitacaoStatus; label: string }> = [
-  { value: 'CONTATO_INICIAL_FEITO', label: 'Contato inicial feito' },
+  { value: 'CONTATO_INICIAL_FEITO', label: 'Deseja fazer' },
   { value: 'VISITACAO_REALIZADA', label: 'Visitação realizada' },
   { value: 'NAO_CONSEGUIU_CONTATO', label: 'Não conseguiu contato' },
   { value: 'AGUARDANDO_RETORNO', label: 'Aguardando retorno' },
-  { value: 'NAO_DESEJA_VISITA', label: 'Não deseja visita' },
+  { value: 'NAO_DESEJA_VISITA', label: 'Não deseja fazer' },
 ];
 
 const normalize = (value: any) => String(value ?? '').trim().toLowerCase();

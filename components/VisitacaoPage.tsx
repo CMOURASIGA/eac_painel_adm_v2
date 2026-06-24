@@ -7,11 +7,11 @@ import { toCleanString } from '../utils/textEncoding.ts';
 
 const STATUS_VISITACAO_UI: Record<VisitacaoStatus, { label: string; badge: string; dot: string }> = {
   NENHUMA_ACAO: { label: 'Nenhuma ação', badge: 'bg-slate-50 text-slate-700 border border-slate-200', dot: 'bg-slate-400' },
-  CONTATO_INICIAL_FEITO: { label: 'Contato inicial feito', badge: 'bg-blue-50 text-blue-700 border border-blue-200', dot: 'bg-blue-500' },
+  CONTATO_INICIAL_FEITO: { label: 'Deseja fazer', badge: 'bg-blue-50 text-blue-700 border border-blue-200', dot: 'bg-blue-500' },
   VISITACAO_REALIZADA: { label: 'Visitação realizada', badge: 'bg-emerald-50 text-emerald-700 border border-emerald-200', dot: 'bg-emerald-500' },
   NAO_CONSEGUIU_CONTATO: { label: 'Não conseguiu contato', badge: 'bg-rose-50 text-rose-700 border border-rose-200', dot: 'bg-rose-500' },
   AGUARDANDO_RETORNO: { label: 'Aguardando retorno', badge: 'bg-amber-50 text-amber-700 border border-amber-200', dot: 'bg-amber-500' },
-  NAO_DESEJA_VISITA: { label: 'Não deseja visita', badge: 'bg-zinc-50 text-zinc-700 border border-zinc-200', dot: 'bg-zinc-500' },
+  NAO_DESEJA_VISITA: { label: 'Não deseja fazer', badge: 'bg-zinc-50 text-zinc-700 border border-zinc-200', dot: 'bg-zinc-500' },
 };
 
 const ACTION_STATUSES: VisitacaoStatus[] = [
@@ -152,7 +152,7 @@ const VisitacaoPage: React.FC<{ user: User }> = ({ user }) => {
 
   const indicatorCards: Array<{ label: string; value: number; status?: VisitacaoStatus }> = [
     { label: 'Nenhuma ação', value: totals.nenhumaAcao, status: 'NENHUMA_ACAO' },
-    { label: 'Contato inicial', value: totals.contatoInicialFeito, status: 'CONTATO_INICIAL_FEITO' },
+    { label: 'Deseja fazer', value: totals.contatoInicialFeito, status: 'CONTATO_INICIAL_FEITO' },
     { label: 'Visitação realizada', value: totals.visitacaoRealizada, status: 'VISITACAO_REALIZADA' },
     { label: 'Não conseguiu contato', value: totals.naoConseguiuContato, status: 'NAO_CONSEGUIU_CONTATO' },
     { label: 'Aguardando retorno', value: totals.aguardandoRetorno, status: 'AGUARDANDO_RETORNO' },
