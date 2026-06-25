@@ -11,5 +11,8 @@ grant select, insert, update on table public.public_interest_tokens
 grant select, insert on table public.public_interest_token_audit
   to anon, authenticated, service_role;
 
+grant select, insert, update on table public.cadastro_oficial
+  to service_role;
+
 commit;
 
