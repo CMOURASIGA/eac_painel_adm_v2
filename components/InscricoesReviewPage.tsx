@@ -715,7 +715,7 @@ const InscricoesReviewPage: React.FC = () => {
 
             <select value={String(draft.status || '')} onChange={(e) => setDraft((prev) => ({ ...prev, status: e.target.value }))} className="px-3 py-2 rounded-xl border border-slate-300 text-sm font-bold">
               <option value="">Todos os status</option>
-              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{getTriagemStatusLabel(s)}</option>)}
             </select>
 
             <input value={String(draft.bairro || '')} onChange={(e) => setDraft((prev) => ({ ...prev, bairro: e.target.value }))} placeholder="Bairro" className="px-3 py-2 rounded-xl border border-slate-300 text-sm font-bold" />

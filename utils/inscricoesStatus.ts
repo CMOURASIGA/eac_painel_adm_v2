@@ -631,7 +631,8 @@ export async function executeAtualizarCadastroInscricao(params: {
     if (bairro) pessoaPatch.bairro = bairro;
 
     if (Object.keys(pessoaPatch).length > 1) {
-      const { error: pessoaError } = await supabase.from('pessoas').update(pessoaPatch).eq('id', adolescente.pessoa_id);
+      const safePessoaPatch = await pickPayloadByExistingColumns(supabase, 'pessoas', pessoaPatch);
+      const { error: pessoaError } = await supabase.from('pessoas').update(safePessoaPatch).eq('id', adolescente.pessoa_id);
       if (pessoaError) throw pessoaError;
     }
 
@@ -664,7 +665,8 @@ export async function executeAtualizarCadastroInscricao(params: {
           respPatch.telefone = telefoneResponsavel;
           respPatch.telefone_normalizado = normalizePhoneDigits(telefoneResponsavel);
         }
-        const { error: respError } = await supabase.from('responsaveis').update(respPatch).eq('id', responsavelId);
+        const safeRespPatch = await pickPayloadByExistingColumns(supabase, 'responsaveis', respPatch);
+        const { error: respError } = await supabase.from('responsaveis').update(safeRespPatch).eq('id', responsavelId);
         if (respError) throw respError;
 
         if (responsavelAtual?.pessoa_id) {
@@ -682,9 +684,10 @@ export async function executeAtualizarCadastroInscricao(params: {
             pessoaResponsavelPatch.telefone_normalizado = normalizePhoneDigits(telefoneResponsavel);
           }
           if (Object.keys(pessoaResponsavelPatch).length > 1) {
+            const safePessoaResponsavelPatch = await pickPayloadByExistingColumns(supabase, 'pessoas', pessoaResponsavelPatch);
             const { error: pessoaResponsavelError } = await supabase
               .from('pessoas')
-              .update(pessoaResponsavelPatch)
+              .update(safePessoaResponsavelPatch)
               .eq('id', responsavelAtual.pessoa_id);
             if (pessoaResponsavelError) throw pessoaResponsavelError;
           }
@@ -699,7 +702,8 @@ export async function executeAtualizarCadastroInscricao(params: {
     if (telefoneAdolescente) inscricaoPatch.telefone_adolescente_snapshot = telefoneAdolescente;
     if (telefoneResponsavel) inscricaoPatch.telefone_responsavel_snapshot = telefoneResponsavel;
     if (Object.keys(inscricaoPatch).length > 1) {
-      const { error: inscricaoPatchError } = await supabase.from('inscricoes').update(inscricaoPatch).eq('id', inscricaoId);
+      const safeInscricaoPatch = await pickPayloadByExistingColumns(supabase, 'inscricoes', inscricaoPatch);
+      const { error: inscricaoPatchError } = await supabase.from('inscricoes').update(safeInscricaoPatch).eq('id', inscricaoId);
       if (inscricaoPatchError) throw inscricaoPatchError;
     }
 

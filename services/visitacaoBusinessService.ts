@@ -52,6 +52,53 @@ function buildIndicadores(items: any[]) {
   };
 }
 
+function toSortableTime(value: any) {
+  const raw = toCleanString(value);
+  if (!raw) return 0;
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function pickPreferredVisitacaoRow(current: any, candidate: any) {
+  if (!current) return candidate;
+
+  const candidateScore = Math.max(
+    toSortableTime(candidate?.data_visitacao),
+    toSortableTime(candidate?.data_contato_inicial),
+    toSortableTime(candidate?.atualizado_em),
+    toSortableTime(candidate?.data_cadastro),
+  );
+  const currentScore = Math.max(
+    toSortableTime(current?.data_visitacao),
+    toSortableTime(current?.data_contato_inicial),
+    toSortableTime(current?.atualizado_em),
+    toSortableTime(current?.data_cadastro),
+  );
+
+  if (candidateScore !== currentScore) {
+    return candidateScore > currentScore ? candidate : current;
+  }
+
+  return String(candidate?.inscricao_id || '').localeCompare(String(current?.inscricao_id || ''), 'pt-BR') > 0
+    ? candidate
+    : current;
+}
+
+function consolidateVisitacaoItems(rows: any[]) {
+  const grouped = new Map<string, any>();
+
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const adolescenteId = toCleanString(row?.adolescente_id);
+    const key = adolescenteId || toCleanString(row?.inscricao_id);
+    if (!key) continue;
+    grouped.set(key, pickPreferredVisitacaoRow(grouped.get(key), row));
+  }
+
+  return Array.from(grouped.values()).sort((a, b) =>
+    toCleanString(a?.nome).localeCompare(toCleanString(b?.nome), 'pt-BR', { sensitivity: 'base' })
+  );
+}
+
 export function getVisitacaoFormToken() {
   return toCleanString(process.env.VISITACAO_FORM_TOKEN || process.env.CHAVE_MESTRA);
 }
@@ -83,7 +130,7 @@ export async function listVisitacoes(
   const { data, error } = await request;
   if (error) throw error;
 
-  const items = Array.isArray(data) ? data : [];
+  const items = consolidateVisitacaoItems(Array.isArray(data) ? data : []);
   return { items, indicadores: buildIndicadores(items) };
 }
 
