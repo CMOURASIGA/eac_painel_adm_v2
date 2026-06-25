@@ -36,6 +36,11 @@ function toCleanString(value: any) {
   return String(value ?? '').trim();
 }
 
+function normalizeTriagemStatusAlias(value: any) {
+  const normalized = toCleanString(value).toUpperCase();
+  return normalized === 'ENCONTREIRO' ? 'CONFIRMADO' : normalized;
+}
+
 function normalizeSearchText(value: any) {
   return toCleanString(value)
     .normalize('NFD')
@@ -322,7 +327,7 @@ export async function executeInscricoesAdminList(params: {
   }
 
   const encontroId = toCleanString(query.encontro_id);
-  const status = toCleanString(query.status).toUpperCase();
+  const status = normalizeTriagemStatusAlias(query.status);
   const origemDado = toCleanString(query.origem_dado).toUpperCase();
   const bairro = toCleanString(query.bairro);
   const dataInicio = toCleanString(query.data_inicio);

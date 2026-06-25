@@ -10,7 +10,7 @@ const STATUS_OPTIONS = [
   'EM_ANALISE',
   'PRIORIZADO',
   'FILA',
-  'CONFIRMADO',
+  'ENCONTREIRO',
   'NAO_SELECIONADO',
   'DESISTENTE',
   'CANCELADO',
@@ -20,14 +20,14 @@ const STATUS_CHANGE_OPTIONS = [
   'EM_ANALISE',
   'PRIORIZADO',
   'FILA',
-  'CONFIRMADO',
+  'ENCONTREIRO',
   'NAO_SELECIONADO',
   'DESISTENTE',
   'CANCELADO',
 ];
 
 const JUSTIFICATIVA_OBRIGATORIA_STATUS = new Set(['NAO_SELECIONADO', 'DESISTENTE', 'CANCELADO']);
-const QUICK_STATUS_OPTIONS = ['EM_ANALISE', 'PRIORIZADO', 'FILA', 'CONFIRMADO'];
+const QUICK_STATUS_OPTIONS = ['EM_ANALISE', 'PRIORIZADO', 'FILA', 'ENCONTREIRO'];
 const STATUS_TRANSITIONS_ALLOWED: Record<string, string[]> = {
   INSCRITO: ['EM_ANALISE', 'PRIORIZADO', 'FILA', 'NAO_SELECIONADO', 'CANCELADO'],
   EM_ANALISE: ['PRIORIZADO', 'FILA', 'CONFIRMADO', 'NAO_SELECIONADO', 'DESISTENTE', 'CANCELADO'],
@@ -41,8 +41,14 @@ const STATUS_TRANSITIONS_ALLOWED: Record<string, string[]> = {
 
 const ORIGEM_OPTIONS = ['SISTEMA', 'PLANILHA'];
 
+function getTriagemRawStatus(status: string) {
+  const normalized = String(status || '').trim().toUpperCase();
+  return normalized === 'ENCONTREIRO' ? 'CONFIRMADO' : normalized;
+}
+
 function getTriagemStatusLabel(status: string) {
-  return String(status || '').trim().toUpperCase() === 'CONFIRMADO' ? 'ENCONTREIRO' : String(status || '').trim();
+  const normalized = getTriagemRawStatus(status);
+  return normalized === 'CONFIRMADO' ? 'ENCONTREIRO' : normalized;
 }
 
 function formatDateTime(value: any) {
@@ -54,7 +60,8 @@ function formatDateTime(value: any) {
 }
 
 function getAllowedStatusTargets(statusAtual: string) {
-  return STATUS_TRANSITIONS_ALLOWED[String(statusAtual || '').trim()] || [];
+  const rawStatusAtual = getTriagemRawStatus(statusAtual);
+  return (STATUS_TRANSITIONS_ALLOWED[rawStatusAtual] || []).map((status) => getTriagemStatusLabel(status));
 }
 
 function splitBairroAndEmail(rawBairro: any, fallbackEmail: any) {
@@ -260,6 +267,7 @@ function getTriagemExportLabel(key: string) {
 
 function formatTriagemExportValue(key: string, value: any) {
   if (key === 'data_inscricao' || key === 'criado_em') return formatDateTime(value);
+  if (key === 'status_inscricao') return getTriagemStatusLabel(String(value || ''));
   if (typeof value === 'boolean') return value ? 'Sim' : 'Não';
   return value ?? '';
 }
@@ -366,7 +374,12 @@ const InscricoesReviewPage: React.FC = () => {
 
   const statusCards = useMemo(() => {
     const keys = ['INSCRITO', 'EM_ANALISE', 'PRIORIZADO', 'FILA', 'CONFIRMADO', 'NAO_SELECIONADO'];
-    return keys.map((key) => ({ key, label: getTriagemStatusLabel(key), value: summary.por_status[key] || 0 }));
+    return keys.map((key) => ({
+      key,
+      filterValue: getTriagemStatusLabel(key),
+      label: getTriagemStatusLabel(key),
+      value: summary.por_status[key] || 0,
+    }));
   }, [summary.por_status]);
 
   const allowedTargets = useMemo(() => getAllowedStatusTargets(String(selected?.status_inscricao || '')), [selected?.status_inscricao]);
@@ -377,19 +390,21 @@ const InscricoesReviewPage: React.FC = () => {
     if (!selected) return;
 
     const statusNovo = String(newStatus || '').trim();
+    const statusNovoRaw = getTriagemRawStatus(statusNovo);
     if (!statusNovo) {
       setStatusFeedback({ type: 'error', text: 'Selecione o novo status.' });
       return;
     }
 
     const statusAtual = String(selected.status_inscricao || '').trim();
-    if (statusNovo === statusAtual) {
+    const statusAtualRaw = getTriagemRawStatus(statusAtual);
+    if (statusNovoRaw === statusAtualRaw) {
       setStatusFeedback({ type: 'error', text: 'O status informado já é o status atual da inscrição.' });
       return;
     }
 
     if (!allowedTargets.includes(statusNovo)) {
-      setStatusFeedback({ type: 'error', text: `Transição inválida: ${statusAtual} -> ${statusNovo}.` });
+      setStatusFeedback({ type: 'error', text: `Transição inválida: ${getTriagemStatusLabel(statusAtual)} -> ${statusNovo}.` });
       return;
     }
 
@@ -525,7 +540,7 @@ const InscricoesReviewPage: React.FC = () => {
     const statusAtual = String(item.status_inscricao || '').trim();
     const allowed = getAllowedStatusTargets(statusAtual);
     if (!allowed.includes(statusNovo)) {
-      setError(`Transição inválida: ${statusAtual} -> ${statusNovo}.`);
+      setError(`Transição inválida: ${getTriagemStatusLabel(statusAtual)} -> ${statusNovo}.`);
       return;
     }
 
@@ -651,9 +666,9 @@ const InscricoesReviewPage: React.FC = () => {
             <button
               key={s.key}
               type="button"
-              onClick={() => applyQuickStatusFilter(s.key)}
+              onClick={() => applyQuickStatusFilter(s.filterValue)}
               className={`p-3 rounded-xl border text-left transition-colors ${
-                String(applied.status || '').trim() === s.key
+                getTriagemStatusLabel(String(applied.status || '').trim()) === s.filterValue
                   ? 'border-blue-600 bg-blue-50'
                   : 'border-slate-200 bg-white hover:border-blue-300'
               }`}
@@ -694,9 +709,9 @@ const InscricoesReviewPage: React.FC = () => {
                 <button
                   key={`quick-filter-${s.key}`}
                   type="button"
-                  onClick={() => applyQuickStatusFilter(s.key)}
+                  onClick={() => applyQuickStatusFilter(s.filterValue)}
                   className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border ${
-                    String(applied.status || '').trim() === s.key
+                    getTriagemStatusLabel(String(applied.status || '').trim()) === s.filterValue
                       ? 'bg-blue-600 border-blue-600 text-white'
                       : 'bg-white border-slate-300 text-slate-700'
                   }`}
@@ -815,7 +830,7 @@ const InscricoesReviewPage: React.FC = () => {
                                 onClick={() => handleQuickStatusFromCard(it, status)}
                                 className="border-emerald-300 bg-emerald-50 text-emerald-700"
                               >
-                                {status === 'PRIORIZADO' ? <StarIcon /> : status === 'CONFIRMADO' ? <CheckIcon /> : <MinusCircleIcon />}
+                                {getTriagemRawStatus(status) === 'PRIORIZADO' ? <StarIcon /> : getTriagemRawStatus(status) === 'CONFIRMADO' ? <CheckIcon /> : <MinusCircleIcon />}
                               </ActionIconButton>
                             ))}
                           </div>

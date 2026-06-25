@@ -36,7 +36,8 @@ function toCleanString(value: any) {
 }
 
 function normalizeStatus(value: any) {
-  return toCleanString(value).toUpperCase();
+  const normalized = toCleanString(value).toUpperCase();
+  return normalized === 'ENCONTREIRO' ? 'CONFIRMADO' : normalized;
 }
 
 function isValidUuid(value: string) {
