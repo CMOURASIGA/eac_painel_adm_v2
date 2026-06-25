@@ -32,3 +32,5 @@ git
 .next
 *.tsbuildinfo
 .tmp_*.json
+.tmp-*
+vercel-runtime-log.txt

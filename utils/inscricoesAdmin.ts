@@ -217,31 +217,47 @@ async function adolescenteIdsByPessoaFiltros(
 
   console.log('[pessoaFiltros] buscaText:', buscaText, 'buscaDigits:', buscaDigits);
 
-  let pessoasQuery = supabase.from('pessoas').select('id');
-  if (typeof idadeMin === 'number') pessoasQuery = pessoasQuery.gte('idade_calculada', idadeMin);
-  if (typeof idadeMax === 'number') pessoasQuery = pessoasQuery.lte('idade_calculada', idadeMax);
-  if (bairro) pessoasQuery = pessoasQuery.ilike('bairro', `%${bairro}%`);
+  const pessoas: any[] = [];
+  const pageSize = 500;
+  let from = 0;
 
-  if (buscaDigits) {
-    console.log('[pessoaFiltros] searching telefone_normalizado with:', buscaDigits);
-    pessoasQuery = pessoasQuery.ilike('telefone_normalizado', `%${buscaDigits}%`);
-  }
-  if (buscaText) {
-    // Extract only alphabetic characters for name search
-    const nameOnly = buscaText.replace(/[^a-zA-Z\s]/g, '').trim();
-    console.log('[pessoaFiltros] nameOnly:', nameOnly);
-    if (nameOnly) {
-      if (buscaDigits) {
-        pessoasQuery = pessoasQuery.or(`nome_completo.ilike.%${nameOnly}%`);
-      } else {
-        pessoasQuery = pessoasQuery.ilike('nome_completo', `%${nameOnly}%`);
+  while (true) {
+    let pessoasQuery = supabase
+      .from('pessoas')
+      .select('id')
+      .order('id', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (typeof idadeMin === 'number') pessoasQuery = pessoasQuery.gte('idade_calculada', idadeMin);
+    if (typeof idadeMax === 'number') pessoasQuery = pessoasQuery.lte('idade_calculada', idadeMax);
+    if (bairro) pessoasQuery = pessoasQuery.ilike('bairro', `%${bairro}%`);
+
+    if (buscaDigits) {
+      console.log('[pessoaFiltros] searching telefone_normalizado with:', buscaDigits);
+      pessoasQuery = pessoasQuery.ilike('telefone_normalizado', `%${buscaDigits}%`);
+    }
+    if (buscaText) {
+      // Extract only alphabetic characters for name search
+      const nameOnly = buscaText.replace(/[^a-zA-Z\s]/g, '').trim();
+      console.log('[pessoaFiltros] nameOnly:', nameOnly);
+      if (nameOnly) {
+        if (buscaDigits) {
+          pessoasQuery = pessoasQuery.or(`nome_completo.ilike.%${nameOnly}%`);
+        } else {
+          pessoasQuery = pessoasQuery.ilike('nome_completo', `%${nameOnly}%`);
+        }
       }
     }
-  }
 
-  const { data: pessoas, error: pessoasError } = await pessoasQuery;
-  console.log('[pessoaFiltros] query result:', { count: pessoas?.length, first: pessoas?.[0] }, 'error:', pessoasError?.message);
-  if (pessoasError) throw pessoasError;
+    const { data, error: pessoasError } = await pessoasQuery;
+    console.log('[pessoaFiltros] query result:', { count: data?.length, first: data?.[0], from }, 'error:', pessoasError?.message);
+    if (pessoasError) throw pessoasError;
+
+    const chunk = Array.isArray(data) ? data : [];
+    pessoas.push(...chunk);
+    if (chunk.length < pageSize) break;
+    from += pageSize;
+  }
 
   const pessoaIds = uniq((pessoas ?? []).map((p: any) => String(p.id || '')));
   const adolescentes = await adolescentesByPessoaIds(supabase, pessoaIds);
@@ -351,11 +367,18 @@ export async function executeInscricoesAdminList(params: {
   try {
     let adolescenteIdsBase: string[] | null = null;
     try {
-      adolescenteIdsBase = await adolescenteIdsByPessoaFiltros(supabase, {
-        idadeMin: Number.isFinite(idadeMin as number) ? (idadeMin as number) : null,
-        idadeMax: idadeMaxTriagem,
-        bairro,
-      });
+      const hasBasePessoaFilters =
+        Number.isFinite(idadeMin as number)
+        || Number.isFinite(idadeMaxTriagem as number)
+        || Boolean(bairro);
+
+      adolescenteIdsBase = hasBasePessoaFilters
+        ? await adolescenteIdsByPessoaFiltros(supabase, {
+            idadeMin: Number.isFinite(idadeMin as number) ? (idadeMin as number) : null,
+            idadeMax: idadeMaxTriagem,
+            bairro,
+          })
+        : null;
     } catch (e: any) {
       console.error('[inscricoes/admin] falha no filtro base de triagem (idade/bairro):', e?.message || e);
       return {
