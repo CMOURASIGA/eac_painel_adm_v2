@@ -36,6 +36,16 @@ function toCleanString(value: any) {
   return String(value ?? '').trim();
 }
 
+function normalizeSearchText(value: any) {
+  return toCleanString(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 function normalizeDigits(value: any) {
   return String(value ?? '').replace(/\D/g, '');
 }
@@ -177,13 +187,10 @@ async function adolescenteIdsByResponsavelBusca(supabase: AnySupabaseClient, bus
     q = q.ilike('telefone_normalizado', `%${buscaDigits}%`);
   }
   if (buscaText) {
+    const nameOnly = normalizeSearchText(buscaText);
     const hasOnlyDigits = /^\d+$/.test(buscaText);
-    if (!hasOnlyDigits) {
-      if (buscaDigits) {
-        q = q.or(`nome.ilike.%${buscaText}%`);
-      } else {
-        q = q.ilike('nome', `%${buscaText}%`);
-      }
+    if (!hasOnlyDigits && nameOnly) {
+      q = q.ilike('nome', `%${nameOnly}%`);
     }
   }
 
@@ -232,22 +239,17 @@ async function adolescenteIdsByPessoaFiltros(
     if (typeof idadeMax === 'number') pessoasQuery = pessoasQuery.lte('idade_calculada', idadeMax);
     if (bairro) pessoasQuery = pessoasQuery.ilike('bairro', `%${bairro}%`);
 
-    if (buscaDigits) {
-      console.log('[pessoaFiltros] searching telefone_normalizado with:', buscaDigits);
-      pessoasQuery = pessoasQuery.ilike('telefone_normalizado', `%${buscaDigits}%`);
+  if (buscaDigits) {
+    console.log('[pessoaFiltros] searching telefone_normalizado with:', buscaDigits);
+    pessoasQuery = pessoasQuery.ilike('telefone_normalizado', `%${buscaDigits}%`);
+  }
+  if (buscaText) {
+    const nameOnly = normalizeSearchText(buscaText);
+    console.log('[pessoaFiltros] nameOnly:', nameOnly);
+    if (nameOnly) {
+      pessoasQuery = pessoasQuery.or(`nome_completo.ilike.%${nameOnly}%,nome_normalizado.ilike.%${nameOnly}%`);
     }
-    if (buscaText) {
-      // Extract only alphabetic characters for name search
-      const nameOnly = buscaText.replace(/[^a-zA-Z\s]/g, '').trim();
-      console.log('[pessoaFiltros] nameOnly:', nameOnly);
-      if (nameOnly) {
-        if (buscaDigits) {
-          pessoasQuery = pessoasQuery.or(`nome_completo.ilike.%${nameOnly}%`);
-        } else {
-          pessoasQuery = pessoasQuery.ilike('nome_completo', `%${nameOnly}%`);
-        }
-      }
-    }
+  }
 
     const { data, error: pessoasError } = await pessoasQuery;
     console.log('[pessoaFiltros] query result:', { count: data?.length, first: data?.[0], from }, 'error:', pessoasError?.message);
@@ -368,8 +370,8 @@ export async function executeInscricoesAdminList(params: {
     let adolescenteIdsBase: string[] | null = null;
     try {
       const hasBasePessoaFilters =
-        Number.isFinite(idadeMin as number)
-        || Number.isFinite(idadeMaxTriagem as number)
+        Boolean(idadeMinRaw)
+        || Boolean(idadeMaxRaw)
         || Boolean(bairro);
 
       adolescenteIdsBase = hasBasePessoaFilters

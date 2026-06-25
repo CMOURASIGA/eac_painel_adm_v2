@@ -41,6 +41,10 @@ const STATUS_TRANSITIONS_ALLOWED: Record<string, string[]> = {
 
 const ORIGEM_OPTIONS = ['SISTEMA', 'PLANILHA'];
 
+function getTriagemStatusLabel(status: string) {
+  return String(status || '').trim().toUpperCase() === 'CONFIRMADO' ? 'ENCONTREIRO' : String(status || '').trim();
+}
+
 function formatDateTime(value: any) {
   const raw = String(value || '').trim();
   if (!raw) return '-';
@@ -362,7 +366,7 @@ const InscricoesReviewPage: React.FC = () => {
 
   const statusCards = useMemo(() => {
     const keys = ['INSCRITO', 'EM_ANALISE', 'PRIORIZADO', 'FILA', 'CONFIRMADO', 'NAO_SELECIONADO'];
-    return keys.map((key) => ({ key, value: summary.por_status[key] || 0 }));
+    return keys.map((key) => ({ key, label: getTriagemStatusLabel(key), value: summary.por_status[key] || 0 }));
   }, [summary.por_status]);
 
   const allowedTargets = useMemo(() => getAllowedStatusTargets(String(selected?.status_inscricao || '')), [selected?.status_inscricao]);
@@ -660,7 +664,7 @@ const InscricoesReviewPage: React.FC = () => {
           ))}
         </div>
 
-        <div className="mt-4 p-4 rounded-2xl border border-slate-200 bg-white">
+      <div className="mt-4 p-4 rounded-2xl border border-slate-200 bg-white">
           <div className="mb-3 p-3 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900">
             <p className="text-[11px] font-black uppercase tracking-widest">Regra ativa de triagem</p>
             <p className="text-sm font-semibold mt-1">A triagem mostra o status operacional real das inscrições. Use os filtros para restringir idade, encontro, origem ou bairro quando necessário.</p>
@@ -668,7 +672,7 @@ const InscricoesReviewPage: React.FC = () => {
 
           <div className="mb-3 p-3 rounded-xl border border-blue-200 bg-blue-50 text-blue-900">
             <p className="text-[11px] font-black uppercase tracking-widest">Fluxo operacional</p>
-            <p className="text-sm font-semibold mt-1">Inscrito -&gt; Priorizado -&gt; Confirmado -&gt; Cadastro oficial (após participação).</p>
+            <p className="text-sm font-semibold mt-1">Inscrito -&gt; Priorizado -&gt; Encontreiro -&gt; Cadastro oficial (após participação).</p>
             <p className="text-xs mt-1">Exceções: Não selecionado (fechamento de ciclo), Desistente e Cancelado. Status legados não aparecem na edição.</p>
           </div>
 
@@ -696,8 +700,8 @@ const InscricoesReviewPage: React.FC = () => {
                       ? 'bg-blue-600 border-blue-600 text-white'
                       : 'bg-white border-slate-300 text-slate-700'
                   }`}
-                >
-                  {s.key} ({s.value})
+                  >
+                  {s.label} ({s.value})
                 </button>
               ))}
             </div>
@@ -754,7 +758,7 @@ const InscricoesReviewPage: React.FC = () => {
                     return (
                       <>
                         <div className="flex items-center justify-between gap-2">
-                          <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-black text-xs">{it.status_inscricao || '-'}</span>
+                          <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-black text-xs">{getTriagemStatusLabel(it.status_inscricao || '-')}</span>
                           <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">{it.idade_calculada ?? '-'} anos</span>
                         </div>
 
@@ -807,7 +811,7 @@ const InscricoesReviewPage: React.FC = () => {
                             {getAllowedStatusTargets(String(it.status_inscricao || '')).filter((s) => QUICK_STATUS_OPTIONS.includes(s)).map((status) => (
                               <ActionIconButton
                                 key={`${it.inscricao_id}-${status}`}
-                                title={`Definir ${status}`}
+                                title={`Definir ${getTriagemStatusLabel(status)}`}
                                 onClick={() => handleQuickStatusFromCard(it, status)}
                                 className="border-emerald-300 bg-emerald-50 text-emerald-700"
                               >
@@ -840,7 +844,7 @@ const InscricoesReviewPage: React.FC = () => {
             <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
               <p className="text-xs uppercase tracking-widest text-slate-500 font-black">Inscrição</p>
               <p className="text-sm font-bold mt-1">ID: {selected.inscricao_id}</p>
-              <p className="text-sm">Status: {selected.status_inscricao}</p>
+              <p className="text-sm">Status: {getTriagemStatusLabel(selected.status_inscricao || '-')}</p>
               <p className="text-sm">Data inscrição: {formatDateTime(selected.data_inscricao)}</p>
               <p className="text-sm">Origem: {selected.origem_inscricao || '-'}</p>
               <p className="text-sm">Criado via sistema: {selected.criado_via_sistema ? 'Sim' : 'Não'}</p>
@@ -848,7 +852,7 @@ const InscricoesReviewPage: React.FC = () => {
 
             <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
               <p className="text-xs uppercase tracking-widest text-slate-500 font-black">Alterar status</p>
-              <p className="text-sm mt-1">Status atual: <span className="font-black">{selected.status_inscricao || '-'}</span></p>
+              <p className="text-sm mt-1">Status atual: <span className="font-black">{getTriagemStatusLabel(selected.status_inscricao || '-')}</span></p>
 
               <div className="mt-2 grid grid-cols-1 gap-2">
                 <div className="flex flex-wrap gap-2">
@@ -864,7 +868,7 @@ const InscricoesReviewPage: React.FC = () => {
                           : 'bg-white border-slate-300 text-slate-700 hover:border-blue-400'
                       } disabled:opacity-50`}
                     >
-                      {status}
+                      {getTriagemStatusLabel(status)}
                     </button>
                   ))}
                 </div>
@@ -876,7 +880,7 @@ const InscricoesReviewPage: React.FC = () => {
                   className="px-3 py-2 rounded-xl border border-slate-300 text-sm font-bold"
                 >
                   <option value="">Selecione o novo status</option>
-                  {STATUS_CHANGE_OPTIONS.filter((s) => allowedTargets.includes(s)).map((s) => <option key={s} value={s}>{s}</option>)}
+                  {STATUS_CHANGE_OPTIONS.filter((s) => allowedTargets.includes(s)).map((s) => <option key={s} value={s}>{getTriagemStatusLabel(s)}</option>)}
                 </select>
 
                 <textarea

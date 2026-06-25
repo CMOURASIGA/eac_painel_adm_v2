@@ -156,6 +156,7 @@ const VisitacaoPage: React.FC<{ user: User }> = ({ user }) => {
     { label: 'Visitação realizada', value: totals.visitacaoRealizada, status: 'VISITACAO_REALIZADA' },
     { label: 'Não conseguiu contato', value: totals.naoConseguiuContato, status: 'NAO_CONSEGUIU_CONTATO' },
     { label: 'Aguardando retorno', value: totals.aguardandoRetorno, status: 'AGUARDANDO_RETORNO' },
+    { label: 'Não deseja fazer', value: totals.naoDesejaVisita, status: 'NAO_DESEJA_VISITA' },
   ];
 
   return (
@@ -179,7 +180,7 @@ const VisitacaoPage: React.FC<{ user: User }> = ({ user }) => {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 xl:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 xl:grid-cols-7 gap-3">
         <div className="rounded-3xl bg-slate-900 text-white p-5">
           <div className="text-[11px] font-black uppercase tracking-widest text-slate-300">Total priorizados</div>
           <div className="mt-3 text-4xl font-black">{totals.total || 0}</div>
