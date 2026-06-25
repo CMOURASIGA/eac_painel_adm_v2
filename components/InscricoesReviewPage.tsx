@@ -658,7 +658,7 @@ const InscricoesReviewPage: React.FC = () => {
                   : 'border-slate-200 bg-white hover:border-blue-300'
               }`}
             >
-              <p className="text-[10px] uppercase tracking-widest text-slate-500 font-black">{s.key}</p>
+              <p className="text-[10px] uppercase tracking-widest text-slate-500 font-black">{s.label}</p>
               <p className="text-2xl font-black text-slate-900">{s.value}</p>
             </button>
           ))}
