@@ -46,6 +46,11 @@ const whatsappHref = (value: string) => {
   return digits ? `https://wa.me/${digits}` : '';
 };
 
+const escapeCsvCell = (value: unknown) => {
+  const text = String(value ?? '').replace(/"/g, '""');
+  return `"${text}"`;
+};
+
 const VisitacaoPage: React.FC<{ user: User }> = ({ user }) => {
   const [items, setItems] = useState<VisitacaoPriorizado[]>([]);
   const [indicadores, setIndicadores] = useState<any>(null);
@@ -97,6 +102,104 @@ const VisitacaoPage: React.FC<{ user: User }> = ({ user }) => {
       return true;
     });
   }, [filters, items, selectedStatuses]);
+
+  const handleExportCsv = () => {
+    const headers = [
+      'inscricao_id',
+      'adolescente_id',
+      'visitacao_id',
+      'nome',
+      'email',
+      'telefone',
+      'telefone_normalizado',
+      'bairro',
+      'sexo',
+      'idade',
+      'data_nascimento',
+      'responsavel_nome',
+      'responsavel_telefone',
+      'responsavel_email',
+      'encontro_id',
+      'encontro_nome',
+      'encontro_numero',
+      'status_inscricao',
+      'origem_inscricao',
+      'status_visitacao',
+      'status_visitacao_label',
+      'contato_inicial_realizado',
+      'data_contato_inicial',
+      'visitacao_realizada',
+      'data_visitacao',
+      'responsavel_acao',
+      'observacao',
+      'origem_registro',
+      'atualizado_em',
+      'data_cadastro',
+      'ja_participou_encontro',
+      'batizado',
+      'crismado',
+      'respostas_questionario_resumo',
+    ];
+
+    const rows = filteredItems.map((item) => {
+      const respostas = item.respostas_questionario || createEmptyVisitacaoQuestionario();
+      return [
+        item.inscricao_id,
+        item.adolescente_id,
+        item.visitacao_id,
+        item.nome,
+        item.email,
+        item.telefone,
+        item.telefone_normalizado,
+        item.bairro,
+        item.sexo,
+        item.idade,
+        item.data_nascimento,
+        item.responsavel_nome,
+        item.responsavel_telefone,
+        item.responsavel_email,
+        item.encontro_id,
+        item.encontro_nome,
+        item.encontro_numero,
+        item.status_inscricao,
+        item.origem_inscricao,
+        item.status_visitacao,
+        STATUS_VISITACAO_UI[item.status_visitacao]?.label || item.status_visitacao,
+        item.contato_inicial_realizado ? 'SIM' : 'NAO',
+        item.data_contato_inicial,
+        item.visitacao_realizada ? 'SIM' : 'NAO',
+        item.data_visitacao,
+        item.responsavel_acao,
+        item.observacao,
+        item.origem_registro,
+        item.atualizado_em,
+        item.data_cadastro,
+        respostas.ja_participou_encontro,
+        respostas.batizado,
+        respostas.crismado,
+        summarizeVisitacaoQuestionario(item.respostas_questionario),
+      ];
+    });
+
+    const csv = '\ufeff' + [
+      headers.map(escapeCsvCell).join(';'),
+      ...rows.map((row) => row.map(escapeCsvCell).join(';')),
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    link.href = url;
+    link.download = `visitacao_priorizados_${yyyy}-${mm}-${dd}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   const openAction = (item: VisitacaoPriorizado, status: VisitacaoStatus) => {
     setSelectedItem(item);
@@ -174,9 +277,14 @@ const VisitacaoPage: React.FC<{ user: User }> = ({ user }) => {
             <h2 className="text-3xl font-black tracking-tight text-slate-900">Controle operacional dos priorizados</h2>
             <p className="mt-2 text-sm text-slate-500">Acompanhe contato inicial, visita realizada e pendências sem alterar a inscrição oficial.</p>
           </div>
-          <button type="button" onClick={load} className="rounded-2xl bg-blue-600 text-white px-5 py-3 text-xs font-black uppercase tracking-widest">
-            Recarregar
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={handleExportCsv} className="rounded-2xl border border-emerald-300 bg-emerald-50 text-emerald-700 px-5 py-3 text-xs font-black uppercase tracking-widest">
+              Exportar CSV
+            </button>
+            <button type="button" onClick={load} className="rounded-2xl bg-blue-600 text-white px-5 py-3 text-xs font-black uppercase tracking-widest">
+              Recarregar
+            </button>
+          </div>
         </div>
       </div>
 
