@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { normalizeVisitacaoQuestionario, summarizeVisitacaoQuestionario } from '../utils/visitacaoQuestionario.ts';
+import { normalizeVisitacaoQuestionario, summarizeVisitacaoQuestionario } from '../utils/visitacaoQuestionario.js';
 
 type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
 
