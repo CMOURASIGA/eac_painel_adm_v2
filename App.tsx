@@ -50,6 +50,13 @@ const pathViewMap: Record<string, View> = {
   '/encontreiros': 'encontreiros',
 };
 
+const publicFormPathMap = {
+  inscricao: '/inscricao/form',
+  encontreiro: '/encontreiro/form',
+  presenca: '/presenca/form',
+  visitacao: '/visitacao/form',
+} as const;
+
 const App: React.FC = () => {
   type PendingDialog = AppDialogRequest & { resolve: (value: boolean | void) => void };
 
@@ -100,8 +107,15 @@ const App: React.FC = () => {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const pathname = window.location.pathname.replace(/\/+$/, '') || '/';
+    const modeFromPath =
+      pathname === publicFormPathMap.inscricao ? 'inscricao_form'
+      : pathname === publicFormPathMap.encontreiro ? 'encontreiro_form'
+      : pathname === publicFormPathMap.presenca ? 'presenca_form'
+      : pathname === publicFormPathMap.visitacao ? 'visitacao_form'
+      : '';
+
     setQueryParams({
-      mode: params.get('mode') || '',
+      mode: params.get('mode') || modeFromPath,
       email: params.get('email') || '',
       name: params.get('name') || '',
       token: params.get('token') || '',
