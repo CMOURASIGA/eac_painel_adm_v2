@@ -50,9 +50,9 @@ select
   v.data_visitacao,
   v.responsavel_acao,
   v.observacao,
-  v.respostas_questionario,
   v.origem_registro,
-  v.atualizado_em
+  v.atualizado_em,
+  v.respostas_questionario
 from public.inscricoes i
 join public.adolescentes a
   on a.id = i.adolescente_id
