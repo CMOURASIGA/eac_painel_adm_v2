@@ -37,6 +37,13 @@ const normalizeStatus = (value: any) => {
   return toCleanString(value);
 };
 
+const getOriginLabel = (ev: CalendarEvent) => {
+  const origin = toCleanString((ev as any)?.origem_dado || (ev as any)?.origemDado).toUpperCase();
+  if (origin === 'PLANILHA') return 'Planilha';
+  if (origin === 'SISTEMA') return 'Sistema';
+  return origin || 'Origem não informada';
+};
+
 export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProps) {
   const [internalEvents, setInternalEvents] = useState<CalendarEvent[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -421,12 +428,35 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                     </div>
                     <div>
                       <h4 className="font-black text-slate-800 text-base leading-tight uppercase tracking-tight mb-2">{toCleanString(ev.atividade)}</h4>
+                      <div className="grid gap-2 text-[10px] font-bold text-slate-500 mb-3">
+                        <div className="rounded-xl bg-white border border-slate-200 px-3 py-2">
+                          <span className="uppercase tracking-widest text-slate-400">Início</span>
+                          <span className="ml-2 text-slate-800">{formatDateTime(ev.inicio)}</span>
+                        </div>
+                        <div className="rounded-xl bg-white border border-slate-200 px-3 py-2">
+                          <span className="uppercase tracking-widest text-slate-400">Término</span>
+                          <span className="ml-2 text-slate-800">{formatDateTime(ev.termino)}</span>
+                        </div>
+                      </div>
                       <div className="flex items-center text-slate-400 gap-4">
                          <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">📍</span> {toCleanString(ev.local) || 'Paróquia'}</p>
                          <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">ðŸ•’</span> {new Date(ev.inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                          {toCleanString(ev.encontroId) && (
                            <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">#</span> {toCleanString(ev.encontroId)}</p>
                          )}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full border border-blue-200 bg-blue-50 text-blue-700 text-[10px] font-black uppercase tracking-widest">
+                          {normalizeStatus(ev.status) || 'Sem status'}
+                        </span>
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-slate-700 text-[10px] font-black uppercase tracking-widest">
+                          {getOriginLabel(ev)}
+                        </span>
+                        {toCleanString((ev as any)?.id_origem_planilha || (ev as any)?.idOrigemPlanilha) ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-full border border-amber-200 bg-amber-50 text-amber-700 text-[10px] font-black uppercase tracking-widest">
+                            ID origem: {toCleanString((ev as any)?.id_origem_planilha || (ev as any)?.idOrigemPlanilha)}
+                          </span>
+                        ) : null}
                       </div>
                       {toCleanString((ev as any)?.origem_dado || (ev as any)?.origemDado).toUpperCase() === 'PLANILHA' && (
                         <p className="mt-3 text-[10px] font-black uppercase tracking-widest text-amber-600">
