@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { visitacaoService } from '../services/visitacaoService.ts';
-import type { VisitacaoPriorizado, VisitacaoStatus } from '../types.ts';
+import type { VisitacaoPriorizado, VisitacaoQuestionarioResposta, VisitacaoStatus } from '../types.ts';
+import { createEmptyVisitacaoQuestionario, summarizeVisitacaoQuestionario } from '../utils/visitacaoQuestionario.ts';
+import VisitacaoQuestionarioFields from './VisitacaoQuestionarioFields.tsx';
 
 const STATUS_OPTIONS: Array<{ value: VisitacaoStatus; label: string }> = [
   { value: 'CONTATO_INICIAL_FEITO', label: 'Deseja fazer' },
@@ -26,6 +28,7 @@ const VisitacaoForm: React.FC<{ token?: string }> = ({ token }) => {
     responsavel_acao: '',
     observacao: '',
   });
+  const [questionario, setQuestionario] = useState<VisitacaoQuestionarioResposta>(createEmptyVisitacaoQuestionario());
 
   useEffect(() => {
     const load = async () => {
@@ -59,6 +62,10 @@ const VisitacaoForm: React.FC<{ token?: string }> = ({ token }) => {
 
   const selectedItem = useMemo(() => items.find((item) => item.inscricao_id === selectedId) || null, [items, selectedId]);
 
+  useEffect(() => {
+    setQuestionario(selectedItem?.respostas_questionario ? selectedItem.respostas_questionario : createEmptyVisitacaoQuestionario());
+  }, [selectedItem?.inscricao_id]);
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError('');
@@ -78,6 +85,7 @@ const VisitacaoForm: React.FC<{ token?: string }> = ({ token }) => {
 
     const result = await visitacaoService.registrar(selectedId, {
       ...form,
+      respostas_questionario: questionario,
       origem_registro: 'FORMULARIO_VISITACAO',
       token,
       data_acao: new Date(form.data_acao).toISOString(),
@@ -95,6 +103,7 @@ const VisitacaoForm: React.FC<{ token?: string }> = ({ token }) => {
       responsavel_acao: '',
       observacao: '',
     });
+    setQuestionario(createEmptyVisitacaoQuestionario());
   };
 
   if (loading) {
@@ -133,6 +142,14 @@ const VisitacaoForm: React.FC<{ token?: string }> = ({ token }) => {
             <input value={search} onChange={(event) => setSearch(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-4 font-semibold outline-none focus:border-blue-500" placeholder="Digite nome ou telefone" />
           </label>
 
+          <div className="space-y-3 rounded-[2rem] border border-blue-100 bg-blue-50/60 p-5">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.25em] text-blue-600">Perguntas da visitação</p>
+              <p className="mt-1 text-sm font-semibold text-slate-600">Preencha as respostas quando houver contato com a família. Se não houver informação, mantenha como "Não informado".</p>
+            </div>
+            <VisitacaoQuestionarioFields value={questionario} onChange={setQuestionario} compact />
+          </div>
+
           <label className="space-y-2 block">
             <span className="text-sm font-black text-slate-700">Adolescente selecionado</span>
             <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-4 font-semibold outline-none focus:border-blue-500" required>
@@ -151,6 +168,12 @@ const VisitacaoForm: React.FC<{ token?: string }> = ({ token }) => {
               <div>Responsável cadastrado: <span className="text-slate-900 font-black">{selectedItem.responsavel_nome || '-'}</span></div>
               <div>Telefone: <span className="text-slate-900 font-black">{selectedItem.telefone || '-'}</span></div>
               <div>Bairro: <span className="text-slate-900 font-black">{selectedItem.bairro || '-'}</span></div>
+              {selectedItem.respostas_questionario ? (
+                <div className="md:col-span-2 rounded-2xl bg-white border border-slate-200 p-4 text-slate-600">
+                  <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">Últimas respostas</div>
+                  <div className="mt-2 font-semibold text-slate-700">{summarizeVisitacaoQuestionario(selectedItem.respostas_questionario)}</div>
+                </div>
+              ) : null}
             </div>
           ) : null}
 

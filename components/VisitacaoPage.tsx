@@ -2,8 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import PersonCard from './PersonCard.tsx';
 import Drawer from './Drawer.tsx';
 import { visitacaoService } from '../services/visitacaoService.ts';
-import type { User, VisitacaoHistoricoItem, VisitacaoPriorizado, VisitacaoStatus } from '../types.ts';
+import type { User, VisitacaoHistoricoItem, VisitacaoPriorizado, VisitacaoQuestionarioResposta, VisitacaoStatus } from '../types.ts';
 import { toCleanString } from '../utils/textEncoding.ts';
+import { createEmptyVisitacaoQuestionario, summarizeVisitacaoQuestionario } from '../utils/visitacaoQuestionario.ts';
+import VisitacaoQuestionarioFields from './VisitacaoQuestionarioFields.tsx';
 
 const STATUS_VISITACAO_UI: Record<VisitacaoStatus, { label: string; badge: string; dot: string }> = {
   NENHUMA_ACAO: { label: 'Nenhuma ação', badge: 'bg-slate-50 text-slate-700 border border-slate-200', dot: 'bg-slate-400' },
@@ -58,6 +60,7 @@ const VisitacaoPage: React.FC<{ user: User }> = ({ user }) => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [questionario, setQuestionario] = useState<VisitacaoQuestionarioResposta>(createEmptyVisitacaoQuestionario());
   const [form, setForm] = useState({
     status_visitacao: 'CONTATO_INICIAL_FEITO' as VisitacaoStatus,
     data_acao: new Date().toISOString().slice(0, 16),
@@ -103,6 +106,7 @@ const VisitacaoPage: React.FC<{ user: User }> = ({ user }) => {
       responsavel_acao: user.name || user.email || '',
       observacao: item.observacao || '',
     });
+    setQuestionario(item.respostas_questionario ? item.respostas_questionario : createEmptyVisitacaoQuestionario());
     setModalOpen(true);
   };
 
@@ -125,6 +129,7 @@ const VisitacaoPage: React.FC<{ user: User }> = ({ user }) => {
     setSuccess('');
     const result = await visitacaoService.registrar(selectedItem.inscricao_id, {
       ...form,
+      respostas_questionario: questionario,
       origem_registro: 'PAINEL',
       data_acao: new Date(form.data_acao).toISOString(),
     });
@@ -135,6 +140,7 @@ const VisitacaoPage: React.FC<{ user: User }> = ({ user }) => {
     }
     setModalOpen(false);
     setSuccess('Ação de visitação registrada com sucesso.');
+    setQuestionario(createEmptyVisitacaoQuestionario());
     await load();
     setSaving(false);
   };
@@ -305,10 +311,23 @@ const VisitacaoPage: React.FC<{ user: User }> = ({ user }) => {
                 <input type="datetime-local" value={form.data_acao} onChange={(event) => setForm((current) => ({ ...current, data_acao: event.target.value }))} className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-blue-500" required />
               </label>
             </div>
+            {selectedItem.respostas_questionario ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">Últimas respostas</div>
+                <div className="mt-2 font-semibold text-slate-700">{summarizeVisitacaoQuestionario(selectedItem.respostas_questionario)}</div>
+              </div>
+            ) : null}
             <label className="space-y-2 block">
               <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">Responsável pela ação</span>
               <input value={form.responsavel_acao} onChange={(event) => setForm((current) => ({ ...current, responsavel_acao: event.target.value }))} className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-blue-500" required />
             </label>
+            <div className="space-y-3 rounded-[2rem] border border-blue-100 bg-blue-50/60 p-5">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.25em] text-blue-600">Perguntas da visitação</p>
+                <p className="mt-1 text-sm font-semibold text-slate-600">Registre as respostas da visita antes de salvar a ação operacional.</p>
+              </div>
+              <VisitacaoQuestionarioFields value={questionario} onChange={setQuestionario} compact />
+            </div>
             <label className="space-y-2 block">
               <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">Observação</span>
               <textarea rows={4} value={form.observacao} onChange={(event) => setForm((current) => ({ ...current, observacao: event.target.value }))} className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-blue-500" placeholder="Detalhes do contato, retorno ou observação operacional." />

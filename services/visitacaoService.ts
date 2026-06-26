@@ -1,5 +1,5 @@
 import { getJson, postJson, emptyOk, type EacApiResult } from './eacApiClient.ts';
-import type { VisitacaoHistoricoItem, VisitacaoIndicadores, VisitacaoPriorizado, VisitacaoStatus } from '../types.ts';
+import type { VisitacaoHistoricoItem, VisitacaoIndicadores, VisitacaoPriorizado, VisitacaoQuestionarioResposta, VisitacaoStatus } from '../types.ts';
 
 export type VisitacaoListResponse = {
   items: VisitacaoPriorizado[];
@@ -36,6 +36,7 @@ export const visitacaoService = {
       data_acao: string;
       responsavel_acao: string;
       observacao?: string;
+      respostas_questionario?: VisitacaoQuestionarioResposta;
       origem_registro?: string;
       token?: string;
     }

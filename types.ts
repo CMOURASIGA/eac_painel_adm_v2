@@ -216,6 +216,14 @@ export type VisitacaoStatus =
   | 'AGUARDANDO_RETORNO'
   | 'NAO_DESEJA_VISITA';
 
+export type VisitacaoRespostaOpcao = 'SIM' | 'NAO' | 'NAO_INFORMADO';
+
+export interface VisitacaoQuestionarioResposta {
+  ja_participou_encontro: VisitacaoRespostaOpcao;
+  batizado: VisitacaoRespostaOpcao;
+  crismado: VisitacaoRespostaOpcao;
+}
+
 export interface VisitacaoPriorizado {
   inscricao_id: string;
   encontro_id?: string | null;
@@ -245,6 +253,7 @@ export interface VisitacaoPriorizado {
   data_visitacao?: string | null;
   responsavel_acao?: string | null;
   observacao?: string | null;
+  respostas_questionario?: VisitacaoQuestionarioResposta | null;
   origem_registro?: string | null;
   atualizado_em?: string | null;
 }
@@ -269,6 +278,7 @@ export interface VisitacaoHistoricoItem {
   status_novo?: string | null;
   descricao?: string | null;
   responsavel_acao?: string | null;
+  respostas_questionario?: VisitacaoQuestionarioResposta | null;
   origem_registro?: string | null;
   criado_em: string;
 }

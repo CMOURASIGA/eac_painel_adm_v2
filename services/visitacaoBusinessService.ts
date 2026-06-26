@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { normalizeVisitacaoQuestionario, summarizeVisitacaoQuestionario } from '../utils/visitacaoQuestionario.ts';
 
 type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
 
@@ -50,6 +51,23 @@ function buildIndicadores(items: any[]) {
     aguardandoRetorno: safeItems.filter((item) => item?.status_visitacao === 'AGUARDANDO_RETORNO').length,
     naoDesejaVisita: safeItems.filter((item) => item?.status_visitacao === 'NAO_DESEJA_VISITA').length,
   };
+}
+
+function hasQuestionarioColumn(payload: Record<string, any>) {
+  return Object.prototype.hasOwnProperty.call(payload, 'respostas_questionario');
+}
+
+async function pickPayloadByExistingColumns(
+  supabase: AnySupabaseClient,
+  table: string,
+  payload: Record<string, any>
+) {
+  const filtered: Record<string, any> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    const probe = await supabase.from(table).select(key).limit(1);
+    if (!probe.error) filtered[key] = value;
+  }
+  return Object.keys(filtered).length > 0 ? filtered : payload;
 }
 
 function toSortableTime(value: any) {
@@ -165,6 +183,7 @@ export async function registerVisitacao(
   const status = toCleanString(body?.status_visitacao).toUpperCase();
   const responsavel = toCleanString(body?.responsavel_acao || body?.responsavel);
   const observacao = toCleanString(body?.observacao);
+  const respostasQuestionario = normalizeVisitacaoQuestionario(body?.respostas_questionario);
   const origem = toCleanString(body?.origem_registro || 'PAINEL');
   const dataAcao = toCleanString(body?.data_acao) || new Date().toISOString();
 
@@ -204,6 +223,7 @@ export async function registerVisitacao(
     status_visitacao: status,
     responsavel_acao: responsavel,
     observacao: observacao || null,
+    respostas_questionario: respostasQuestionario,
     origem_registro: origem || 'PAINEL',
   };
 
@@ -235,14 +255,28 @@ export async function registerVisitacao(
     if (status === 'NAO_DESEJA_VISITA') payload.data_visitacao = null;
   }
 
+  const safeVisitacoesPayload = await pickPayloadByExistingColumns(supabase, 'visitacoes', payload);
   const { data: saved, error: saveError } = await supabase
     .from('visitacoes')
-    .upsert(payload, { onConflict: 'inscricao_id' })
+    .upsert(safeVisitacoesPayload, { onConflict: 'inscricao_id' })
     .select('*')
     .single();
 
   if (saveError) {
     return { status: 500, body: { success: false, error: saveError.message } };
+  }
+
+  if (!hasQuestionarioColumn(saved || {})) {
+    const fallbackSummary = summarizeVisitacaoQuestionario(respostasQuestionario);
+    if (fallbackSummary) {
+      const safeUpdate = await pickPayloadByExistingColumns(supabase, 'visitacoes', {
+        observacao: [observacao, fallbackSummary].filter(Boolean).join(' | '),
+      });
+      await supabase
+        .from('visitacoes')
+        .update(safeUpdate)
+        .eq('id', saved.id);
+    }
   }
 
   const historyPayload = {
@@ -251,14 +285,16 @@ export async function registerVisitacao(
     tipo_acao: resolveActionType(status as VisitacaoStatus, observacao, currentStatus),
     status_anterior: currentStatus,
     status_novo: status,
-    descricao: observacao || null,
+    descricao: [observacao, summarizeVisitacaoQuestionario(respostasQuestionario)].filter(Boolean).join(' | ') || null,
     responsavel_acao: responsavel,
+    respostas_questionario: respostasQuestionario,
     origem_registro: origem || 'PAINEL',
   };
 
+  const safeHistoryPayload = await pickPayloadByExistingColumns(supabase, 'visitacoes_historico', historyPayload);
   const { error: historyError } = await supabase
     .from('visitacoes_historico')
-    .insert(historyPayload);
+    .insert(safeHistoryPayload);
 
   if (historyError) {
     return { status: 500, body: { success: false, error: historyError.message } };
