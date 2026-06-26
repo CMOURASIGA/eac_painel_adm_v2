@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { visitacaoService } from '../services/visitacaoService.ts';
 import type { VisitacaoPriorizado, VisitacaoQuestionarioResposta, VisitacaoStatus } from '../types.ts';
 import { createEmptyVisitacaoQuestionario, summarizeVisitacaoQuestionario } from '../utils/visitacaoQuestionario.ts';
+import { showAppAlert } from '../utils/appDialog.ts';
 import VisitacaoQuestionarioFields from './VisitacaoQuestionarioFields.tsx';
 
 const STATUS_OPTIONS: Array<{ value: VisitacaoStatus; label: string }> = [
@@ -30,23 +31,24 @@ const VisitacaoForm: React.FC<{ token?: string }> = ({ token }) => {
   });
   const [questionario, setQuestionario] = useState<VisitacaoQuestionarioResposta>(createEmptyVisitacaoQuestionario());
 
-  useEffect(() => {
-    const load = async () => {
-      if (!token) {
-        setError('Token de acesso ausente.');
-        setLoading(false);
-        return;
-      }
-      const result = await visitacaoService.listar({ publicToken: token });
-      if (!result.success) {
-        setError(result.error);
-        setLoading(false);
-        return;
-      }
-      setItems(result.data.items || []);
+  const loadItems = async () => {
+    if (!token) {
+      setError('Token de acesso ausente.');
       setLoading(false);
-    };
-    load();
+      return;
+    }
+    const result = await visitacaoService.listar({ publicToken: token });
+    if (!result.success) {
+      setError(result.error);
+      setLoading(false);
+      return;
+    }
+    setItems(result.data.items || []);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadItems();
   }, [token]);
 
   const filteredItems = useMemo(() => {
@@ -103,7 +105,15 @@ const VisitacaoForm: React.FC<{ token?: string }> = ({ token }) => {
       responsavel_acao: '',
       observacao: '',
     });
+    setSelectedId('');
     setQuestionario(createEmptyVisitacaoQuestionario());
+    await loadItems();
+    await showAppAlert({
+      title: 'Visitação atualizada',
+      message: 'A alteração foi salva com sucesso.',
+      tone: 'success',
+      confirmLabel: 'Fechar',
+    });
   };
 
   if (loading) {
