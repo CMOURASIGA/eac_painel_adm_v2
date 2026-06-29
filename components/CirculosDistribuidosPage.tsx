@@ -147,18 +147,39 @@ function getStoredCircleDistribution() {
     const raw = window.localStorage.getItem(LAST_CIRCLE_DISTRIBUTION_STORAGE_KEY);
     if (!raw) return createEmptyGroups();
     const parsed = JSON.parse(raw);
-    return normalizeCirculosPayload(parsed?.circulos);
+    return {
+      circulos: normalizeCirculosPayload(parsed?.circulos),
+      pendentesDetalhados: Array.isArray(parsed?.pendentesDetalhados) ? parsed.pendentesDetalhados : [],
+      pendentesMontagem: parsed?.pendentesMontagem && typeof parsed.pendentesMontagem === 'object' ? parsed.pendentesMontagem : {},
+      totalPendentesMontagem: Number(parsed?.totalPendentesMontagem || 0),
+    };
   } catch {
-    return createEmptyGroups();
+    return {
+      circulos: createEmptyGroups(),
+      pendentesDetalhados: [],
+      pendentesMontagem: {},
+      totalPendentesMontagem: 0,
+    };
   }
 }
 
-function saveStoredCircleDistribution(circulos: Record<string, PessoaCirculo[]>) {
+function saveStoredCircleDistribution(payload: {
+  circulos: Record<string, PessoaCirculo[]>;
+  pendentesDetalhados?: any[];
+  pendentesMontagem?: Record<string, number>;
+  totalPendentesMontagem?: number;
+}) {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(
       LAST_CIRCLE_DISTRIBUTION_STORAGE_KEY,
-      JSON.stringify({ generatedAt: new Date().toISOString(), circulos })
+      JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        circulos: payload.circulos,
+        pendentesDetalhados: Array.isArray(payload.pendentesDetalhados) ? payload.pendentesDetalhados : [],
+        pendentesMontagem: payload.pendentesMontagem || {},
+        totalPendentesMontagem: Number(payload.totalPendentesMontagem || 0),
+      })
     );
   } catch {
     // fallback silencioso
@@ -240,24 +261,35 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
       }
 
       const normalized = normalizeCirculosPayload(json?.circulos);
-      setPendentesDetalhados(Array.isArray(json?.pendentesMontagem) ? json.pendentesMontagem : []);
-      setPendentesMontagem(json?.resumoPendentes && typeof json.resumoPendentes === 'object' ? json.resumoPendentes : {});
-      setTotalPendentesMontagem(Number(json?.totalPendentesMontagem || 0));
+      const pendingList = Array.isArray(json?.pendentesMontagem) ? json.pendentesMontagem : [];
+      const pendingSummary = json?.resumoPendentes && typeof json.resumoPendentes === 'object' ? json.resumoPendentes : {};
+      const pendingTotal = Number(json?.totalPendentesMontagem || pendingList.length || 0);
+      setPendentesDetalhados(pendingList);
+      setPendentesMontagem(pendingSummary);
+      setTotalPendentesMontagem(pendingTotal);
       if (hasAnyCircleEntries(normalized)) {
         setCirculos(normalized);
-        saveStoredCircleDistribution(normalized);
+        saveStoredCircleDistribution({
+          circulos: normalized,
+          pendentesDetalhados: pendingList,
+          pendentesMontagem: pendingSummary,
+          totalPendentesMontagem: pendingTotal,
+        });
       } else {
         const stored = getStoredCircleDistribution();
-        setCirculos(stored);
+        setCirculos(stored.circulos);
+        setPendentesDetalhados(stored.pendentesDetalhados);
+        setPendentesMontagem(stored.pendentesMontagem);
+        setTotalPendentesMontagem(stored.totalPendentesMontagem);
       }
     } catch (err: any) {
       const stored = getStoredCircleDistribution();
-      setCirculos(stored);
-      setPendentesDetalhados([]);
-      setPendentesMontagem({});
-      setTotalPendentesMontagem(0);
+      setCirculos(stored.circulos);
+      setPendentesDetalhados(stored.pendentesDetalhados);
+      setPendentesMontagem(stored.pendentesMontagem);
+      setTotalPendentesMontagem(stored.totalPendentesMontagem);
       setError(
-        hasAnyCircleEntries(stored)
+        hasAnyCircleEntries(stored.circulos)
           ? 'Exibindo a última distribuição gerada neste navegador porque o backend ainda está vazio.'
           : (err?.message || 'Erro ao carregar distribuição de círculos.')
       );
@@ -413,12 +445,20 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
         throw new Error(json?.error || 'Não foi possível atualizar a distribuição.');
       }
       const normalized = normalizeCirculosPayload(json?.circulos);
-      setPendentesDetalhados(Array.isArray(json?.pendentesMontagem) ? json.pendentesMontagem : []);
-      setPendentesMontagem(json?.resumoPendentes && typeof json.resumoPendentes === 'object' ? json.resumoPendentes : {});
-      setTotalPendentesMontagem(Number(json?.totalPendentesMontagem || 0));
+      const pendingList = Array.isArray(json?.pendentesMontagem) ? json.pendentesMontagem : [];
+      const pendingSummary = json?.resumoPendentes && typeof json.resumoPendentes === 'object' ? json.resumoPendentes : {};
+      const pendingTotal = Number(json?.totalPendentesMontagem || pendingList.length || 0);
+      setPendentesDetalhados(pendingList);
+      setPendentesMontagem(pendingSummary);
+      setTotalPendentesMontagem(pendingTotal);
       if (hasAnyCircleEntries(normalized)) {
         setCirculos(normalized);
-        saveStoredCircleDistribution(normalized);
+        saveStoredCircleDistribution({
+          circulos: normalized,
+          pendentesDetalhados: pendingList,
+          pendentesMontagem: pendingSummary,
+          totalPendentesMontagem: pendingTotal,
+        });
       } else {
         await fetchData();
       }
@@ -469,7 +509,12 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
           });
           next[fromCirculo] = (next[fromCirculo] || []).filter((entry) => toCleanString(entry?.id) !== participantId);
           next[toCirculo] = [...(next[toCirculo] || []), { ...item, grupoSugerido: toCirculo }];
-          saveStoredCircleDistribution(next);
+          saveStoredCircleDistribution({
+            circulos: next,
+            pendentesDetalhados,
+            pendentesMontagem,
+            totalPendentesMontagem,
+          });
           return next;
         });
       };
