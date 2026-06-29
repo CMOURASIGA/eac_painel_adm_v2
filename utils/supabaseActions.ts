@@ -4666,7 +4666,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       };
       const maxPerCircle = Number(ctx.payload.maxPerCircle ?? 12);
       const targetPerSex = Math.max(1, Math.floor(maxPerCircle / 2));
-      const allowedAgeWindows = [
+      const mainAgeWindows = [
         { key: '12-13', ages: [12, 13] },
         { key: '13-13', ages: [13] },
         { key: '13-14', ages: [13, 14] },
@@ -4676,9 +4676,21 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         { key: '15-16', ages: [15, 16] },
         { key: '16-17', ages: [16, 17] },
       ].filter((window) => window.ages.some((age) => age >= minAge - 1 && age <= maxAge));
-      const fallbackAgeWindows = [
+      const firstExceptionWindows = [
         { key: '15-17', ages: [15, 16, 17] },
       ].filter((window) => window.ages.some((age) => age >= minAge && age <= maxAge));
+      const secondExceptionWindows = [
+        { key: '14-16', ages: [14, 15, 16] },
+      ].filter((window) => window.ages.some((age) => age >= minAge && age <= maxAge));
+
+      const distributionTiers: Array<{
+        regraAplicada: 'PRINCIPAL' | 'EXCECAO_1' | 'EXCECAO_2';
+        windows: { key: string; ages: number[] }[];
+      }> = [
+        { regraAplicada: 'PRINCIPAL', windows: mainAgeWindows },
+        { regraAplicada: 'EXCECAO_1', windows: firstExceptionWindows },
+        { regraAplicada: 'EXCECAO_2', windows: secondExceptionWindows },
+      ];
 
       const makeRowToken = (row: any) =>
         cleanText(pickFirst(row, ['id', 'uuid', 'linhaOrigem', 'linha_origem', 'inscricao_id'])) ||
@@ -4795,78 +4807,49 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       const remainingEligible = [...eligible];
       const assignedTokens = new Set<string>();
       const circleWindows: Record<string, string> = {};
+      const assignTier = (ruleTier: (typeof distributionTiers)[number]) => {
+        circles.forEach((circleName) => {
+          if ((grouped[circleName] || []).length > 0) return;
 
-      circles.forEach((circleName) => {
-        let bestWindow: { key: string; ages: number[] } | null = null;
-        let bestScore = Number.NEGATIVE_INFINITY;
+          let bestWindow: { key: string; ages: number[] } | null = null;
+          let bestScore = Number.NEGATIVE_INFINITY;
 
-        allowedAgeWindows.forEach((window) => {
-          const fit = estimateWindowFit(
+          ruleTier.windows.forEach((window) => {
+            const fit = estimateWindowFit(
+              remainingEligible.filter((row) => !assignedTokens.has(makeRowToken(row))),
+              window.ages
+            );
+            if (!fit.canFormFullCircle) return;
+
+            const score = (fit.assignable * 100) - (fit.sexGap * 5) - (window.ages.length === 1 ? 4 : 0) + fit.maleCount + fit.femaleCount;
+            if (score > bestScore) {
+              bestScore = score;
+              bestWindow = window;
+            }
+          });
+
+          if (!bestWindow) return;
+
+          const selectedRows = selectRowsForWindow(
             remainingEligible.filter((row) => !assignedTokens.has(makeRowToken(row))),
-            window.ages
+            bestWindow.ages
           );
-          if (!fit.canFormFullCircle) return;
+          if (!selectedRows.length) return;
 
-          const score = (fit.assignable * 100) - (fit.sexGap * 5) - (window.ages.length === 1 ? 4 : 0) + fit.maleCount + fit.femaleCount;
-          if (score > bestScore) {
-            bestScore = score;
-            bestWindow = window;
-          }
+          circleWindows[circleName] = `${ruleTier.regraAplicada}:${bestWindow.key}`;
+          selectedRows.forEach((row) => {
+            assignedTokens.add(makeRowToken(row));
+            grouped[circleName].push(
+              buildCircleEntry(row, circleName, {
+                janelaEtaria: bestWindow?.key || '',
+                regraAplicada: ruleTier.regraAplicada,
+              })
+            );
+          });
         });
+      };
 
-        if (!bestWindow) return;
-
-        const selectedRows = selectRowsForWindow(
-          remainingEligible.filter((row) => !assignedTokens.has(makeRowToken(row))),
-          bestWindow.ages
-        );
-        if (!selectedRows.length) return;
-
-        circleWindows[circleName] = bestWindow.key;
-        selectedRows.forEach((row) => {
-          assignedTokens.add(makeRowToken(row));
-          grouped[circleName].push(
-            buildCircleEntry(row, circleName, { janelaEtaria: bestWindow?.key || '' })
-          );
-        });
-      });
-
-      circles.forEach((circleName) => {
-        if ((grouped[circleName] || []).length > 0) return;
-
-        let bestWindow: { key: string; ages: number[] } | null = null;
-        let bestScore = Number.NEGATIVE_INFINITY;
-
-        fallbackAgeWindows.forEach((window) => {
-          const fit = estimateWindowFit(
-            remainingEligible.filter((row) => !assignedTokens.has(makeRowToken(row))),
-            window.ages
-          );
-          if (!fit.canFormFullCircle) return;
-
-          const score = (fit.assignable * 100) - (fit.sexGap * 5) + fit.maleCount + fit.femaleCount;
-          if (score > bestScore) {
-            bestScore = score;
-            bestWindow = window;
-          }
-        });
-
-        if (!bestWindow) return;
-
-        const selectedRows = selectRowsForWindow(
-          remainingEligible.filter((row) => !assignedTokens.has(makeRowToken(row))),
-          bestWindow.ages
-        );
-        if (!selectedRows.length) return;
-
-        circleWindows[circleName] = bestWindow.key;
-        selectedRows.forEach((row) => {
-          assignedTokens.add(makeRowToken(row));
-          grouped[circleName].push(
-            buildCircleEntry(row, circleName, { janelaEtaria: bestWindow?.key || '', regraFallback: 'EXCEDENTE_15_17' })
-          );
-        });
-      });
+      distributionTiers.forEach(assignTier);
 
       const selectedTokenBag = new Set<string>();
       circles.forEach((circleName) => {
@@ -4894,12 +4877,18 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         });
       });
 
-      leftoverEligible.forEach((row) => {
-        grouped['Circulo Excedente'].push({
-          ...buildCircleEntry(row, 'Circulo Excedente'),
-          motivoExcedente: 'SEM_PARIDADE_6X6',
-        });
-      });
+      const pendentesMontagem = leftoverEligible.map((row) => ({
+        ...buildCircleEntry(row, 'Pendente de Montagem'),
+        motivoPendente: 'NAO_ENCAIXOU_EM_NENHUMA_REGRA',
+      }));
+      const resumoPendentes = leftoverEligible.reduce((acc: Record<string, number>, row) => {
+        const age = Number(row?.idade_resolvida || 0);
+        const ageKey = Number.isFinite(age) ? String(Math.floor(age)) : 'SEM_IDADE';
+        const sex = sexBucket(row?.sexo_resolvido ?? pickFirst(row, ['sexo', 'sexo_snapshot']));
+        const key = `${ageKey}-${sex}`;
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
 
       return {
         ok: true,
@@ -4912,9 +4901,12 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           totalPrioritarios: (Array.isArray(rows) ? rows : []).length,
           totalAptos: eligible.length,
           totalDistribuido: Object.values(grouped).reduce((acc, list) => acc + list.length, 0),
+          totalPendentesMontagem: pendentesMontagem.length,
           totalPersistido: 0,
           persistencia: 'client-fallback',
           janelasAplicadas: circleWindows,
+          pendentesMontagem,
+          resumoPendentes,
           circulos: grouped,
         },
       };

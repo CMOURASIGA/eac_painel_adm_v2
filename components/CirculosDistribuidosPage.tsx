@@ -33,7 +33,9 @@ const DISTRIBUTION_RULES = [
   'Idade 12 entra na faixa principal somente quando faltar ate 6 meses para completar 13 anos.',
   'Matriz de combinacao de idade: 13 com 14; 14 com 15 e 16; 15 com 16 e 17; e assim sucessivamente.',
   'C1 a C6: ate 6 meninos e ate 6 meninas por circulo (maximo 12).',
-  'C1 a C6 respeitam a matriz de forma estrita; quem nao encaixa vai para o Circulo Excedente.',
+  'Se a regra principal nao fechar, aplicar Excecao 1: 15, 16 e 17 anos juntos.',
+  'Se ainda nao fechar, aplicar Excecao 2: 14, 15 e 16 anos juntos.',
+  'Somente quem sair completamente da regra principal e das excecoes vai para o Circulo Excedente.',
 ];
 
 function getCircleTheme(name: string) {
@@ -212,6 +214,8 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
   const [movingParticipantId, setMovingParticipantId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [circulos, setCirculos] = useState<Record<string, PessoaCirculo[]>>(createEmptyGroups());
+  const [pendentesMontagem, setPendentesMontagem] = useState<Record<string, number>>({});
+  const [totalPendentesMontagem, setTotalPendentesMontagem] = useState(0);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -234,6 +238,8 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
       }
 
       const normalized = normalizeCirculosPayload(json?.circulos);
+      setPendentesMontagem(json?.resumoPendentes && typeof json.resumoPendentes === 'object' ? json.resumoPendentes : {});
+      setTotalPendentesMontagem(Number(json?.totalPendentesMontagem || 0));
       if (hasAnyCircleEntries(normalized)) {
         setCirculos(normalized);
         saveStoredCircleDistribution(normalized);
@@ -244,6 +250,8 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
     } catch (err: any) {
       const stored = getStoredCircleDistribution();
       setCirculos(stored);
+      setPendentesMontagem({});
+      setTotalPendentesMontagem(0);
       setError(
         hasAnyCircleEntries(stored)
           ? 'Exibindo a última distribuição gerada neste navegador porque o backend ainda está vazio.'
@@ -401,6 +409,8 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
         throw new Error(json?.error || 'Não foi possível atualizar a distribuição.');
       }
       const normalized = normalizeCirculosPayload(json?.circulos);
+      setPendentesMontagem(json?.resumoPendentes && typeof json.resumoPendentes === 'object' ? json.resumoPendentes : {});
+      setTotalPendentesMontagem(Number(json?.totalPendentesMontagem || 0));
       if (hasAnyCircleEntries(normalized)) {
         setCirculos(normalized);
         saveStoredCircleDistribution(normalized);
@@ -567,6 +577,31 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
               ))}
             </ul>
           </div>
+          {totalPendentesMontagem > 0 && (
+            <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Pendentes de montagem</p>
+                  <p className="mt-1 text-sm font-bold text-slate-700">
+                    {totalPendentesMontagem} registros ainda não fecharam em nenhuma regra ou exceção.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(pendentesMontagem)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 8)
+                    .map(([bucket, count]) => (
+                      <span
+                        key={bucket}
+                        className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600"
+                      >
+                        {bucket}: {count}
+                      </span>
+                    ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {loading ? (
             <div className="p-10 text-center text-slate-500 text-sm font-bold">Carregando distribuição...</div>
