@@ -4667,10 +4667,10 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       const maxPerCircle = Number(ctx.payload.maxPerCircle ?? 12);
       const targetPerSex = Math.max(1, Math.floor(maxPerCircle / 2));
       const mainAgeWindows = [
-        { key: '16-17', ages: [16, 17] },
-        { key: '14-15', ages: [14, 15] },
         { key: '13-14', ages: [13, 14] },
+        { key: '14-15', ages: [14, 15] },
         { key: '15-16', ages: [15, 16] },
+        { key: '16-17', ages: [16, 17] },
         { key: '12-13', ages: [12, 13] },
         { key: '13-13', ages: [13] },
         { key: '14-14', ages: [14] },
