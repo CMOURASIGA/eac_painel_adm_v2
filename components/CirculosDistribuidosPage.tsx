@@ -214,8 +214,10 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
   const [movingParticipantId, setMovingParticipantId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [circulos, setCirculos] = useState<Record<string, PessoaCirculo[]>>(createEmptyGroups());
+  const [pendentesDetalhados, setPendentesDetalhados] = useState<any[]>([]);
   const [pendentesMontagem, setPendentesMontagem] = useState<Record<string, number>>({});
   const [totalPendentesMontagem, setTotalPendentesMontagem] = useState(0);
+  const [isPendentesOpen, setIsPendentesOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -238,6 +240,7 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
       }
 
       const normalized = normalizeCirculosPayload(json?.circulos);
+      setPendentesDetalhados(Array.isArray(json?.pendentesMontagem) ? json.pendentesMontagem : []);
       setPendentesMontagem(json?.resumoPendentes && typeof json.resumoPendentes === 'object' ? json.resumoPendentes : {});
       setTotalPendentesMontagem(Number(json?.totalPendentesMontagem || 0));
       if (hasAnyCircleEntries(normalized)) {
@@ -250,6 +253,7 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
     } catch (err: any) {
       const stored = getStoredCircleDistribution();
       setCirculos(stored);
+      setPendentesDetalhados([]);
       setPendentesMontagem({});
       setTotalPendentesMontagem(0);
       setError(
@@ -409,6 +413,7 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
         throw new Error(json?.error || 'Não foi possível atualizar a distribuição.');
       }
       const normalized = normalizeCirculosPayload(json?.circulos);
+      setPendentesDetalhados(Array.isArray(json?.pendentesMontagem) ? json.pendentesMontagem : []);
       setPendentesMontagem(json?.resumoPendentes && typeof json.resumoPendentes === 'object' ? json.resumoPendentes : {});
       setTotalPendentesMontagem(Number(json?.totalPendentesMontagem || 0));
       if (hasAnyCircleEntries(normalized)) {
@@ -548,6 +553,14 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
               className="px-4 py-3 rounded-2xl bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-800 disabled:opacity-60"
             >
               Exportar HTML
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsPendentesOpen(true)}
+              disabled={loading || totalPendentesMontagem === 0}
+              className="px-4 py-3 rounded-2xl bg-amber-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-amber-700 disabled:opacity-60"
+            >
+              {totalPendentesMontagem > 0 ? `Ver pendentes (${totalPendentesMontagem})` : 'Sem pendentes'}
             </button>
           </div>
         </div>
@@ -742,6 +755,63 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
             </div>
           )}
         </div>
+
+        {isPendentesOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 py-6">
+            <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-600">Pendentes de montagem</p>
+                  <h3 className="mt-1 text-xl font-black text-slate-900">Quem ainda ficou de fora</h3>
+                  <p className="mt-1 text-sm font-bold text-slate-500">
+                    {totalPendentesMontagem} registros ainda não fecharam em nenhuma regra ou exceção.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPendentesOpen(false)}
+                  className="rounded-2xl border border-slate-200 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50"
+                >
+                  Fechar
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-5">
+                {pendentesDetalhados.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-sm font-bold text-slate-500">
+                    Nenhum pendente de montagem encontrado.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {pendentesDetalhados.map((item, idx) => (
+                      <article key={`${item?.id || item?.linhaOrigem || idx}`} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h4 className="text-sm font-black text-slate-900">{toCleanString(item?.nome) || 'Sem nome'}</h4>
+                            <p className="mt-1 text-[11px] font-bold text-slate-500">
+                              {toCleanString(item?.idade) || '-'} anos • {toCleanString(item?.sexo) || '-'} • {toCleanString(item?.bairro) || 'Sem bairro'}
+                            </p>
+                          </div>
+                          <span className="rounded-full border border-amber-200 bg-amber-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-amber-700">
+                            Pendente
+                          </span>
+                        </div>
+                        <div className="mt-3 break-all text-[11px] font-bold text-slate-500">
+                          ID: {toCleanString(item?.id) || toCleanString(item?.linhaOrigem) || '-'}
+                        </div>
+                        {item?.motivoPendente && (
+                          <div className="mt-2 text-[11px] font-black uppercase tracking-widest text-slate-400">
+                            Motivo: {toCleanString(item.motivoPendente)}
+                          </div>
+                        )}
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
