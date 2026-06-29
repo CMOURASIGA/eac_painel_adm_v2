@@ -4872,6 +4872,12 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         ...buildCircleEntry(row, 'Pendente de Montagem'),
         motivoPendente: 'NAO_ENCAIXOU_EM_NENHUMA_REGRA',
       }));
+      leftoverEligible.forEach((row) => {
+        grouped['Circulo Excedente'].push({
+          ...buildCircleEntry(row, 'Circulo Excedente'),
+          motivoExcedente: 'SEM_POSSIBILIDADE_DE_APROVEITAMENTO',
+        });
+      });
       const resumoPendentes = leftoverEligible.reduce((acc: Record<string, number>, row) => {
         const age = Number(row?.idade_resolvida || 0);
         const ageKey = Number.isFinite(age) ? String(Math.floor(age)) : 'SEM_IDADE';
