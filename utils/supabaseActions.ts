@@ -4667,14 +4667,14 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       const maxPerCircle = Number(ctx.payload.maxPerCircle ?? 12);
       const targetPerSex = Math.max(1, Math.floor(maxPerCircle / 2));
       const mainAgeWindows = [
+        { key: '16-17', ages: [16, 17] },
+        { key: '14-15', ages: [14, 15] },
+        { key: '13-14', ages: [13, 14] },
+        { key: '15-16', ages: [15, 16] },
         { key: '12-13', ages: [12, 13] },
         { key: '13-13', ages: [13] },
-        { key: '13-14', ages: [13, 14] },
         { key: '14-14', ages: [14] },
-        { key: '14-15', ages: [14, 15] },
         { key: '15-15', ages: [15] },
-        { key: '15-16', ages: [15, 16] },
-        { key: '16-17', ages: [16, 17] },
       ].filter((window) => window.ages.some((age) => age >= minAge - 1 && age <= maxAge));
       const firstExceptionWindows = [
         { key: '15-17', ages: [15, 16, 17] },
@@ -4811,21 +4811,12 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         circles.forEach((circleName) => {
           if ((grouped[circleName] || []).length > 0) return;
 
-          let bestWindow: { key: string; ages: number[] } | null = null;
-          let bestScore = Number.NEGATIVE_INFINITY;
-
-          ruleTier.windows.forEach((window) => {
+          const bestWindow = ruleTier.windows.find((window) => {
             const fit = estimateWindowFit(
               remainingEligible.filter((row) => !assignedTokens.has(makeRowToken(row))),
               window.ages
             );
-            if (!fit.canFormFullCircle) return;
-
-            const score = (fit.assignable * 100) - (fit.sexGap * 5) - (window.ages.length === 1 ? 4 : 0) + fit.maleCount + fit.femaleCount;
-            if (score > bestScore) {
-              bestScore = score;
-              bestWindow = window;
-            }
+            return fit.canFormFullCircle;
           });
 
           if (!bestWindow) return;

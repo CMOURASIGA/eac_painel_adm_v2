@@ -31,7 +31,7 @@ const CIRCLE_NAMES = [
 const DISTRIBUTION_RULES = [
   'Faixa principal: 13 a 17 anos.',
   'Idade 12 entra na faixa principal somente quando faltar ate 6 meses para completar 13 anos.',
-  'Matriz de combinacao de idade: 13 com 14; 14 com 15 e 16; 15 com 16 e 17; e assim sucessivamente.',
+  'Prioridade de montagem: 16 com 17, depois 14 com 15, depois 13 com 14, depois 15 com 16.',
   'C1 a C6: ate 6 meninos e ate 6 meninas por circulo (maximo 12).',
   'Se a regra principal nao fechar, aplicar Excecao 1: 15, 16 e 17 anos juntos.',
   'Se ainda nao fechar, aplicar Excecao 2: 14, 15 e 16 anos juntos.',
