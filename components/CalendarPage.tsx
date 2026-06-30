@@ -16,6 +16,8 @@ const MONTH_NAMES = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
 ];
 
+const CALENDAR_MONTH_STORAGE_KEY = 'eac_calendar_current_month';
+
 const getEventTypeColor = (type: string) => {
   const t = toCleanString(type).toLowerCase();
   if (t.includes('missa')) return 'bg-[#10b981] shadow-[0_0_10px_rgba(16,185,129,0.3)]';        
@@ -44,9 +46,37 @@ const getOriginLabel = (ev: CalendarEvent) => {
   return origin || 'Origem não informada';
 };
 
+const formatDateTime = (value: any) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
 export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProps) {
   const [internalEvents, setInternalEvents] = useState<CalendarEvent[]>([]);
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(() => {
+    try {
+      const saved = localStorage.getItem(CALENDAR_MONTH_STORAGE_KEY);
+      if (saved) {
+        const parsed = new Date(saved);
+        if (!Number.isNaN(parsed.getTime())) {
+          return new Date(parsed.getFullYear(), parsed.getMonth(), 1);
+        }
+      }
+    } catch {
+      // Mantém o mês atual quando o storage não estiver disponível.
+    }
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [selectedDay, setSelectedDay] = useState<number>(new Date().getDate());
   const [isLoading, setIsLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -113,10 +143,18 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
 
   useEffect(() => {
     fetchInternalEvents();
-  }, [fetchInternalEvents, currentDate]);
+  }, [fetchInternalEvents]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CALENDAR_MONTH_STORAGE_KEY, currentDate.toISOString());
+    } catch {
+      // Ignora falhas de storage.
+    }
+  }, [currentDate]);
 
   const changeMonth = (offset: number) => {
-    setCurrentDate(new Date(year, month + offset, 1));
+    setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + offset, 1));
     setSelectedDay(1);
   };
 
@@ -328,7 +366,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
       </div>
 
       <div className="flex items-center justify-between bg-white px-8 py-6 rounded-t-[2.5rem] border border-slate-200 border-b-0">
-        <button onClick={() => changeMonth(-1)} className="p-3 bg-slate-50 rounded-xl hover:text-blue-600 transition-all border border-slate-100 text-slate-400 group">
+        <button type="button" onClick={() => changeMonth(-1)} className="p-3 bg-slate-50 rounded-xl hover:text-blue-600 transition-all border border-slate-100 text-slate-400 group">
           <svg className="w-6 h-6 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7"/></svg>
         </button>
         <div className="text-center">
@@ -338,7 +376,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
              <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">{isLoading ? 'Sincronizando Base...' : 'Protocolo Cloud Ativo'}</span>
           </div>
         </div>
-        <button onClick={() => changeMonth(1)} className="p-3 bg-slate-50 rounded-xl hover:text-blue-600 transition-all border border-slate-100 text-slate-400 group">
+        <button type="button" onClick={() => changeMonth(1)} className="p-3 bg-slate-50 rounded-xl hover:text-blue-600 transition-all border border-slate-100 text-slate-400 group">
           <svg className="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7"/></svg>
         </button>
       </div>
