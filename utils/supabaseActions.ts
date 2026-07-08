@@ -1189,7 +1189,7 @@ function normalizeEncontreiro(row: any, i: number) {
     id,
     pessoaId: pickFirst(row, ['pessoaId', 'pessoa_id']),
     rowNumber: Number(pickFirst(row, ['rowNumber', 'row_number', 'linha', 'row']) || (i + 2)),
-    timestamp: pickFirst(row, ['timestamp', 'data_presenca', 'created_at', 'createdAt', 'criado_em']),
+    timestamp: pickFirst(row, ['data_importacao', 'dataImportacao', 'timestamp', 'data_presenca', 'created_at', 'createdAt', 'criado_em']),
     nomeCompleto: pickFirst(row, ['nomeCompleto', 'nome_completo', 'nome', 'name']),
     dataNascimento: pickFirst(row, ['dataNascimento', 'data_nascimento', 'nascimento']),
     idade: pickFirst(row, ['idade', 'idade_snapshot', 'age']),
@@ -1395,14 +1395,14 @@ function getEncontreirosReadCandidates() {
   const tableComTr = `encon${'treiros'}`;
   const tableSemTr = `encon${'teiros'}`;
   const base = [
-    envTable,
-    envTable.startsWith('vw_') ? envTable.replace(/^vw_/, '') : '',
-    'vw_encontreiros',
-    'vw_encontreiros',
     'encontreiros',
     tableComTr,
     tableSemTr,
     'cadastro_encontreiros',
+    envTable.startsWith('vw_') ? envTable.replace(/^vw_/, '') : '',
+    envTable,
+    'vw_encontreiros',
+    'vw_encontreiros',
   ].filter(Boolean);
   return Array.from(new Set(base));
 }
