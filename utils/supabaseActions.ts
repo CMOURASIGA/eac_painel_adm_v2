@@ -1422,6 +1422,50 @@ function getEncontreirosWriteCandidates() {
   return Array.from(new Set(base.filter((name) => !String(name).toLowerCase().startsWith('vw_'))));
 }
 
+async function loadEncontreirosForScreen(supabase: SupabaseClient) {
+  const structuralTableCandidates = [
+    'encontreiros',
+    'cadastro_encontreiros',
+  ].filter(Boolean);
+
+  let structuralTable = '';
+  for (const table of structuralTableCandidates) {
+    const probe = await supabase.from(table).select('id,pessoa_id').limit(1);
+    if (!probe.error) {
+      structuralTable = table;
+      break;
+    }
+  }
+
+  if (structuralTable) {
+    const rows = await fetchAllRows(supabase, [structuralTable], { maxRows: 5000 });
+    const pessoaIds = Array.from(
+      new Set(
+        (Array.isArray(rows) ? rows : [])
+          .map((row: any) => cleanText(pickFirst(row, ['pessoa_id', 'pessoaId'])))
+          .filter(Boolean)
+      )
+    );
+
+    const pessoasRes = pessoaIds.length
+      ? await supabase.from('pessoas').select('*').in('id', pessoaIds)
+      : ({ data: [], error: null } as any);
+    if (pessoasRes.error) throw pessoasRes.error;
+
+    const pessoas = Array.isArray(pessoasRes.data) ? pessoasRes.data : [];
+    const pessoasById = new Map<string, any>(
+      pessoas.map((p: any) => [cleanText(p?.id), p]).filter(([id]) => Boolean(id))
+    );
+
+    return (Array.isArray(rows) ? rows : []).map((row: any) => {
+      const pessoa = pessoasById.get(cleanText(pickFirst(row, ['pessoa_id', 'pessoaId']))) || {};
+      return { ...pessoa, ...row };
+    });
+  }
+
+  return await fetchAllRows(supabase, getEncontreirosReadCandidates(), { maxRows: 5000 });
+}
+
 async function getEncontreiroEquipeRows(supabase: SupabaseClient, encontreiroId: string) {
   const tryByColumn = async (columnName: string) => {
     const { data, error } = await supabase
@@ -3915,11 +3959,10 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
     if (ctx.action === 'GET_ENCONTREIROS') {
       const classificacaoFilter = cleanText(ctx.payload.classificacao).toLowerCase();
       const includeSensitive = String(ctx.payload.includeSensitive ?? '').toLowerCase() === 'true' || ctx.payload.includeSensitive === true;
-      const tableCandidates = getEncontreirosReadCandidates();
 
       let rows: any[] = [];
       try {
-        rows = await fetchAllRows(supabase, tableCandidates);
+        rows = await loadEncontreirosForScreen(supabase);
       } catch (e: any) {
         const msg = String(e?.message || '');
         // Não quebra a tela quando nenhuma fonte estiver acessível; retorna vazio com diagnóstico.
@@ -3932,7 +3975,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
               indicators: { total: 0, novosSemestre: 0 },
               bairroStats: [],
               source: 'supabase',
-              warning: `Não foi possível ler as fontes de encontreiros. Fontes tentadas: ${tableCandidates.join(', ')}. Detalhe: ${msg}`,
+              warning: `Não foi possível ler as fontes de encontreiros. Detalhe: ${msg}`,
             }
           };
         }
