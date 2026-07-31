@@ -622,7 +622,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col text-slate-900 overflow-x-hidden">
       <Header user={user} onLogout={() => { setUser(null); localStorage.removeItem('eac_user'); }} onNavigate={handleNavigate} currentView={currentView} />
-      <main className="flex-grow pt-16 bg-slate-50 relative">
+      <main className="flex-grow pt-[72px] bg-slate-50 relative">
         {currentView === 'dashboard' && <Dashboard user={user} logs={logs} calendarEvents={calendarEvents} comunicados={comunicados} membersCount={membersCount} nonEnrolledCount={nonEnrolledCount} nonEnrolledPreConfirmadasCount={nonEnrolledIndicators.preConfirmadasCount} nonEnrolledInteresseCount={nonEnrolledIndicators.interesseCount} nonEnrolledInteresseNoCount={nonEnrolledIndicators.interesseNoCount} dashboardInsights={dashboardInsights} onNavigate={handleNavigate} lastSync={lastSync} onRefresh={fetchSpreadsheetData} isLoading={isLoadingSheet} />}
         {currentView === 'members' && (
           <MembersPage
@@ -661,5 +661,4 @@ const App: React.FC = () => {
 };
 
 export default App;
-
 
