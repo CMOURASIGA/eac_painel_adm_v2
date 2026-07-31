@@ -21,6 +21,7 @@ type Prioritario = {
   amigo?: string;
   nomeAmigo?: string;
   telefone?: string;
+  endereco?: string;
   bairro?: string;
   dataCadastro?: any;
   dataNascimento?: any;
@@ -236,6 +237,7 @@ const PRIORITARIO_EXPORT_BASE_COLUMNS = [
   'amigo',
   'nomeAmigo',
   'telefone',
+  'endereco',
   'bairro',
   'dataCadastro',
   'dataNascimento',
@@ -259,6 +261,7 @@ const PRIORITARIO_EXPORT_LABELS: Record<string, string> = {
   amigo: 'Amigo para fazer junto',
   nomeAmigo: 'Nome do amigo',
   telefone: 'Telefone',
+  endereco: 'Endereço',
   bairro: 'Bairro',
   dataCadastro: 'Data cadastro',
   dataNascimento: 'Data nascimento',
@@ -503,6 +506,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
         email: String(row?.email || ''),
         status: String(row?.status || row?.status_prioritaria || 'PRIORIZADO'),
         telefone: String(row?.telefone || row?.telefone_normalizado || ''),
+        endereco: String(row?.endereco || row?.endereco_snapshot || ''),
         bairro: String(row?.bairro || row?.bairro_snapshot || ''),
         dataCadastro: row?.dataCadastro || row?.criado_em || '',
         dataNascimento: row?.dataNascimento || row?.data_nascimento || '',
@@ -520,6 +524,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
         email: '',
         status: String(row?.status_inscricao || 'PRIORIZADO'),
         telefone: String(row?.telefone_adolescente || ''),
+        endereco: String(row?.endereco || ''),
         bairro: String(row?.bairro || ''),
         dataCadastro: row?.data_inscricao || '',
         dataNascimento: row?.data_nascimento || '',
@@ -1285,7 +1290,6 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
 };
 
 export default InscricoesPrioritariasPage;
-
 
 
 
