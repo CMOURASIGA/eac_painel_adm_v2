@@ -48,6 +48,7 @@ const PublicInscricaoForm: React.FC = () => {
     nome_responsavel: '',
     telefone_responsavel: '',
     email_responsavel: '',
+    endereco: '',
     bairro: '',
     paroquia: '',
     participou_antes: 'Nao',
@@ -86,6 +87,8 @@ const PublicInscricaoForm: React.FC = () => {
     const telR = toCleanString(form.telefone_responsavel).replace(/\D/g, '');
     if (telR.length < 10 || /^0+$/.test(telR)) errors.telefone_responsavel = 'Informe um telefone válido do responsável.';
 
+    if (!toCleanString(form.endereco)) errors.endereco = 'Informe o endereço completo.';
+
     if (!form.aceite_termos) errors.aceite_termos = 'É necessário aceitar os termos para enviar a inscrição.';
 
     return errors;
@@ -119,6 +122,7 @@ const PublicInscricaoForm: React.FC = () => {
         nome_responsavel: toCleanString(form.nome_responsavel),
         telefone_responsavel: toCleanString(form.telefone_responsavel),
         email_responsavel: toCleanString(form.email_responsavel),
+        endereco: toCleanString(form.endereco),
         bairro: toCleanString(form.bairro),
         paroquia: toCleanString(form.paroquia),
         participou_antes: form.participou_antes === 'Sim',
@@ -302,6 +306,16 @@ const PublicInscricaoForm: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className={labelClass}>Endereço completo *</label>
+                  <input
+                    value={form.endereco}
+                    onChange={(e) => setForm((prev) => ({ ...prev, endereco: e.target.value }))}
+                    className={inputClass('endereco')}
+                    placeholder="Rua, número, complemento"
+                  />
+                  {fieldErrors.endereco ? <p className="mt-1 text-xs text-red-600">{fieldErrors.endereco}</p> : null}
+                </div>
                 <div>
                   <label className={labelClass}>Bairro</label>
                   <input
