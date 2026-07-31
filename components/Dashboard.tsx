@@ -67,18 +67,18 @@ const Dashboard: React.FC<DashboardProps> = ({
     : "Bem-vindo ao portal de informações do EAC. Consulte a agenda oficial e a base de comunicados ativos.";
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex items-center justify-between px-2">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 md:space-y-8 pb-20">
+      <div className="flex items-center justify-between px-1">
         <div className="flex items-center space-x-2">
           <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`}></div>
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+          <span className="text-xs font-medium text-slate-500">
             {isLoading ? 'Sincronizando...' : `Dados atualizados: ${lastSync || '--:--'}`}
           </span>
         </div>
         <button 
           onClick={onRefresh} 
           disabled={isLoading}
-          className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors active:rotate-180 duration-500"
+          className="p-2 text-blue-700 hover:bg-blue-50 rounded-xl transition-colors active:rotate-180 duration-500"
           title="Recarregar Dados"
         >
           <svg className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -97,7 +97,11 @@ const Dashboard: React.FC<DashboardProps> = ({
       />
 
       {/* Grid de Indicadores Estratégicos */}
-      <div className={`grid grid-cols-2 gap-4 ${isAdmin ? 'md:grid-cols-3 lg:grid-cols-6' : 'md:grid-cols-3 lg:grid-cols-6'}`}>
+      <section>
+        <div className="flex items-end justify-between mb-3 px-1">
+          <div><h3 className="font-bold text-slate-900">Visão geral</h3><p className="text-sm text-slate-500">Acompanhe os números principais antes de entrar nos módulos.</p></div>
+        </div>
+      <div className={`grid grid-cols-2 gap-3 md:gap-4 ${isAdmin ? 'md:grid-cols-3 lg:grid-cols-6' : 'md:grid-cols-3 lg:grid-cols-6'}`}>
         <StatCard title="Inscritos (Triagem)" value={String(triagem.inscrito || 0)} color="blue" />
         <StatCard title="Priorizados" value={String(triagem.priorizado || 0)} color="indigo" />
         <StatCard title="Confirmados" value={String(triagem.confirmado || 0)} color="green" />
@@ -113,11 +117,12 @@ const Dashboard: React.FC<DashboardProps> = ({
           </>
         )}
       </div>
+      </section>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <section className="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-6 md:p-8">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Idade por Status da Triagem</h3>
+            <h3 className="text-lg font-bold text-slate-900 tracking-tight">Idade por status da triagem</h3>
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase tracking-widest"><span className="w-2.5 h-2.5 rounded-full bg-blue-600" />Inscrito</span>
               <span className="inline-flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase tracking-widest"><span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />Priorizado</span>
@@ -150,8 +155,8 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         <section className="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-6 md:p-8">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Inscrições por Mês (Ano Atual)</h3>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Até o mês atual</span>
+            <h3 className="text-lg font-bold text-slate-900 tracking-tight">Inscrições por mês</h3>
+            <span className="text-xs font-medium text-slate-500">Ano atual</span>
           </div>
           {monthly.length === 0 ? (
             <p className="text-sm text-slate-500 font-semibold">Sem inscrições registradas no ano atual.</p>
