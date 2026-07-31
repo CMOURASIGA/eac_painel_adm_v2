@@ -455,6 +455,7 @@ export async function executeInscricaoCreate(params: { supabase: AnySupabaseClie
     idade_calculada: idade,
     telefone: normalized.telefone_adolescente,
     telefone_normalizado: normalized.telefone_adolescente,
+    endereco: normalized.endereco,
     bairro: normalized.bairro,
     email: normalized.email_adolescente,
     email_normalizado: normalized.email_adolescente ? normalizarTexto(normalized.email_adolescente).toLowerCase() : null,
@@ -600,4 +601,3 @@ export async function executeInscricaoCreate(params: { supabase: AnySupabaseClie
     },
   };
 }
-
