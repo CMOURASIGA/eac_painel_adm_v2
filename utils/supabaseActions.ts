@@ -4028,6 +4028,112 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       };
     }
 
+    if (ctx.action === 'GET_ENCONTROS_EQUIPES') {
+      const rows = await fetchAllRows(supabase, ['encontros'], { maxRows: 5000 });
+      const encontros = rows
+        .map((row: any) => ({
+          id: cleanText(pickFirst(row, ['id', 'encontro_id', 'encontroId'])),
+          nome: cleanText(pickFirst(row, ['nome', 'titulo', 'descricao', 'name'])),
+          dataInicio: pickFirst(row, ['data_inicio', 'dataInicio', 'inicio']),
+        }))
+        .filter((row: any) => row.id && row.nome)
+        .sort((a: any, b: any) => String(b.dataInicio || '').localeCompare(String(a.dataInicio || '')) || a.nome.localeCompare(b.nome, 'pt-BR'));
+      return { ok: true, data: { success: true, encontros, source: 'supabase' } };
+    }
+
+    if (ctx.action === 'GET_ENCONTRO_EQUIPES') {
+      const encontroId = cleanText(ctx.payload.encontroId || ctx.payload.encontro_id);
+      if (!encontroId) return { ok: true, data: { success: false, error: 'encontroId é obrigatório.' } };
+
+      const [equipesRows, vinculosRows, encontreirosRows] = await Promise.all([
+        fetchAllRows(supabase, ['equipes'], { maxRows: 5000 }),
+        fetchAllRows(supabase, ['encontreiro_equipes'], { maxRows: 20000 }),
+        loadEncontreirosForScreen(supabase),
+      ]);
+      const peopleById = new Map<string, any>();
+      (Array.isArray(encontreirosRows) ? encontreirosRows : []).forEach((row: any) => {
+        const keys = [pickFirst(row, ['id']), pickFirst(row, ['pessoa_id', 'pessoaId'])].map(cleanText).filter(Boolean);
+        keys.forEach((id) => peopleById.set(id, row));
+      });
+      const teamById = new Map<string, any>();
+      (Array.isArray(equipesRows) ? equipesRows : []).forEach((row: any) => {
+        const team = normalizeEquipe(row);
+        if (cleanText(team.id)) teamById.set(cleanText(team.id), team);
+      });
+      const linked = (Array.isArray(vinculosRows) ? vinculosRows : []).filter((row: any) => cleanText(pickFirst(row, ['encontro_id', 'encontroId'])) === encontroId);
+      const membrosPorEquipe = new Map<string, any[]>();
+      linked.forEach((row: any) => {
+        const equipeId = cleanText(pickFirst(row, ['equipe_id', 'equipeId']));
+        const encontreiroId = cleanText(pickFirst(row, ['encontreiro_id', 'encontreiroId', 'pessoa_id', 'pessoaId']));
+        if (!equipeId || !encontreiroId) return;
+        const pessoa = peopleById.get(encontreiroId) || {};
+        const membros = membrosPorEquipe.get(equipeId) || [];
+        membros.push({
+          encontreiroId,
+          nome: cleanText(pickFirst(pessoa, ['nome_completo', 'nomeCompleto', 'nome'])) || 'Encontreiro',
+          bairro: cleanText(pickFirst(pessoa, ['bairro'])),
+          funcao: cleanText(pickFirst(row, ['funcao'])) || 'Membro',
+          observacao: cleanText(pickFirst(row, ['observacao'])),
+        });
+        membrosPorEquipe.set(equipeId, membros);
+      });
+      const equipes = Array.from(teamById.values()).map((team: any) => ({
+        equipeId: cleanText(team.id),
+        nome: cleanText(team.nome) || 'Equipe',
+        membros: membrosPorEquipe.get(cleanText(team.id)) || [],
+      }));
+      return { ok: true, data: { success: true, encontroId, equipes, source: 'supabase' } };
+    }
+
+    if (ctx.action === 'SAVE_ENCONTRO_EQUIPE_MEMBROS') {
+      const encontroId = cleanText(ctx.payload.encontroId || ctx.payload.encontro_id);
+      const equipeId = cleanText(ctx.payload.equipeId || ctx.payload.equipe_id);
+      const membros = Array.isArray(ctx.payload.membros) ? ctx.payload.membros : [];
+      if (!encontroId || !equipeId) return { ok: true, data: { success: false, error: 'encontroId e equipeId são obrigatórios.' } };
+
+      const deleted = await supabase.from('encontreiro_equipes').delete().eq('encontro_id', encontroId).eq('equipe_id', equipeId);
+      if (deleted.error) throw deleted.error;
+      const payload = membros.map((m: any) => ({
+        encontro_id: encontroId,
+        equipe_id: equipeId,
+        encontreiro_id: cleanText(m.encontreiroId || m.encontreiro_id || m.pessoaId || m.pessoa_id),
+        funcao: cleanText(m.funcao) || 'Membro',
+        observacao: cleanText(m.observacao) || null,
+        ativo: true,
+      })).filter((m: any) => m.encontreiro_id);
+      if (payload.length) {
+        const inserted = await supabase.from('encontreiro_equipes').insert(payload);
+        if (inserted.error) throw inserted.error;
+      }
+      return { ok: true, data: { success: true, encontroId, equipeId, total: payload.length, source: 'supabase' } };
+    }
+
+    if (ctx.action === 'GET_HISTORICO_ENCONTREIRO_EQUIPES') {
+      const encontreiroId = cleanText(ctx.payload.encontreiroId || ctx.payload.encontreiro_id || ctx.payload.id);
+      if (!encontreiroId) return { ok: true, data: { success: false, error: 'encontreiroId é obrigatório.' } };
+      const [vinculos, equipesRows, encontrosRows] = await Promise.all([
+        fetchAllRows(supabase, ['encontreiro_equipes'], { maxRows: 20000 }),
+        fetchAllRows(supabase, ['equipes'], { maxRows: 5000 }),
+        fetchAllRows(supabase, ['encontros'], { maxRows: 5000 }),
+      ]);
+      const equipesById = new Map<string, any>();
+      (Array.isArray(equipesRows) ? equipesRows : []).forEach((row: any) => equipesById.set(cleanText(pickFirst(row, ['id'])), normalizeEquipe(row)));
+      const encontrosById = new Map<string, any>();
+      (Array.isArray(encontrosRows) ? encontrosRows : []).forEach((row: any) => encontrosById.set(cleanText(pickFirst(row, ['id'])), row));
+      const historico = (Array.isArray(vinculos) ? vinculos : []).filter((row: any) => cleanText(pickFirst(row, ['encontreiro_id', 'encontreiroId', 'pessoa_id', 'pessoaId'])) === encontreiroId).map((row: any) => {
+        const equipe = equipesById.get(cleanText(pickFirst(row, ['equipe_id', 'equipeId']))) || {};
+        const encontro = encontrosById.get(cleanText(pickFirst(row, ['encontro_id', 'encontroId']))) || {};
+        return {
+          encontroId: cleanText(pickFirst(row, ['encontro_id', 'encontroId'])),
+          encontro: cleanText(pickFirst(encontro, ['nome', 'titulo', 'descricao'])),
+          equipe: cleanText(equipe.nome),
+          funcao: cleanText(row.funcao) || 'Membro',
+          observacao: cleanText(row.observacao),
+        };
+      });
+      return { ok: true, data: { success: true, historico, source: 'supabase' } };
+    }
+
     if (ctx.action === 'GET_EQUIPES') {
       const rows = await fetchAllRows(
         supabase,
