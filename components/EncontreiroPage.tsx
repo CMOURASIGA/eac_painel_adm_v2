@@ -269,6 +269,8 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
 
   const [selectedRecord, setSelectedRecord] = useState<EncontreiroRecord | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [historicoEquipes, setHistoricoEquipes] = useState<any[]>([]);
+  const [isLoadingHistorico, setIsLoadingHistorico] = useState(false);
   const [equipes, setEquipes] = useState<Array<{ id: string; nome: string }>>([]);
   const [selectedEquipeIds, setSelectedEquipeIds] = useState<string[]>([]);
 
@@ -662,6 +664,19 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
     }
   };
 
+  const openDetails = async (record: EncontreiroRecord) => {
+    setSelectedRecord(record);
+    setShowDetails(true);
+    setHistoricoEquipes([]);
+    setIsLoadingHistorico(true);
+    const res = await encontreirosService.historicoEquipesDoEncontreiro(
+      { encontreiroId: record.id },
+      { googleWebAppUrl }
+    );
+    if (res.success) setHistoricoEquipes(Array.isArray(res.data?.historico) ? res.data.historico : []);
+    setIsLoadingHistorico(false);
+  };
+
   const indicatorButtonClass = (active: boolean) => {
     return `p-5 rounded-[1.8rem] border transition-all min-w-[180px] text-left ${active ? 'bg-blue-600 border-blue-600 text-white shadow-xl' : 'bg-white border-slate-200 text-slate-700 hover:shadow-md'}`;
   };
@@ -918,7 +933,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
                       key: 'view',
                       title: 'Visualizar',
                       variant: 'view',
-                      onClick: () => { setSelectedRecord(record); setShowDetails(true); },
+                      onClick: () => { void openDetails(record); },
                       icon: (
                         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
@@ -1166,6 +1181,25 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
                 <div className="md:col-span-2">
                   <DataOriginAudit record={selectedRecord} />
                 </div>
+              </div>
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                <div className="px-4 py-3 bg-slate-50 border-b">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Histórico de equipes por encontro</p>
+                </div>
+                {isLoadingHistorico ? (
+                  <p className="p-4 text-sm font-bold text-slate-500">Carregando histórico...</p>
+                ) : historicoEquipes.length === 0 ? (
+                  <p className="p-4 text-sm font-bold text-slate-500">Nenhuma equipe registrada para este encontreiro.</p>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {historicoEquipes.map((item, index) => (
+                      <div key={`${item.encontroId}-${item.equipe}-${index}`} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                        <div><p className="font-black text-slate-800">{toClean(item.encontro) || 'Encontro'}</p><p className="text-sm font-bold text-slate-500">{toClean(item.equipe) || 'Equipe'} · {toClean(item.funcao) || 'Membro'}</p></div>
+                        {toClean(item.observacao) && <p className="text-sm font-medium text-slate-500">{toClean(item.observacao)}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
