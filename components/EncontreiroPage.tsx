@@ -5,6 +5,7 @@ import PersonCard from './PersonCard.tsx';
 import { toCleanString } from '../utils/textEncoding.ts';
 import DataOriginAudit from './DataOriginAudit.tsx';
 import { encontreirosService } from '../services/encontreirosService.ts';
+import EquipesPorEncontroPanel from './EquipesPorEncontroPanel.tsx';
 
 interface EncontreiroPageProps {
   user: User;
@@ -260,6 +261,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
     dataFimFilter: '',
   });
   const [page, setPage] = useState(1);
+  const [activeView, setActiveView] = useState<'cadastros' | 'equipes'>('cadastros');
 
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<EncontreiroFormData>(EMPTY_FORM);
