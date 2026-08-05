@@ -244,6 +244,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       'GET_EQUIPES',
       'GET_ENCONTREIRO_EQUIPES',
       'SAVE_ENCONTREIRO_EQUIPES',
+      'GET_ENCONTROS_EQUIPES',
+      'GET_ENCONTRO_EQUIPES',
+      'SAVE_ENCONTRO_EQUIPE_MEMBROS',
+      'GET_HISTORICO_ENCONTREIRO_EQUIPES',
       'EXECUTE_ANIVERSARIANTES',
       'EXECUTE_COMUNICADO_99',
     ]);
