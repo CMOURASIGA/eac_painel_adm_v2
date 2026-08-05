@@ -44,7 +44,7 @@ export const encontreirosService = {
 
   async salvarEquipesDoEncontreiro(payload: { encontreiroId: string; equipeIds: string[] }, opts: { googleWebAppUrl?: string } = {}): Promise<EacApiResult<any>> {
     return await postComunicadosAction<any>('SAVE_ENCONTREIRO_EQUIPES', payload, opts);
-  },,
+  },
 
   async listarEncontros(opts: { googleWebAppUrl?: string } = {}): Promise<EacApiResult<{ encontros: any[] }>> {
     const r = await postComunicadosAction<any>('GET_ENCONTROS_EQUIPES', {}, opts);
