@@ -1,7 +1,7 @@
 ﻿import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { handleSupabaseAction } from '../../../../utils/supabaseActions';
-import { getSupabaseServerClient, isSupabaseConfigured } from '../../../../utils/supabaseServer';
+import { getSupabaseServerClient } from '../../../../utils/supabaseServer';
 
 export const dynamic = 'force-dynamic';
 
@@ -135,12 +135,23 @@ async function fetchTriagemRowsByStatus() {
 
 async function fetchCadastroOficialCount(supabase: AnySupabaseClient | null) {
   if (!supabase) return 0;
-  const { count, error } = await supabase
+  const active = await supabase
     .from('cadastro_oficial')
     .select('*', { count: 'exact', head: true })
     .eq('ativo', true);
-  if (error) return 0;
-  return Number(count || 0);
+  if (!active.error) return Number(active.count || 0);
+
+  // Algumas bases históricas ainda não possuem a coluna "ativo". Nesse caso,
+  // o painel continua mostrando o cadastro existente, em vez de zerar o card.
+  const fallback = await supabase
+    .from('cadastro_oficial')
+    .select('*', { count: 'exact', head: true });
+  if (!fallback.error) return Number(fallback.count || 0);
+
+  const adolescentes = await supabase
+    .from('adolescentes')
+    .select('*', { count: 'exact', head: true });
+  return adolescentes.error ? 0 : Number(adolescentes.count || 0);
 }
 
 async function fetchEncontreirosCount(supabase: AnySupabaseClient | null) {
@@ -207,30 +218,22 @@ export async function GET() {
     fetchTriagemRowsByStatus(),
   ]);
 
-  if (!nonRes.ok || !eventsRes.ok || !logsRes.ok || !comRes.ok) {
-    const firstError =
-      (!nonRes.ok && nonRes.error) ||
-      (!eventsRes.ok && eventsRes.error) ||
-      (!logsRes.ok && logsRes.error) ||
-      (!comRes.ok && comRes.error) ||
-      'Falha ao montar resumo do dashboard.';
-
-    return NextResponse.json(
-      { success: false, error: String(firstError), message: String(firstError) },
-      { status: isSupabaseConfigured() ? 502 : 500 }
-    );
-  }
-
-  const nonEnrolled = Array.isArray((nonRes.data as any)?.nonEnrolled) ? (nonRes.data as any).nonEnrolled : [];
-  const events = Array.isArray((eventsRes.data as any)?.events) ? (eventsRes.data as any).events : [];
-  const logs = Array.isArray((logsRes.data as any)?.logs) ? (logsRes.data as any).logs : [];
-  const comunicados = Array.isArray((comRes.data as any)?.comunicados) ? (comRes.data as any).comunicados : [];
+  // O Dashboard é uma visão consolidada. Uma fonte opcional indisponível não
+  // pode fazer todos os cards aparentarem estar zerados para o operador.
+  const warnings = [nonRes, eventsRes, logsRes, comRes]
+    .filter((result) => !result.ok)
+    .map((result) => String(result.error || 'Uma fonte complementar não respondeu.'));
+  const nonEnrolled = nonRes.ok && Array.isArray((nonRes.data as any)?.nonEnrolled) ? (nonRes.data as any).nonEnrolled : [];
+  const events = eventsRes.ok && Array.isArray((eventsRes.data as any)?.events) ? (eventsRes.data as any).events : [];
+  const logs = logsRes.ok && Array.isArray((logsRes.data as any)?.logs) ? (logsRes.data as any).logs : [];
+  const comunicados = comRes.ok && Array.isArray((comRes.data as any)?.comunicados) ? (comRes.data as any).comunicados : [];
 
   const response = NextResponse.json(
     {
       success: true,
       source: 'supabase',
       message: 'Resumo do dashboard carregado com sucesso.',
+      warnings,
       summary: {
         membersCount,
         nonEnrolledCount: nonEnrolled.length,
@@ -255,4 +258,3 @@ export async function GET() {
   response.headers.set('X-EAC-Endpoint', 'dashboard/resumo');
   return response;
 }
-

@@ -235,8 +235,13 @@ export async function POST(req: Request) {
     const webAppUrl = envUrl || bodyUrl;
     webAppSource = envUrl ? 'env' : (bodyUrl ? 'body' : 'unknown');
 
-    const masterKey =
-      normalizeUrl(process.env.CHAVE_MESTRA) || "EAC-Admin-Secure-778899";
+    const masterKey = normalizeUrl(process.env.CHAVE_MESTRA);
+    if (!masterKey) {
+      return NextResponse.json(
+        { success: false, error: 'CHAVE_MESTRA não configurada no ambiente.' },
+        { status: 500 }
+      );
+    }
 
     if (!webAppUrl) {
       const r = NextResponse.json(
@@ -392,5 +397,3 @@ function errorToSample(error: unknown) {
   if (idx === -1) return '';
   return message.slice(idx + marker.length).slice(0, 400);
 }
-
-

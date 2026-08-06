@@ -18,9 +18,10 @@ type EncontroAdminItem = {
 interface SettingsPageProps {
   settings: SystemSettings;
   onSave: (settings: SystemSettings) => void;
+  focusEncontros?: boolean;
 }
 
-const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave }) => {
+const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, focusEncontros = false }) => {
   const [localSettings, setLocalSettings] = useState<SystemSettings>(settings);
   const [safeSettings, setSafeSettings] = useState<any>(null);
   const [encontros, setEncontros] = useState<EncontroAdminItem[]>([]);
@@ -148,12 +149,12 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave }) => {
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-10 animate-in fade-in duration-500">
       <header>
-        <h2 className="text-3xl font-black text-slate-900 tracking-tight uppercase">Configuracoes do Sistema</h2>
-        <p className="text-slate-500 mt-1 font-medium">Gerencie o motor de integracao e endpoints globais da operacao EAC.</p>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight uppercase">{focusEncontros ? 'Encontros' : 'Configuracoes do Sistema'}</h2>
+        <p className="text-slate-500 mt-1 font-medium">{focusEncontros ? 'Cadastre, atualize e acompanhe as edições do EAC.' : 'Gerencie o motor de integracao e endpoints globais da operacao EAC.'}</p>
       </header>
 
       <div className="grid grid-cols-1 gap-8">
-        <section className={`bg-white rounded-[2.5rem] border overflow-hidden shadow-sm transition-all ${isVercelConfigured ? 'border-green-300 ring-4 ring-green-50 shadow-green-100/50' : 'border-slate-200'}`}>
+        {!focusEncontros && <section className={`bg-white rounded-[2.5rem] border overflow-hidden shadow-sm transition-all ${isVercelConfigured ? 'border-green-300 ring-4 ring-green-50 shadow-green-100/50' : 'border-slate-200'}`}>
           <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <div className="flex items-center space-x-4">
               <div className={`p-3 rounded-2xl text-white ${isVercelConfigured ? 'bg-green-600' : 'bg-blue-600'}`}>
@@ -212,7 +213,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave }) => {
               </div>
             )}
           </div>
-        </section>
+        </section>}
 
         <section className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm">
           <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
@@ -333,14 +334,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave }) => {
           </div>
         </section>
 
-        <div className="flex justify-end pt-4">
+        {!focusEncontros && <div className="flex justify-end pt-4">
           <button
             onClick={handleSave}
             className="blue-gradient text-white px-12 py-5 rounded-2xl font-black shadow-2xl active:scale-95 transition-all uppercase text-sm tracking-widest"
           >
             Salvar Alteracoes
           </button>
-        </div>
+        </div>}
       </div>
     </div>
   );

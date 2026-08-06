@@ -1,7 +1,7 @@
 ﻿import type { NextApiRequest, NextApiResponse } from 'next';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { handleSupabaseAction } from '../../utils/supabaseActions.js';
-import { getSupabaseServerClient, isSupabaseConfigured } from '../../utils/supabaseServer.js';
+import { getSupabaseServerClient } from '../../utils/supabaseServer.js';
 
 type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
 const STATUS_PRIORITY: Record<string, number> = {
@@ -70,12 +70,21 @@ function pickBestInscricaoRow(current: any, candidate: any) {
 
 async function fetchCadastroOficialCount(supabase: AnySupabaseClient | null) {
   if (!supabase) return 0;
-  const { count, error } = await supabase
+  const active = await supabase
     .from('cadastro_oficial')
     .select('*', { count: 'exact', head: true })
     .eq('ativo', true);
-  if (error) return 0;
-  return Number(count || 0);
+  if (!active.error) return Number(active.count || 0);
+
+  const fallback = await supabase
+    .from('cadastro_oficial')
+    .select('*', { count: 'exact', head: true });
+  if (!fallback.error) return Number(fallback.count || 0);
+
+  const adolescentes = await supabase
+    .from('adolescentes')
+    .select('*', { count: 'exact', head: true });
+  return adolescentes.error ? 0 : Number(adolescentes.count || 0);
 }
 
 async function fetchEncontreirosCount(supabase: AnySupabaseClient | null) {
@@ -192,19 +201,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       fetchTriagemRowsByStatus(supabase),
     ]);
 
-    if (!nonRes.ok || !eventsRes.ok || !logsRes.ok || !comRes.ok) {
-      const firstError = (!nonRes.ok && nonRes.error)
-        || (!eventsRes.ok && eventsRes.error)
-        || (!logsRes.ok && logsRes.error)
-        || (!comRes.ok && comRes.error)
-        || 'Falha ao montar resumo do dashboard.';
-      return sendError(res, isSupabaseConfigured() ? 502 : 500, String(firstError));
-    }
-
-    const nonEnrolled = Array.isArray((nonRes.data as any)?.nonEnrolled) ? (nonRes.data as any).nonEnrolled : [];
-    const events = Array.isArray((eventsRes.data as any)?.events) ? (eventsRes.data as any).events : [];
-    const logs = Array.isArray((logsRes.data as any)?.logs) ? (logsRes.data as any).logs : [];
-    const comunicados = Array.isArray((comRes.data as any)?.comunicados) ? (comRes.data as any).comunicados : [];
+    const warnings = [nonRes, eventsRes, logsRes, comRes]
+      .filter((result) => !result.ok)
+      .map((result) => String(result.error || 'Uma fonte complementar não respondeu.'));
+    const nonEnrolled = nonRes.ok && Array.isArray((nonRes.data as any)?.nonEnrolled) ? (nonRes.data as any).nonEnrolled : [];
+    const events = eventsRes.ok && Array.isArray((eventsRes.data as any)?.events) ? (eventsRes.data as any).events : [];
+    const logs = logsRes.ok && Array.isArray((logsRes.data as any)?.logs) ? (logsRes.data as any).logs : [];
+    const comunicados = comRes.ok && Array.isArray((comRes.data as any)?.comunicados) ? (comRes.data as any).comunicados : [];
 
     const indicators = buildNonEnrolledIndicators(nonEnrolled);
 
@@ -214,6 +217,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       success: true,
       source: 'supabase',
       message: 'Resumo do dashboard carregado com sucesso.',
+      warnings,
       summary: {
         membersCount,
         nonEnrolledCount: nonEnrolled.length,
@@ -236,4 +240,3 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return sendError(res, 500, e?.message || 'Erro interno.');
   }
 }
-

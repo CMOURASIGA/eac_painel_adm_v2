@@ -10,6 +10,7 @@ import EquipesPorEncontroPanel from './EquipesPorEncontroPanel.tsx';
 interface EncontreiroPageProps {
   user: User;
   googleWebAppUrl: string;
+  initialView?: 'cadastros' | 'equipes';
 }
 
 const PAGE_SIZE = 20;
@@ -228,7 +229,7 @@ const isInCurrentBusinessSemester = (value: any) => {
   return date >= start && date <= end;
 };
 
-const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl }) => {
+const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl, initialView = 'cadastros' }) => {
   const [records, setRecords] = useState<EncontreiroRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [normalizingId, setNormalizingId] = useState<string | null>(null);
@@ -261,7 +262,11 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
     dataFimFilter: '',
   });
   const [page, setPage] = useState(1);
-  const [activeView, setActiveView] = useState<'cadastros' | 'equipes'>('cadastros');
+  const [activeView, setActiveView] = useState<'cadastros' | 'equipes'>(initialView);
+
+  useEffect(() => {
+    setActiveView(initialView);
+  }, [initialView]);
 
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<EncontreiroFormData>(EMPTY_FORM);
@@ -1218,7 +1223,6 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
 };
 
 export default EncontreiroPage;
-
 
 
 

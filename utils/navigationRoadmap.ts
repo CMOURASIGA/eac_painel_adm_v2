@@ -15,6 +15,8 @@ export const NAVIGATION_ROADMAP: NavigationItem[] = [
   { label: 'Visitação', view: 'visitacao', enabled: true },
   { label: 'Triagem de Inscrições', view: 'inscricoes_review', enabled: true },
   { label: 'Cadastro de Encontreiro', view: 'encontreiros', enabled: true },
+  { label: 'Encontros', view: 'encontros', enabled: true },
+  { label: 'Equipes', view: 'equipes', enabled: true },
   { label: 'Presença', view: 'presence', enabled: true },
   { label: 'Disparos', view: 'dispatches', enabled: true },
   { label: 'Calendário', view: 'calendar', enabled: true },
@@ -27,4 +29,3 @@ export const NAVIGATION_ROADMAP: NavigationItem[] = [
 
 export const isViewEnabledInRoadmap = (view: View) =>
   NAVIGATION_ROADMAP.some((item) => item.view === view && item.enabled);
-

@@ -306,7 +306,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const webAppId = idMatch?.[1] ? idMatch[1].slice(0, 10) : 'unknown';
     res.setHeader('X-EAC-WebApp-Source', webAppSource);
     res.setHeader('X-EAC-WebApp-Id', webAppId);
-    const masterKey = normalizeUrl(process.env.CHAVE_MESTRA) || 'EAC-Admin-Secure-778899';
+    const masterKey = normalizeUrl(process.env.CHAVE_MESTRA);
+    if (!masterKey) {
+      return res.status(500).json({
+        success: false,
+        error: 'CHAVE_MESTRA não configurada no ambiente.',
+      });
+    }
 
     if (!webAppUrl) {
       return sendError(res, 400, 'URL do Google Script nao configurada.');
@@ -418,4 +424,3 @@ function errorToSample(error: unknown) {
   if (idx === -1) return '';
   return message.slice(idx + marker.length).slice(0, 400);
 }
-

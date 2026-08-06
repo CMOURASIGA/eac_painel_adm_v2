@@ -11,6 +11,8 @@ export type View =
   | 'visitacao'
   | 'inscricoes_review'
   | 'encontreiros'
+  | 'encontros'
+  | 'equipes'
   | 'presence'
   | 'dispatches'
   | 'calendar'
@@ -334,4 +336,3 @@ export interface LogEntry {
   message: string;
   context?: any;
 }
-
