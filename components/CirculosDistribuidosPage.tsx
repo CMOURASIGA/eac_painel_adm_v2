@@ -525,7 +525,7 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
     setIsSavingOfficial(true);
     setError('');
     try {
-      const response = await fetch('/api/circulos-distribuidos/salvar', {
+      const response = await fetch('/api/circulos-distribuidos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
