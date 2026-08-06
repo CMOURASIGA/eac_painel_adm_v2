@@ -127,6 +127,7 @@ export async function POST(req: Request) {
       GET_CIRCULOS_DISTRIBUIDOS: { module: 'inscricoes_prioritarias_circulos', action: 'view' },
       GET_INSCRICOES_PRIORITARIAS: { module: 'inscricoes_prioritarias', action: 'view' },
       EXECUTE_DISTRIBUICAO_CIRCULOS: { module: 'inscricoes_prioritarias_circulos', action: 'edit' },
+      SAVE_CIRCULOS_DISTRIBUICAO_OFICIAL: { module: 'inscricoes_prioritarias_circulos', action: 'edit' },
       MOVE_CIRCULO_PARTICIPANTE: { module: 'inscricoes_prioritarias_circulos', action: 'edit' },
       EXECUTE_COMUNICADO_99: { module: 'dispatches', action: 'edit' },
       EXECUTE_ANIVERSARIANTES: { module: 'dispatches', action: 'edit' },
@@ -190,6 +191,7 @@ export async function POST(req: Request) {
       'UPDATE_NON_ENROLLED_INTEREST',
       'PRIORITIZE_NON_ENROLLED',
       'EXECUTE_DISTRIBUICAO_CIRCULOS',
+      'SAVE_CIRCULOS_DISTRIBUICAO_OFICIAL',
       'MOVE_CIRCULO_PARTICIPANTE',
       'EXECUTE_CONFIRM_INSCRITOS',
       'EXECUTE_ANIVERSARIANTES',
@@ -390,6 +392,5 @@ function errorToSample(error: unknown) {
   if (idx === -1) return '';
   return message.slice(idx + marker.length).slice(0, 400);
 }
-
 
 

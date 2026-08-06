@@ -17,6 +17,7 @@ interface CirculosDistribuidosPageProps {
 }
 
 const LAST_CIRCLE_DISTRIBUTION_STORAGE_KEY = 'eac:last-circle-distribution';
+const CIRCLE_REVIEW_REQUIRED_STORAGE_KEY = 'eac:circle-distribution-review-required';
 
 const CIRCLE_NAMES = [
   'Circulo 1',
@@ -232,6 +233,7 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
   const [loading, setLoading] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isUpdatingDistribution, setIsUpdatingDistribution] = useState(false);
+  const [isSavingOfficial, setIsSavingOfficial] = useState(false);
   const [movingParticipantId, setMovingParticipantId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [circulos, setCirculos] = useState<Record<string, PessoaCirculo[]>>(createEmptyGroups());
@@ -239,6 +241,9 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
   const [pendentesMontagem, setPendentesMontagem] = useState<Record<string, number>>({});
   const [totalPendentesMontagem, setTotalPendentesMontagem] = useState(0);
   const [isPendentesOpen, setIsPendentesOpen] = useState(false);
+  const [officialInfo, setOfficialInfo] = useState<any>(null);
+  const [hasUnsavedProposal, setHasUnsavedProposal] = useState(false);
+  const [reviewRequired, setReviewRequired] = useState<any>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -269,6 +274,8 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
       setTotalPendentesMontagem(pendingTotal);
       if (hasAnyCircleEntries(normalized)) {
         setCirculos(normalized);
+        setOfficialInfo(json?.official || null);
+        setHasUnsavedProposal(false);
         saveStoredCircleDistribution({
           circulos: normalized,
           pendentesDetalhados: pendingList,
@@ -302,8 +309,32 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
     fetchData();
   }, [fetchData]);
 
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(CIRCLE_REVIEW_REQUIRED_STORAGE_KEY);
+      setReviewRequired(raw ? JSON.parse(raw) : null);
+    } catch {
+      setReviewRequired(null);
+    }
+  }, []);
+
   const total = useMemo(() => {
     return CIRCLE_NAMES.reduce((acc, name) => acc + (circulos[name]?.length || 0), 0);
+  }, [circulos]);
+
+  const diagnostic = useMemo(() => {
+    const issues: string[] = [];
+    const rows = CIRCLE_NAMES.filter((name) => name !== 'Circulo Excedente').map((name) => {
+      const list = circulos[name] || [];
+      const meninos = list.filter((item) => getSexoKey(item.sexo) === 'masculino').length;
+      const meninas = list.filter((item) => getSexoKey(item.sexo) === 'feminino').length;
+      const totalCircle = list.length;
+      if (totalCircle > 12) issues.push(`${name} ultrapassa o limite de 12 participantes.`);
+      if (meninos > 6 || meninas > 6) issues.push(`${name} ultrapassa o limite por gênero.`);
+      if (totalCircle > 0 && Math.abs(meninos - meninas) > 2) issues.push(`${name} está desequilibrado entre meninos e meninas.`);
+      return { name, total: totalCircle, meninos, meninas };
+    });
+    return { rows, issues };
   }, [circulos]);
 
   async function gerarImagemCirculos() {
@@ -453,6 +484,7 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
       setTotalPendentesMontagem(pendingTotal);
       if (hasAnyCircleEntries(normalized)) {
         setCirculos(normalized);
+        setHasUnsavedProposal(true);
         saveStoredCircleDistribution({
           circulos: normalized,
           pendentesDetalhados: pendingList,
@@ -468,6 +500,40 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
       setIsUpdatingDistribution(false);
     }
   }, [fetchData, googleWebAppUrl]);
+
+  const salvarDistribuicaoOficial = useCallback(async () => {
+    if (!hasUnsavedProposal) return;
+    setIsSavingOfficial(true);
+    setError('');
+    try {
+      const response = await fetch('/api/circulos-distribuidos/salvar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          circulos,
+          totalEntradas: total,
+          operator: 'PAINEL_CIRCULOS',
+          criterios: {
+            origem: 'SIMULACAO_APROVADA',
+            pendentesMontagem: totalPendentesMontagem,
+            diagnostico: diagnostic.issues,
+          },
+        }),
+      });
+      const raw = await response.text();
+      const json = raw ? sanitizeTextDeep(JSON.parse(raw)) : {};
+      if (!response.ok || !(json?.success ?? json?.ok)) throw new Error(json?.error || 'Não foi possível salvar a distribuição oficial.');
+      setOfficialInfo(json.official || null);
+      setHasUnsavedProposal(false);
+      try { window.localStorage.removeItem(CIRCLE_REVIEW_REQUIRED_STORAGE_KEY); } catch {}
+      setReviewRequired(null);
+      saveStoredCircleDistribution({ circulos, pendentesDetalhados, pendentesMontagem, totalPendentesMontagem });
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao salvar a distribuição oficial.');
+    } finally {
+      setIsSavingOfficial(false);
+    }
+  }, [circulos, diagnostic.issues, hasUnsavedProposal, pendentesDetalhados, pendentesMontagem, total, totalPendentesMontagem]);
 
   const moverParticipante = useCallback(async (item: PessoaCirculo, fromCirculo: string) => {
     const participantId = toCleanString(item?.id);
@@ -499,53 +565,17 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
     if (toCirculo === fromCirculo) return;
 
     setMovingParticipantId(participantId);
-    setError('');
-    try {
-      const applyLocalMove = () => {
-        setCirculos((prev) => {
-          const next = createEmptyGroups();
-          CIRCLE_NAMES.forEach((name) => {
-            next[name] = Array.isArray(prev[name]) ? prev[name].map((entry) => ({ ...entry })) : [];
-          });
-          next[fromCirculo] = (next[fromCirculo] || []).filter((entry) => toCleanString(entry?.id) !== participantId);
-          next[toCirculo] = [...(next[toCirculo] || []), { ...item, grupoSugerido: toCirculo }];
-          saveStoredCircleDistribution({
-            circulos: next,
-            pendentesDetalhados,
-            pendentesMontagem,
-            totalPendentesMontagem,
-          });
-          return next;
-        });
-      };
-
-      const response = await fetch('/api/circulos-distribuidos/mover', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: participantId,
-          fromCirculo,
-          toCirculo,
-          operator: 'PAINEL_CIRCULOS',
-        }),
-      });
-
-      const raw = await response.text();
-      if (!raw) throw new Error(`Resposta vazia da API (HTTP ${response.status}).`);
-      const json = sanitizeTextDeep(JSON.parse(raw));
-      if (!response.ok || !(json?.success ?? json?.ok)) {
-        applyLocalMove();
-        setError('Movimento salvo apenas neste navegador porque a persistência do backend não está disponível.');
-        return;
-      }
-
-      await fetchData();
-    } catch (err: any) {
-      setError(err?.message || 'Erro ao mover participante.');
-    } finally {
-      setMovingParticipantId(null);
-    }
-  }, [fetchData]);
+    setCirculos((prev) => {
+      const next = createEmptyGroups();
+      CIRCLE_NAMES.forEach((name) => { next[name] = Array.isArray(prev[name]) ? prev[name].map((entry) => ({ ...entry })) : []; });
+      next[fromCirculo] = (next[fromCirculo] || []).filter((entry) => toCleanString(entry?.id) !== participantId);
+      next[toCirculo] = [...(next[toCirculo] || []), { ...item, grupoSugerido: toCirculo }];
+      saveStoredCircleDistribution({ circulos: next, pendentesDetalhados, pendentesMontagem, totalPendentesMontagem });
+      return next;
+    });
+    setHasUnsavedProposal(true);
+    setMovingParticipantId(null);
+  }, [pendentesDetalhados, pendentesMontagem, totalPendentesMontagem]);
 
   return (
     <section className="max-w-7xl mx-auto px-4 md:px-6 py-6">
@@ -573,7 +603,7 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
               disabled={loading || isUpdatingDistribution || isGeneratingImage}
               className="px-4 py-3 rounded-2xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-60"
             >
-              {isUpdatingDistribution ? 'Atualizando distribuição...' : 'Atualizar distribuição'}
+              {isUpdatingDistribution ? 'Gerando proposta...' : 'Gerar nova proposta'}
             </button>
             <button
               type="button"
@@ -624,6 +654,48 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
             <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500 font-black mt-1">
               Total distribuído: {total}
             </p>
+          </div>
+          <div className={`mb-5 rounded-2xl border p-4 ${hasUnsavedProposal ? 'border-amber-300 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+            <p className={`text-[10px] font-black uppercase tracking-[0.18em] ${hasUnsavedProposal ? 'text-amber-700' : 'text-emerald-700'}`}>
+              {hasUnsavedProposal ? 'Proposta ainda não salva' : officialInfo ? 'Distribuição oficial vigente' : 'Sem versão oficial registrada'}
+            </p>
+            <p className="mt-1 text-sm font-bold text-slate-700">
+              {hasUnsavedProposal
+                ? 'Esta proposta pode ser analisada e ajustada. Ela só substituirá a divisão oficial quando você salvar.'
+                : officialInfo
+                  ? `Última versão salva em ${new Date(officialInfo.createdAt).toLocaleString('pt-BR')}. Uma nova simulação não altera esta versão automaticamente.`
+                  : 'Gere uma proposta, confira os indicadores e salve quando a coordenação aprovar.'}
+            </p>
+          </div>
+          {reviewRequired && (
+            <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-700">Revisão necessária</p>
+              <p className="mt-1 text-sm font-bold text-rose-900">
+                {reviewRequired.nome || 'Um adolescente'} deixou de ser prioritário. A versão oficial foi preservada, mas gere uma nova proposta antes da próxima conferência.
+              </p>
+            </div>
+          )}
+          <div className="mb-5 rounded-2xl border border-blue-200 bg-blue-50 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-700">Diagnóstico da proposta</p>
+                <p className="mt-1 text-sm font-bold text-slate-700">
+                  {diagnostic.issues.length === 0 ? 'Nenhum desequilíbrio crítico foi encontrado nos círculos principais.' : `${diagnostic.issues.length} ponto(s) requer(em) conferência antes do salvamento.`}
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {diagnostic.rows.map((row) => (
+                  <span key={row.name} className="rounded-full border border-blue-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600">
+                    {row.name.replace('Circulo ', 'C')}: {row.total} · M {row.meninos} · F {row.meninas}
+                  </span>
+                ))}
+              </div>
+            </div>
+            {diagnostic.issues.length > 0 && (
+              <ul className="mt-3 space-y-1 text-xs font-bold text-amber-800">
+                {diagnostic.issues.map((issue) => <li key={issue}>• {issue}</li>)}
+              </ul>
+            )}
           </div>
           <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Regras da distribuição</p>
@@ -857,12 +929,25 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
             </div>
           </div>
         )}
+        {hasUnsavedProposal && (
+          <div className="sticky bottom-4 mt-6 flex flex-col gap-3 rounded-2xl border border-amber-300 bg-white/95 p-4 shadow-xl backdrop-blur md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-black text-slate-900">Você tem uma proposta de distribuição não salva.</p>
+              <p className="text-xs font-bold text-slate-500">A divisão oficial continua preservada até a confirmação abaixo.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => { void salvarDistribuicaoOficial(); }}
+              disabled={isSavingOfficial}
+              className="rounded-2xl bg-blue-600 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-white hover:bg-blue-700 disabled:opacity-60"
+            >
+              {isSavingOfficial ? 'Salvando...' : 'Salvar como distribuição oficial'}
+            </button>
+          </div>
+        )}
       </div>
     </section>
   );
 };
 
 export default CirculosDistribuidosPage;
-
-
-

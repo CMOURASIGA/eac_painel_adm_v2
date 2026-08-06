@@ -41,6 +41,7 @@ interface InscricoesPrioritariasPageProps {
 }
 
 const LAST_CIRCLE_DISTRIBUTION_STORAGE_KEY = 'eac:last-circle-distribution';
+const CIRCLE_REVIEW_REQUIRED_STORAGE_KEY = 'eac:circle-distribution-review-required';
 
 function saveLastCircleDistribution(payload: any) {
   if (typeof window === 'undefined') return;
@@ -729,6 +730,12 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
         setShowDrawer(false);
       }
 
+      try {
+        window.localStorage.setItem(CIRCLE_REVIEW_REQUIRED_STORAGE_KEY, JSON.stringify({ nome: nomeRef, changedAt: new Date().toISOString() }));
+      } catch {
+        // O alerta é complementar e não pode impedir a despriorização.
+      }
+
       showInfo((r.data as any)?.message || 'Registro despriorizado com sucesso.');
       await fetchData();
     } catch (err: any) {
@@ -956,7 +963,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
               disabled={loading || isDistributing || items.length === 0}
               className="px-4 py-3 rounded-2xl bg-indigo-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 disabled:opacity-60"
             >
-              {isDistributing ? 'Distribuindo...' : 'Distribuir Círculos'}
+              {isDistributing ? 'Gerando proposta...' : 'Gerar proposta de círculos'}
             </button>
             <button
               type="button"
@@ -1290,6 +1297,5 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
 };
 
 export default InscricoesPrioritariasPage;
-
 
 

@@ -235,6 +235,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       'GET_INSCRICOES_PRIORITARIAS',
       'PRIORITIZE_NON_ENROLLED',
       'EXECUTE_DISTRIBUICAO_CIRCULOS',
+      'SAVE_CIRCULOS_DISTRIBUICAO_OFICIAL',
       'MOVE_CIRCULO_PARTICIPANTE',
       'GET_EMAIL_STATUS_SUMMARY',
       'GET_EMAIL_CALLS_BY_PERSON',
@@ -417,5 +418,4 @@ function errorToSample(error: unknown) {
   if (idx === -1) return '';
   return message.slice(idx + marker.length).slice(0, 400);
 }
-
 
