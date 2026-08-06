@@ -142,11 +142,30 @@ function normalizeCirculosPayload(input: any) {
   return grouped;
 }
 
-function getStoredCircleDistribution() {
-  if (typeof window === 'undefined') return createEmptyGroups();
+function getStoredCircleDistribution(): {
+  circulos: Record<string, PessoaCirculo[]>;
+  pendentesDetalhados: any[];
+  pendentesMontagem: Record<string, number>;
+  totalPendentesMontagem: number;
+} {
+  if (typeof window === 'undefined') {
+    return {
+      circulos: createEmptyGroups(),
+      pendentesDetalhados: [],
+      pendentesMontagem: {},
+      totalPendentesMontagem: 0,
+    };
+  }
   try {
     const raw = window.localStorage.getItem(LAST_CIRCLE_DISTRIBUTION_STORAGE_KEY);
-    if (!raw) return createEmptyGroups();
+    if (!raw) {
+      return {
+        circulos: createEmptyGroups(),
+        pendentesDetalhados: [],
+        pendentesMontagem: {},
+        totalPendentesMontagem: 0,
+      };
+    }
     const parsed = JSON.parse(raw);
     return {
       circulos: normalizeCirculosPayload(parsed?.circulos),

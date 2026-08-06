@@ -109,7 +109,7 @@ async function fetchTriagemRowsByStatus() {
     : ({ data: [] } as any);
 
   const adolescenteToPessoa = new Map((adolescentes || []).map((row: any) => [String(row.id), String(row.pessoa_id || '')]));
-  const pessoaToMeta = new Map((pessoas || []).map((row: any) => [String(row.id), row]));
+  const pessoaToMeta = new Map<string, any>((pessoas || []).map((row: any) => [String(row.id), row]));
 
   const typed = {
     INSCRITO: [] as any[],
@@ -120,7 +120,7 @@ async function fetchTriagemRowsByStatus() {
   consolidatedRows.forEach((row: any) => {
     const status = String(row?.status || '').trim().toUpperCase();
     if (!(status in typed)) return;
-    const pessoaId = adolescenteToPessoa.get(String(row?.adolescente_id || '')) || '';
+    const pessoaId = String(adolescenteToPessoa.get(String(row?.adolescente_id || '')) || '');
     const pessoa = pessoaToMeta.get(pessoaId);
     const idadePersistida = Number(pessoa?.idade_calculada);
     const idadeCalculada = calcAgeFromBirthdate(pessoa?.data_nascimento);

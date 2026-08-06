@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 55001)
-Total output lines: 5351
-
 ﻿import type { SupabaseClient as BaseSupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseServerClient } from './supabaseServer.js';
 import { createHash, timingSafeEqual } from 'crypto';
@@ -1434,7 +1431,2524 @@ async function loadEncontreirosForScreen(supabase: SupabaseClient) {
   let structuralTable = '';
   for (const table of structuralTableCandidates) {
     const probe = await supabase.from(table).select('id,pessoa_id').limit(1);
-    if (!probe.…25001 tokens truncated…,
+    if (!probe.error) {
+      structuralTable = table;
+      break;
+    }
+  }
+
+  if (structuralTable) {
+    const rows = await fetchAllRows(supabase, [structuralTable], { maxRows: 5000 });
+    const pessoaIds = Array.from(
+      new Set(
+        (Array.isArray(rows) ? rows : [])
+          .map((row: any) => cleanText(pickFirst(row, ['pessoa_id', 'pessoaId'])))
+          .filter(Boolean)
+      )
+    );
+
+    const pessoasRes = pessoaIds.length
+      ? await supabase.from('pessoas').select('*').in('id', pessoaIds)
+      : ({ data: [], error: null } as any);
+    if (pessoasRes.error) throw pessoasRes.error;
+
+    const pessoas = Array.isArray(pessoasRes.data) ? pessoasRes.data : [];
+    const pessoasById = new Map<string, any>(
+      pessoas.map((p: any) => [cleanText(p?.id), p]).filter(([id]) => Boolean(id))
+    );
+
+    return (Array.isArray(rows) ? rows : []).map((row: any) => {
+      const pessoa = pessoasById.get(cleanText(pickFirst(row, ['pessoa_id', 'pessoaId']))) || {};
+      return { ...pessoa, ...row };
+    });
+  }
+
+  return await fetchAllRows(supabase, getEncontreirosReadCandidates(), { maxRows: 5000 });
+}
+
+async function getEncontreiroEquipeRows(supabase: SupabaseClient, encontreiroId: string) {
+  const tryByColumn = async (columnName: string) => {
+    const { data, error } = await supabase
+      .from('encontreiro_equipes')
+      .select('*')
+      .eq(columnName, encontreiroId);
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  };
+
+  const candidates = ['encontreiro_id', 'encontreiroId', 'pessoa_id', 'pessoaId'];
+  for (const column of candidates) {
+    try {
+      const rows = await tryByColumn(column);
+      if (rows.length > 0) return { rows, column };
+    } catch {
+      // tenta próxima coluna
+    }
+  }
+
+  return { rows: [] as any[], column: 'encontreiro_id' };
+}
+
+async function replaceEncontreiroEquipes(
+  supabase: SupabaseClient,
+  encontreiroId: string,
+  equipeIds: string[],
+) {
+  const existing = await getEncontreiroEquipeRows(supabase, encontreiroId);
+  const targetColumn = existing.column || 'encontreiro_id';
+
+  try {
+    await supabase.from('encontreiro_equipes').delete().eq(targetColumn, encontreiroId);
+  } catch {
+    // ignora
+  }
+
+  for (const equipeId of equipeIds) {
+    const attempts: Record<string, any>[] = [
+      { [targetColumn]: encontreiroId, equipe_id: equipeId, ativo: true },
+      { [targetColumn]: encontreiroId, equipeId, ativo: true },
+      { [targetColumn]: encontreiroId, equipe_id: equipeId },
+      { [targetColumn]: encontreiroId, equipeId },
+    ];
+
+    let saved = false;
+    for (const payload of attempts) {
+      const { error } = await supabase.from('encontreiro_equipes').insert(payload);
+      if (!error) {
+        saved = true;
+        break;
+      }
+    }
+    if (!saved) {
+      throw new Error(`Não foi possível vincular equipe ${equipeId}.`);
+    }
+  }
+}
+
+function buildPessoaPayloadFromEncontreiro(payload: JsonObject) {
+  const telefone = cleanText(payload.celularWhatsapp);
+  const telefoneDigits = normalizeDigits(telefone);
+  const telefoneNormalizado = !telefoneDigits
+    ? ''
+    : (telefoneDigits.startsWith('55') || telefoneDigits.length > 11 ? telefoneDigits : `55${telefoneDigits}`);
+
+  return {
+    nome_completo: cleanText(payload.nomeCompleto),
+    nome_normalizado: cleanText(payload.nomeCompleto).toLowerCase(),
+    data_nascimento: cleanText(payload.dataNascimento) || null,
+    idade_calculada: cleanText(payload.idade) || null,
+    email: cleanText(payload.email) || null,
+    telefone: telefone || null,
+    telefone_normalizado: telefoneNormalizado || null,
+    bairro: cleanText(payload.bairro) || null,
+    observacoes: cleanText(payload.classificacao) || null,
+  };
+}
+
+async function upsertPessoaFromEncontreiro(supabase: SupabaseClient, payload: JsonObject) {
+  const pessoaPayload = buildPessoaPayloadFromEncontreiro(payload);
+  const nome = String(pessoaPayload.nome_completo || '').trim();
+  if (!nome) {
+    return null;
+  }
+
+  const email = String(pessoaPayload.email || '').trim().toLowerCase();
+  const telNorm = String(pessoaPayload.telefone_normalizado || '').trim();
+
+  let query = supabase.from('pessoas').select('id').limit(1);
+  if (email && telNorm) {
+    query = query.or(`email.eq.${email},telefone_normalizado.eq.${telNorm}`);
+  } else if (email) {
+    query = query.eq('email', email);
+  } else if (telNorm) {
+    query = query.eq('telefone_normalizado', telNorm);
+  } else {
+    query = query.eq('nome_normalizado', nome.toLowerCase());
+  }
+
+  const { data: existing, error: existingError } = await query;
+  if (existingError) throw existingError;
+
+  const existingId = Array.isArray(existing) && existing[0]?.id ? String(existing[0].id) : '';
+  if (existingId) {
+    const { data: updated, error: updateErr } = await supabase
+      .from('pessoas')
+      .update(pessoaPayload)
+      .eq('id', existingId)
+      .select('id')
+      .limit(1);
+    if (updateErr) throw updateErr;
+    return Array.isArray(updated) && updated[0]?.id ? String(updated[0].id) : existingId;
+  }
+
+  const { data: inserted, error: insertErr } = await supabase
+    .from('pessoas')
+    .insert(pessoaPayload)
+    .select('id')
+    .limit(1);
+  if (insertErr) throw insertErr;
+  return Array.isArray(inserted) && inserted[0]?.id ? String(inserted[0].id) : null;
+}
+
+async function ensurePessoaPapelAtivo(
+  supabase: SupabaseClient,
+  pessoaId: string,
+  papel: 'ENCONTRISTA' | 'ENCONTREIRO',
+) {
+  const { data: existing, error: existingError } = await supabase
+    .from('pessoa_papeis')
+    .select('id,ativo')
+    .eq('pessoa_id', pessoaId)
+    .eq('papel', papel)
+    .limit(1)
+    .maybeSingle();
+  if (existingError) throw existingError;
+
+  if (existing?.id) {
+    if (existing.ativo === true) return;
+    const { error: updateError } = await supabase
+      .from('pessoa_papeis')
+      .update({ ativo: true })
+      .eq('id', existing.id);
+    if (updateError) throw updateError;
+    return;
+  }
+
+  const { error: insertError } = await supabase
+    .from('pessoa_papeis')
+    .insert({ pessoa_id: pessoaId, papel, ativo: true });
+  if (insertError) throw insertError;
+}
+
+async function getLastUpdateFromTable(
+  supabase: SupabaseClient,
+  tableCandidates: string[],
+  columnCandidates: string[]
+): Promise<string | null> {
+  for (const column of columnCandidates) {
+    try {
+      const { data } = await queryFirstExistingTable<any[]>(
+        supabase,
+        tableCandidates,
+        async (tableName) => {
+          return await supabase.from(tableName).select(column).order(column, { ascending: false }).limit(1);
+        }
+      );
+      const first = Array.isArray(data) ? data[0] : null;
+      const raw = first ? first[column] : null;
+      if (raw) return String(raw);
+    } catch (e: any) {
+      const msg = String(e?.message || '').toLowerCase();
+      const isMissingColumn = msg.includes('column') && msg.includes('does not exist');
+      if (isMissingColumn) continue;
+      if (isMissingRelationError(e)) continue;
+      // ignora e tenta a próxima coluna/tabela, mas sem falhar o painel inteiro
+      continue;
+    }
+  }
+  return null;
+}
+
+async function tryInsertAuditLog(
+  supabase: SupabaseClient,
+  payload: {
+    action: string;
+    entity: string;
+    entityId: string;
+    previousValue: string;
+    newValue: string;
+    operator?: string;
+  }
+): Promise<boolean> {
+  const logTables = ['audit_logs', 'logs', 'dispatch_logs', 'eac_logs'];
+  const summary = `${payload.action} ${payload.entity}:${payload.entityId} ${payload.previousValue} -> ${payload.newValue}`;
+
+  for (const table of logTables) {
+    const attempts: Array<Record<string, any>> = [
+      {
+        dispatch_id: payload.action,
+        dispatch_name: payload.action,
+        operator: payload.operator || 'SYSTEM',
+        timestamp: new Date().toISOString(),
+        duration: 0,
+        status: 'SUCCESS',
+        response_summary: summary,
+      },
+      {
+        dispatchId: payload.action,
+        dispatchName: payload.action,
+        operator: payload.operator || 'SYSTEM',
+        timestamp: new Date().toISOString(),
+        duration: 0,
+        status: 'SUCCESS',
+        responseSummary: summary,
+      },
+      {
+        entidade: payload.entity,
+        entidade_id: payload.entityId,
+        acao: payload.action,
+        valor_anterior: payload.previousValue,
+        valor_novo: payload.newValue,
+        operador: payload.operator || 'SYSTEM',
+        criado_em: new Date().toISOString(),
+      },
+      {
+        entity: payload.entity,
+        entity_id: payload.entityId,
+        action: payload.action,
+        previous_value: payload.previousValue,
+        new_value: payload.newValue,
+        operator: payload.operator || 'SYSTEM',
+        created_at: new Date().toISOString(),
+      },
+    ];
+
+    for (const body of attempts) {
+      try {
+        const { error } = await supabase.from(table).insert(body as any);
+        if (!error) return true;
+        const message = String(error.message || '').toLowerCase();
+        if (message.includes('relation') && message.includes('does not exist')) break;
+      } catch {
+        // tenta próximo formato/tabela
+      }
+    }
+  }
+
+  return false;
+}
+
+export async function handleSupabaseAction(action: string, payload: JsonObject = {}): Promise<SupabaseActionResult> {
+  const supabase = getSupabaseServerClient();
+  if (!supabase) {
+    return { ok: false, error: 'Supabase não configurado (SUPABASE_URL / SUPABASE_*_KEY).' };
+  }
+
+  const ctx: SupabaseActionContext = { action, payload: payload || {} };
+
+  try {
+    if (ctx.action === 'GET_SYNC_STATUS') {
+      const last =
+        (await getLastUpdateFromTable(supabase, ['sync_log', 'sync_logs', 'eac_sync_log'], ['updated_at', 'created_at', 'synced_at', 'timestamp'])) ||
+        (await getLastUpdateFromTable(supabase, ['cadastro_oficial', 'cadastro', 'members', 'membros', 'adolescentes'], ['updated_at', 'synced_at', 'created_at', 'timestamp'])) ||
+        (await getLastUpdateFromTable(supabase, ['nao_inscritos', 'non_enrolled', 'vw_non_enrolled'], ['updated_at', 'synced_at', 'created_at', 'timestamp']));
+
+      return { ok: true, data: { success: true, source: 'supabase', lastUpdate: last } };
+    }
+
+    if (ctx.action === 'USER_LOGIN') {
+      const email = String(ctx.payload.email || '').trim().toLowerCase();
+      const password = String(ctx.payload.password || '').trim();
+      if (!email || !password) {
+        return { ok: true, data: { success: false, error: 'E-mail e senha são obrigatórios.' } };
+      }
+
+      const tables = [
+        String(process.env.EAC_SUPABASE_TABLE_USERS || '').trim(),
+        'usuario',
+        'usuarios',
+        'users',
+        'eac_users',
+      ].filter(Boolean);
+
+      const rows = await fetchAllRows(supabase, tables, { maxRows: 5000 });
+      const resolved = (Array.isArray(rows) ? rows : []).find((r: any) => {
+        const login = String(pickFirst(r, ['usuario', 'email']) || '').trim().toLowerCase();
+        return login === email;
+      });
+
+      if (!resolved) {
+        return { ok: true, data: { success: false, error: 'Credenciais inválidas.' } };
+      }
+
+      const storedPasswordRaw = String(pickFirst(resolved, ['senha', 'password', 'password_hash']) || '').trim();
+      const allowLegacyPlainPassword =
+        String(process.env.EAC_ALLOW_LEGACY_PLAIN_PASSWORD || '').trim().toLowerCase() === 'true';
+
+      let validPassword = false;
+      if (storedPasswordRaw.startsWith('sha256:')) {
+        const storedHash = storedPasswordRaw.slice('sha256:'.length).trim().toLowerCase();
+        validPassword = secureCompare(storedHash, hashSha256Hex(password).toLowerCase());
+      } else if (/^[a-f0-9]{64}$/i.test(storedPasswordRaw)) {
+        validPassword = secureCompare(storedPasswordRaw.toLowerCase(), hashSha256Hex(password).toLowerCase());
+      } else if (isLikelyPasswordHash(storedPasswordRaw)) {
+        // Hash reconhecido, porém sem verificador local (ex.: bcrypt sem lib): bloqueia por segurança.
+        validPassword = false;
+      } else if (allowLegacyPlainPassword) {
+        validPassword = secureCompare(storedPasswordRaw, password);
+      }
+
+      if (!validPassword) {
+        return { ok: true, data: { success: false, error: 'Credenciais inválidas.' } };
+      }
+
+      const user = {
+        ...normalizeUserRecord(resolved),
+        usuario: pickFirst(resolved, ['usuario', 'email']) || email,
+        id: pickFirst(resolved, ['id', 'uuid']),
+      };
+
+      if (cleanText(user.status).toLowerCase() === 'inativo') {
+        return { ok: true, data: { success: false, error: 'Usuário inativo. Acesso bloqueado.' } };
+      }
+
+      return { ok: true, data: { success: true, user, source: 'supabase' } };
+    }
+
+    if (ctx.action === 'GET_MEMBERS') {
+      const members = await fetchActiveMembersFromNormalizedTables(supabase);
+      return { ok: true, data: { success: true, members, total: members.length, source: 'supabase' } };
+    }
+
+    if (ctx.action === 'GET_PUBLIC_PRESENCE_DATA') {
+      const [enc, mem, pre] = await Promise.all([
+        handleSupabaseAction('GET_ENCONTREIROS', {}),
+        handleSupabaseAction('GET_MEMBERS', {}),
+        handleSupabaseAction('GET_PRESENCE', {}),
+      ]);
+
+      if (!enc.ok || !mem.ok) {
+        return {
+          ok: true,
+          data: {
+            success: false,
+            error: (!enc.ok ? enc.error : '') || (!mem.ok ? mem.error : '') || 'Falha ao carregar dados de presenca.',
+          },
+        };
+      }
+
+      const encontreiros = Array.isArray((enc.data as any)?.encontreiros) ? (enc.data as any).encontreiros : [];
+      const encontristas = Array.isArray((mem.data as any)?.members) ? (mem.data as any).members : [];
+      const presence = pre.ok && Array.isArray((pre.data as any)?.presence) ? (pre.data as any).presence : [];
+
+      return {
+        ok: true,
+        data: buildPublicPresenceCandidates({ encontreiros, encontristas, presence }),
+      };
+    }
+
+    if (ctx.action === 'GET_USERS') {
+      const profiles = await supabase
+        .from('app_user_profiles')
+        .select('*')
+        .order('email', { ascending: true });
+      if (!profiles.error) {
+        const users = (Array.isArray(profiles.data) ? profiles.data : [])
+          .map((row: any) => profileToLegacyUserRecord(row))
+          .filter((u: any) => cleanText(u.usuario));
+        return { ok: true, data: { success: true, users, total: users.length, source: 'supabase_profiles' } };
+      }
+
+      const tables = [
+        String(process.env.EAC_SUPABASE_TABLE_USERS || '').trim(),
+        'usuario',
+        'usuarios',
+        'users',
+        'eac_users',
+      ].filter(Boolean);
+
+      const rows = await fetchAllRows(supabase, tables, { maxRows: 5000 });
+      const users = (Array.isArray(rows) ? rows : [])
+        .map((row: any) => normalizeUserRecord(row))
+        .filter((u: any) => cleanText(u.usuario));
+      users.sort((a: any, b: any) => cleanText(a.usuario).localeCompare(cleanText(b.usuario)));
+      return { ok: true, data: { success: true, users, total: users.length, source: 'supabase' } };
+    }
+
+    if (ctx.action === 'SAVE_USER') {
+      const usuarioEmail = cleanText(ctx.payload.usuario || ctx.payload.email).toLowerCase();
+      const originalEmail = cleanText(ctx.payload.originalEmail).toLowerCase();
+      const senhaRaw = cleanText(ctx.payload.senha);
+      if (!usuarioEmail) {
+        return { ok: true, data: { success: false, error: 'Usuário é obrigatório.' } };
+      }
+
+      const isAdmin = cleanText(ctx.payload.perfil).toLowerCase() === 'administrador';
+      const role = isAdmin ? 'ADMIN' : 'VIEWER';
+      const status = cleanText(ctx.payload.status).toLowerCase() === 'inativo' ? 'INATIVO' : 'ATIVO';
+      const allowedModules = buildAllowedModulesFromLegacyPayload(ctx.payload, isAdmin);
+      const metadata = {
+        canCreate: isAdmin || yesNoToBool(ctx.payload.inclusao),
+        canEdit: isAdmin || yesNoToBool(ctx.payload.alteracao),
+        canDelete: isAdmin || yesNoToBool(ctx.payload.exclusao),
+        encontreiros: {
+          canCreate: isAdmin || yesNoToBool(ctx.payload.encontreiro_inclusao) || yesNoToBool(ctx.payload.inclusao),
+          canEdit: isAdmin || yesNoToBool(ctx.payload.encontreiro_alteracao) || yesNoToBool(ctx.payload.alteracao),
+          canDelete: isAdmin || yesNoToBool(ctx.payload.encontreiro_exclusao) || yesNoToBool(ctx.payload.exclusao),
+          canViewSensitive: isAdmin || yesNoToBool(ctx.payload.encontreiro_dados_sensiveis),
+        },
+      };
+
+      let authUser = await findAuthUserByEmail(supabase, usuarioEmail);
+      if (!authUser && originalEmail && originalEmail !== usuarioEmail) {
+        authUser = await findAuthUserByEmail(supabase, originalEmail);
+      }
+
+      if (!authUser) {
+        if (!senhaRaw) {
+          return { ok: true, data: { success: false, error: 'Usuário não existe no Auth. Informe senha para criar.' } };
+        }
+        const created = await supabase.auth.admin.createUser({
+          email: usuarioEmail,
+          password: senhaRaw,
+          email_confirm: true,
+          user_metadata: { name: usuarioEmail.split('@')[0] },
+        });
+        if (created.error || !created.data?.user) {
+          return { ok: true, data: { success: false, error: created.error?.message || 'Falha ao criar usuário no Auth.' } };
+        }
+        authUser = created.data.user;
+      } else if (senhaRaw) {
+        const updatedAuth = await supabase.auth.admin.updateUserById(authUser.id, { password: senhaRaw });
+        if (updatedAuth.error) {
+          return { ok: true, data: { success: false, error: updatedAuth.error.message } };
+        }
+      }
+
+      const profilePayload = {
+        auth_user_id: authUser.id,
+        email: usuarioEmail,
+        nome: cleanText(ctx.payload.nome || ctx.payload.usuario || authUser.user_metadata?.name || usuarioEmail.split('@')[0]),
+        role,
+        status,
+        allowed_modules: allowedModules,
+        metadata,
+        updated_at: new Date().toISOString(),
+      };
+
+      const upsert = await supabase
+        .from('app_user_profiles')
+        .upsert(profilePayload as any, { onConflict: 'auth_user_id' })
+        .select('*')
+        .limit(1);
+      if (upsert.error) {
+        return { ok: true, data: { success: false, error: upsert.error.message } };
+      }
+
+      const result = Array.isArray(upsert.data) ? upsert.data[0] : profilePayload;
+      await tryInsertAuditLog(supabase, {
+        action: 'UPSERT_USER_PROFILE',
+        entity: 'app_user_profiles',
+        entityId: usuarioEmail,
+        previousValue: '',
+        newValue: role,
+        operator: cleanText(ctx.payload.operator || usuarioEmail || 'SYSTEM'),
+      });
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase_profiles',
+          user: profileToLegacyUserRecord(result),
+          message: 'Usuário salvo com sucesso.',
+        },
+      };
+    }
+
+    if (ctx.action === 'DELETE_USER') {
+      const usuario = cleanText(ctx.payload.usuario || ctx.payload.email).toLowerCase();
+      if (!usuario) {
+        return { ok: true, data: { success: false, error: 'Usuário é obrigatório para inativação.' } };
+      }
+
+      const inactivate = await supabase
+        .from('app_user_profiles')
+        .update({ status: 'INATIVO', updated_at: new Date().toISOString() } as any)
+        .eq('email', usuario)
+        .select('*')
+        .limit(1);
+
+      if (!inactivate.error && Array.isArray(inactivate.data) && inactivate.data.length > 0) {
+        await tryInsertAuditLog(supabase, {
+          action: 'INATIVATE_USER_PROFILE',
+          entity: 'app_user_profiles',
+          entityId: usuario,
+          previousValue: 'ATIVO',
+          newValue: 'INATIVO',
+          operator: cleanText(ctx.payload.operator || usuario || 'SYSTEM'),
+        });
+        return { ok: true, data: { success: true, source: 'supabase_profiles', usuario, message: 'Usuário inativado com sucesso.' } };
+      }
+
+      // fallback legado (delete físico)
+      const tables = [
+        String(process.env.EAC_SUPABASE_TABLE_USERS || '').trim(),
+        'usuario',
+        'usuarios',
+        'users',
+        'eac_users',
+      ].filter(Boolean);
+
+      const { table } = await queryFirstExistingTable<any[]>(
+        supabase,
+        tables,
+        async (tableName) => await supabase.from(tableName).select('*').limit(1)
+      );
+
+      const del = await supabase.from(table).delete().or(`usuario.eq.${usuario},email.eq.${usuario}`);
+      if (del.error) throw del.error;
+
+      await tryInsertAuditLog(supabase, {
+        action: 'DELETE_USER',
+        entity: table,
+        entityId: usuario,
+        previousValue: 'existing_user',
+        newValue: 'deleted_user',
+        operator: cleanText(ctx.payload.operator || usuario || 'SYSTEM'),
+      });
+      return { ok: true, data: { success: true, source: 'supabase', usuario } };
+    }
+
+    if (ctx.action === 'SEARCH_MEMBERS') {
+      const queryText = String(ctx.payload.query || '').trim();
+      const bairro = String(ctx.payload.bairro || '').trim();
+      const email = String(ctx.payload.email || '').trim();
+      const telefone = String(ctx.payload.telefone || '').trim();
+      const sexo = String(ctx.payload.sexo || '').trim();
+      const pertence = String(ctx.payload.pertencePorciuncula || '').trim();
+      const limit = Math.max(1, Math.min(200, Number(ctx.payload.limit || 30) || 30));
+      const page = Math.max(1, Number(ctx.payload.page || 1) || 1);
+
+      const tables = [
+        String(process.env.EAC_SUPABASE_TABLE_MEMBERS || '').trim(),
+        'cadastro_oficial',
+        'cadastro',
+        'members',
+        'membros',
+        'adolescentes',
+      ].filter(Boolean);
+
+      const rows = await fetchAllRows(supabase, tables, { maxRows: 30000 });
+      const normalized = rows.map(normalizeMember).filter((m) => String(m.nome || '').trim());
+
+      const qNorm = queryText.toLowerCase();
+      const bairroNorm = bairro.toLowerCase();
+      const emailNorm = email.toLowerCase();
+      const sexoNorm = sexo.toLowerCase();
+      const pertenceNorm = pertence.toLowerCase();
+      const phoneDigits = normalizeDigits(telefone);
+
+      const filtered = normalized.filter((m: any) => {
+        if (qNorm) {
+          const hay = [
+            String(m.nome || ''),
+            String(m.email || ''),
+            String(m.telefone || ''),
+            String(m.whatsapp || ''),
+            String(m.bairro || ''),
+          ].join(' ').toLowerCase();
+          if (!hay.includes(qNorm)) return false;
+        }
+        if (bairroNorm && !String(m.bairro || '').toLowerCase().includes(bairroNorm)) return false;
+        if (emailNorm && !String(m.email || '').toLowerCase().includes(emailNorm)) return false;
+        if (sexoNorm && !String(m.sexo || '').toLowerCase().includes(sexoNorm)) return false;
+        if (pertenceNorm && !String(m.pertencePorciuncula || '').toLowerCase().includes(pertenceNorm)) return false;
+        if (phoneDigits) {
+          const mDigits = normalizeDigits(String(m.telefone || '') + ' ' + String(m.whatsapp || ''));
+          if (!mDigits.includes(phoneDigits)) return false;
+        }
+        return true;
+      });
+
+      filtered.sort((a: any, b: any) =>
+        String(a?.nome || '').localeCompare(String(b?.nome || ''), 'pt-BR', { sensitivity: 'base' })
+      );
+
+      const total = filtered.length;
+      const from = (page - 1) * limit;
+      const items = filtered.slice(from, from + limit);
+      return { ok: true, data: { success: true, items, members: items, total, source: 'supabase' } };
+    }
+
+    if (ctx.action === 'GET_NON_ENROLLED') {
+      const nonTables = [
+        String(process.env.EAC_SUPABASE_TABLE_NON_ENROLLED || '').trim(),
+        'vw_non_enrolled',
+        'non_enrolled',
+        'nao_inscritos',
+        'nao_inscritos_raw',
+      ].filter(Boolean);
+
+      const membersTables = [
+        String(process.env.EAC_SUPABASE_TABLE_MEMBERS || '').trim(),
+        'cadastro_oficial',
+        'cadastro',
+        'members',
+        'membros',
+      ].filter(Boolean);
+
+      const [nonRows, memberRows] = await Promise.all([
+        fetchAllRows(supabase, nonTables, { maxRows: 15000 }),
+        fetchAllRows(supabase, membersTables, { maxRows: 20000 }),
+      ]);
+
+      const memberPhones = new Set(
+        (Array.isArray(memberRows) ? memberRows : [])
+          .map((r) => normalizeDigits(pickFirst(r, ['telefone', 'whatsapp', 'celular'])))
+          .filter(Boolean)
+      );
+
+      const nonEnrolled = (Array.isArray(nonRows) ? nonRows : [])
+        .map(normalizeNonEnrolled)
+        .filter((ne) => {
+          const digits = normalizeDigits(ne.telefone);
+          if (!digits) return false;
+          return !memberPhones.has(digits);
+        });
+
+      return { ok: true, data: { success: true, nonEnrolled, total: nonEnrolled.length, source: 'supabase' } };
+    }
+
+    if (ctx.action === 'ATUALIZAR_NAO_INSCRITOS') {
+      // No Supabase os dados já estão no banco; mantém contrato de resposta do legado.
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          lidas: 0,
+          inseridos: 0,
+          message: 'Atualização via planilha não é necessária no modo Supabase.',
+        },
+      };
+    }
+
+    if (ctx.action === 'UPDATE_NON_ENROLLED_INTEREST') {
+      const idPessoa = cleanText(ctx.payload.idPessoa);
+      const interesse = cleanText(ctx.payload.interesse);
+      const operator = cleanText(ctx.payload.email) || 'SYSTEM';
+
+      if (!idPessoa) {
+        return { ok: true, data: { success: false, error: 'idPessoa é obrigatório.' } };
+      }
+
+      const tableCandidates = [
+        String(process.env.EAC_SUPABASE_TABLE_NON_ENROLLED || '').trim(),
+        'nao_inscritos',
+        'non_enrolled',
+        'nao_inscritos_raw',
+      ].filter(Boolean);
+
+      const { table, data: currentRows } = await queryFirstExistingTable<any[]>(
+        supabase,
+        tableCandidates,
+        async (tableName) =>
+          await supabase
+            .from(tableName)
+            .select('*')
+            .or(`id_pessoa.eq.${idPessoa},idPessoa.eq.${idPessoa},id.eq.${idPessoa},linha_origem.eq.${idPessoa},linhaOrigem.eq.${idPessoa}`)
+            .limit(1)
+      );
+
+      const current = Array.isArray(currentRows) ? currentRows[0] : null;
+      if (!current) {
+        return { ok: true, data: { success: false, error: 'Registro de não inscrito não encontrado.' } };
+      }
+
+      const previousInterest = cleanText(
+        pickFirst(current, ['interesse_confirmado', 'interesseConfirmado', 'interesse', 'Interesse Confirmado', 'I'])
+      );
+
+      const updateAttempts: Array<Record<string, any>> = [
+        { interesseConfirmado: interesse, interesse, dataResposta: new Date().toISOString() },
+        { interesse_confirmado: interesse, interesse, data_resposta: new Date().toISOString() },
+        { interesse, data_resposta: new Date().toISOString() },
+      ];
+
+      let updatedRow: any = null;
+      let updateError: any = null;
+      for (const updatePayload of updateAttempts) {
+        const response = await supabase
+          .from(table)
+          .update(updatePayload)
+          .or(`id_pessoa.eq.${idPessoa},idPessoa.eq.${idPessoa},id.eq.${idPessoa},linha_origem.eq.${idPessoa},linhaOrigem.eq.${idPessoa}`)
+          .select('*')
+          .limit(1);
+        if (!response.error) {
+          updatedRow = Array.isArray(response.data) ? response.data[0] : null;
+          updateError = null;
+          break;
+        }
+        updateError = response.error;
+      }
+
+      if (updateError) throw updateError;
+
+      const normalizedUpdated = normalizeNonEnrolled(updatedRow || { ...current, interesseConfirmado: interesse, interesse });
+      const auditLogged = await tryInsertAuditLog(supabase, {
+        action: 'UPDATE_NON_ENROLLED_INTEREST',
+        entity: 'nao_inscritos',
+        entityId: idPessoa,
+        previousValue: previousInterest || '',
+        newValue: interesse || '',
+        operator,
+      });
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          table,
+          updatedRow: normalizedUpdated,
+          auditLogged,
+        },
+      };
+    }
+
+    if (ctx.action === 'GET_EVENTS') {
+      const rows = await fetchAllRows(
+        supabase,
+        [
+          String(process.env.EAC_SUPABASE_TABLE_EVENTS || '').trim(),
+          'eventos_agenda',
+          'eventos',
+          'events',
+          'calendar_events',
+        ].filter(Boolean)
+      );
+      const events = rows.map(normalizeCalendarEvent).filter((e) => String(e.atividade || '').trim());
+      events.sort((a: any, b: any) => String(a?.inicio || '').localeCompare(String(b?.inicio || '')));
+      return { ok: true, data: { success: true, events, total: events.length, source: 'supabase' } };
+    }
+
+    if (ctx.action === 'IMPORT_CALENDAR_2026_EXTERNOS') {
+      const sourceTables = [
+        String(process.env.EAC_SUPABASE_TABLE_CALENDARIO_EXTERNOS || '').trim(),
+        'calendario_2026_externos',
+        'externos_2026',
+        'stg_calendario_externos',
+        // fallback para reduzir dependência de um único nome de aba/tabela
+        'calendario',
+      ].filter(Boolean);
+
+      const targetTables = [
+        String(process.env.EAC_SUPABASE_TABLE_EVENTS || '').trim(),
+        'eventos_agenda',
+        'eventos',
+        'events',
+        'calendar_events',
+      ].filter(Boolean);
+
+      let sourceRows: any[] = [];
+      let sourceLabel = 'supabase_staging';
+      try {
+        sourceRows = await fetchAllRows(supabase, sourceTables, { maxRows: 30000 });
+      } catch {
+        sourceRows = [];
+      }
+
+      if (!Array.isArray(sourceRows) || sourceRows.length === 0) {
+        sourceRows = await fetchPublicGoogleCalendarRows();
+        sourceLabel = 'google_sheet_calendario';
+      }
+
+      const rows = Array.isArray(sourceRows) ? sourceRows : [];
+      if (rows.length === 0) {
+        return {
+          ok: true,
+          data: {
+            success: false,
+            source: 'supabase',
+            error: 'Nenhum registro encontrado na fonte de calendário.',
+          },
+        };
+      }
+
+      const { table: targetTable } = await queryFirstExistingTable<any[]>(
+        supabase,
+        targetTables,
+        async (tableName) => await supabase.from(tableName).select('*').limit(1)
+      );
+
+      const existingImportedRes = await supabase
+        .from(targetTable)
+        .select('id,id_origem_planilha,origem_dado')
+        .eq('origem_dado', 'PLANILHA');
+      if (existingImportedRes.error) throw existingImportedRes.error;
+
+      const existingImportedRows = Array.isArray(existingImportedRes.data) ? existingImportedRes.data : [];
+      const existingImportedBySourceKey = new Map<string, any[]>();
+      existingImportedRows.forEach((row: any) => {
+        const sourceKey = cleanText(row?.id_origem_planilha || row?.idOrigemPlanilha);
+        if (!sourceKey) return;
+        const items = existingImportedBySourceKey.get(sourceKey) || [];
+        items.push(row);
+        existingImportedBySourceKey.set(sourceKey, items);
+      });
+
+      const keepImportedBySourceKey = new Map<string, any>();
+      const duplicateImportedIds = new Set<string>();
+      existingImportedBySourceKey.forEach((items, sourceKey) => {
+        const ranked = [...items].sort((a: any, b: any) => {
+          const tsA = Date.parse(String(a?.ultima_sincronizacao || a?.data_importacao || '')) || 0;
+          const tsB = Date.parse(String(b?.ultima_sincronizacao || b?.data_importacao || '')) || 0;
+          return tsB - tsA;
+        });
+        const keepRow = ranked[0];
+        if (keepRow) keepImportedBySourceKey.set(sourceKey, keepRow);
+        ranked.slice(1).forEach((row: any) => {
+          const duplicateId = cleanText(row?.id);
+          if (duplicateId) duplicateImportedIds.add(duplicateId);
+        });
+      });
+
+      let imported = 0;
+      let updated = 0;
+      let ignored = 0;
+      const sourceKeys = new Set<string>();
+
+      for (const row of rows) {
+        const atividade = cleanText(pickFirst(row, ['atividade', 'titulo', 'title', 'nome', 'evento']));
+        const tipo = cleanText(pickFirst(row, ['tipo', 'categoria', 'type'])) || 'Outro';
+        const status = normalizeEventStatus(pickFirst(row, ['status', 'situacao', 'situação']));
+        const local = cleanText(pickFirst(row, ['local', 'location']));
+        const proprietario = cleanText(pickFirst(row, ['proprietario', 'owner', 'responsavel', 'responsável']));
+        const encontroId = cleanText(pickFirst(row, ['encontro_id', 'encontroId']));
+        const observacoes = cleanText(pickFirst(row, ['observacoes', 'observação', 'obs', 'descricao', 'descrição']));
+        const inicioRaw = pickFirst(row, ['inicio', 'data_inicio', 'start', 'data', 'dia']);
+        const terminoRaw = pickFirst(row, ['termino', 'data_fim', 'end']);
+        const inicioIso = parseExternalCalendarDate(inicioRaw, 19);
+        const terminoIso = parseExternalCalendarDate(terminoRaw || inicioRaw, 21) || inicioIso;
+
+        if (!atividade || !inicioIso || !terminoIso) {
+          ignored += 1;
+          continue;
+        }
+
+        const externalId = cleanText(pickFirst(row, ['id', 'id_externo', 'external_id', 'linha', 'row_number']));
+        const nowIso = new Date().toISOString();
+        const generatedSourceKey = externalId
+          ? `ext-2026-${externalId}`
+          : `sheet-${cleanText(atividade).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}-${inicioIso.slice(0, 10)}`;
+        const sourceKey = (
+          cleanText(pickFirst(row, ['id_origem_planilha', 'idOrigemPlanilha'])) ||
+          generatedSourceKey
+        ).slice(0, 120);
+        sourceKeys.add(sourceKey);
+        const existingImported = keepImportedBySourceKey.get(sourceKey);
+        const rowId = cleanText(existingImported?.id);
+
+        const payloadSnake = {
+          atividade,
+          tipo,
+          inicio: inicioIso,
+          termino: terminoIso,
+          local: local || null,
+          proprietario: proprietario || null,
+          status,
+          encontro_id: encontroId || null,
+          observacoes: observacoes || null,
+          origem_dado: sourceLabel === 'google_sheet_calendario' ? 'PLANILHA' : 'calendario_2026_externos',
+          id_origem_planilha: sourceKey,
+          data_importacao: nowIso,
+          ultima_sincronizacao: nowIso,
+          updated_at: nowIso,
+        };
+        const writablePayload = await pickPayloadByExistingColumns(supabase, targetTable, payloadSnake);
+
+        if (rowId) {
+          const update = await supabase.from(targetTable).update(writablePayload as any).eq('id', rowId).select('*').limit(1);
+          if (update.error) throw update.error;
+          updated += 1;
+        } else {
+          const insertSnake = {
+            id: globalThis.crypto?.randomUUID?.(),
+            ...writablePayload,
+            created_at: nowIso,
+          };
+          const insertPayload = await pickPayloadByExistingColumns(supabase, targetTable, insertSnake);
+          const insert = await supabase.from(targetTable).insert(insertPayload as any).select('*').limit(1);
+          if (insert.error) throw insert.error;
+          imported += 1;
+        }
+      }
+
+      const staleIds = existingImportedRows
+        .filter((row: any) => {
+          const sourceKey = cleanText(row?.id_origem_planilha || row?.idOrigemPlanilha);
+          return sourceKey && !sourceKeys.has(sourceKey);
+        })
+        .map((row: any) => cleanText(row?.id))
+        .filter(Boolean);
+
+      const cleanupIds = Array.from(new Set([...staleIds, ...Array.from(duplicateImportedIds)]));
+
+      if (cleanupIds.length > 0) {
+        const del = await supabase.from(targetTable).delete().in('id', cleanupIds);
+        if (del.error) throw del.error;
+      }
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          sourceLabel,
+          table: targetTable,
+          imported,
+          updated,
+          removed: cleanupIds.length,
+          ignored,
+          totalSource: rows.length,
+          message: `Importação de calendário concluída (${sourceLabel}). Novos: ${imported}. Atualizados: ${updated}. Removidos: ${cleanupIds.length}. Ignorados: ${ignored}.`,
+        },
+      };
+    }
+
+    if (ctx.action === 'UPDATE_NON_ENROLLED_RECADO') {
+      const idPessoa = cleanText(ctx.payload.idPessoa);
+      const recado = cleanText(ctx.payload.recado);
+      if (!idPessoa) {
+        return { ok: true, data: { success: false, error: 'idPessoa é obrigatório.' } };
+      }
+
+      const tableCandidates = [
+        String(process.env.EAC_SUPABASE_TABLE_NON_ENROLLED || '').trim(),
+        'nao_inscritos',
+        'non_enrolled',
+        'nao_inscritos_raw',
+      ].filter(Boolean);
+
+      const { table } = await queryFirstExistingTable<any[]>(
+        supabase,
+        tableCandidates,
+        async (tableName) => await supabase.from(tableName).select('*').limit(1)
+      );
+
+      const payloads = [{ recado }, { recado, Recado: recado }];
+      let updatedRow: any = null;
+      let updateError: any = null;
+      for (const body of payloads) {
+        const response = await supabase
+          .from(table)
+          .update(body as any)
+          .or(`id_pessoa.eq.${idPessoa},idPessoa.eq.${idPessoa},id.eq.${idPessoa},linha_origem.eq.${idPessoa},linhaOrigem.eq.${idPessoa}`)
+          .select('*')
+          .limit(1);
+        if (!response.error) {
+          updatedRow = Array.isArray(response.data) ? response.data[0] : null;
+          updateError = null;
+          break;
+        }
+        updateError = response.error;
+      }
+      if (updateError) throw updateError;
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          updatedRow: normalizeNonEnrolled(updatedRow || { recado }),
+        },
+      };
+    }
+
+    if (ctx.action === 'UPDATE_NON_ENROLLED_RECORD') {
+      const idPessoa = cleanText(ctx.payload.idPessoa);
+      const record = (ctx.payload.record && typeof ctx.payload.record === 'object') ? ctx.payload.record : {};
+      if (!idPessoa) {
+        return { ok: true, data: { success: false, error: 'idPessoa é obrigatório.' } };
+      }
+
+      const tableCandidates = [
+        String(process.env.EAC_SUPABASE_TABLE_NON_ENROLLED || '').trim(),
+        'nao_inscritos',
+        'non_enrolled',
+        'nao_inscritos_raw',
+      ].filter(Boolean);
+
+      const { table } = await queryFirstExistingTable<any[]>(
+        supabase,
+        tableCandidates,
+        async (tableName) => await supabase.from(tableName).select('*').limit(1)
+      );
+
+      const payloadSnake = {
+        nome: cleanText(record.nome),
+        email: cleanText(record.email),
+        telefone: cleanText(record.telefone),
+        bairro: cleanText(record.bairro),
+        nascimento: cleanText(record.dataNascimento || record.nascimento),
+        recado: cleanText(record.recado),
+        interesse_confirmado: cleanText(record.interesseConfirmado),
+        ja_fez_eac: cleanText(record.jaFezEac),
+        contato_mudou: cleanText(record.contatoMudou),
+        status_pre_confirmacao: cleanText(record.statusPreConfirmacao),
+        status_priorizacao: cleanText(record.statusPriorizacao),
+        data_resposta: cleanText(record.dataResposta),
+        amigo: cleanText(record.amigo),
+        nome_amigo: cleanText(record.nomeAmigo),
+        updated_at: new Date().toISOString(),
+      };
+      const payloadCamel = {
+        nome: cleanText(record.nome),
+        email: cleanText(record.email),
+        telefone: cleanText(record.telefone),
+        bairro: cleanText(record.bairro),
+        dataNascimento: cleanText(record.dataNascimento || record.nascimento),
+        recado: cleanText(record.recado),
+        interesseConfirmado: cleanText(record.interesseConfirmado),
+        jaFezEac: cleanText(record.jaFezEac),
+        contatoMudou: cleanText(record.contatoMudou),
+        statusPreConfirmacao: cleanText(record.statusPreConfirmacao),
+        statusPriorizacao: cleanText(record.statusPriorizacao),
+        dataResposta: cleanText(record.dataResposta),
+        amigo: cleanText(record.amigo),
+        nomeAmigo: cleanText(record.nomeAmigo),
+        updatedAt: new Date().toISOString(),
+      };
+
+      let updatedRow: any = null;
+      let updateError: any = null;
+      for (const body of [payloadSnake, payloadCamel]) {
+        const response = await supabase
+          .from(table)
+          .update(body as any)
+          .or(`id_pessoa.eq.${idPessoa},idPessoa.eq.${idPessoa},id.eq.${idPessoa},linha_origem.eq.${idPessoa},linhaOrigem.eq.${idPessoa}`)
+          .select('*')
+          .limit(1);
+        if (!response.error) {
+          updatedRow = Array.isArray(response.data) ? response.data[0] : null;
+          updateError = null;
+          break;
+        }
+        updateError = response.error;
+      }
+      if (updateError) throw updateError;
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          updatedRow: normalizeNonEnrolled(updatedRow || payloadSnake),
+        },
+      };
+    }
+
+    if (ctx.action === 'SAVE_MEMBER') {
+      const email = cleanText(ctx.payload.email).toLowerCase();
+      const originalEmail = cleanText(ctx.payload.originalEmail).toLowerCase();
+      const nome = cleanText(ctx.payload.nome);
+      if (!email || !nome) {
+        return { ok: true, data: { success: false, error: 'Nome e e-mail são obrigatórios.' } };
+      }
+
+      const context = await resolveMemberContext(supabase, ctx.payload);
+      const exists = Boolean(context.cadastro?.id || context.pessoa?.id || context.adolescente?.id);
+      const nowIso = new Date().toISOString();
+
+      if (!exists) {
+        return { ok: true, data: { success: false, error: 'Cadastro oficial não encontrado para edição.' } };
+      }
+
+      if (!context.pessoa?.id || !context.adolescente?.id) {
+        return { ok: true, data: { success: false, error: 'Registro incompleto: pessoa/adolescente não localizados.' } };
+      }
+
+      const telefoneInfo = normalizePhoneStorage(cleanText(ctx.payload.whatsapp || ctx.payload.telefone));
+      const responsavelTelefoneInfo = normalizePhoneStorage(cleanText(ctx.payload.responsavelTel));
+      const nascimentoIso = parseMemberBirthDate(ctx.payload.nascimento);
+
+      const pessoaPayload = await pickPayloadByExistingColumns(supabase, 'pessoas', {
+        nome_completo: nome,
+        nome_normalizado: nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(),
+        data_nascimento: nascimentoIso,
+        sexo: cleanText(ctx.payload.sexo),
+        endereco: cleanText(ctx.payload.endereco),
+        bairro: cleanText(ctx.payload.bairro),
+        telefone: telefoneInfo.original,
+        telefone_normalizado: telefoneInfo.normalized,
+        email,
+        email_normalizado: email,
+        atualizado_em: nowIso,
+        updated_at: nowIso,
+        ultima_sincronizacao: nowIso,
+      });
+      const pessoaUpdate = await supabase.from('pessoas').update(pessoaPayload as any).eq('id', context.pessoa.id);
+      if (pessoaUpdate.error) throw pessoaUpdate.error;
+
+      const adolescentePayload = await pickPayloadByExistingColumns(supabase, 'adolescentes', {
+        tempo_participacao_paroquia: cleanText(ctx.payload.tempoParoquia),
+        grupo_ministerio_descricao: cleanText(ctx.payload.participaGrupo),
+        participa_grupo_ministerio: cleanText(ctx.payload.participaGrupo),
+        motivacao: cleanText(ctx.payload.motivacao),
+        expectativas: cleanText(ctx.payload.expectativas),
+        autorizacao_imagem: cleanText(ctx.payload.autorizaImagem),
+        aceite_normas: cleanText(ctx.payload.concordaNormas),
+        atualizado_em: nowIso,
+        ultima_sincronizacao: nowIso,
+      });
+      const adolescenteUpdate = await supabase.from('adolescentes').update(adolescentePayload as any).eq('id', context.adolescente.id);
+      if (adolescenteUpdate.error) throw adolescenteUpdate.error;
+
+      if (context.responsavel?.id) {
+        const responsavelEmail = cleanText(ctx.payload.responsavelEmail).toLowerCase();
+        const responsavelPayload = await pickPayloadByExistingColumns(supabase, 'responsaveis', {
+          nome: cleanText(ctx.payload.responsavelNome),
+          telefone: responsavelTelefoneInfo.original,
+          telefone_normalizado: responsavelTelefoneInfo.normalized,
+          email: responsavelEmail,
+          email_normalizado: responsavelEmail,
+          atualizado_em: nowIso,
+          ultima_sincronizacao: nowIso,
+        });
+        const responsavelUpdate = await supabase.from('responsaveis').update(responsavelPayload as any).eq('id', context.responsavel.id);
+        if (responsavelUpdate.error) throw responsavelUpdate.error;
+
+        const responsavelPessoaId = cleanText(context.responsavel?.pessoa_id);
+        if (responsavelPessoaId) {
+          const responsavelPessoaPayload = await pickPayloadByExistingColumns(supabase, 'pessoas', {
+            nome_completo: cleanText(ctx.payload.responsavelNome),
+            nome_normalizado: cleanText(ctx.payload.responsavelNome).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(),
+            telefone: responsavelTelefoneInfo.original,
+            telefone_normalizado: responsavelTelefoneInfo.normalized,
+            email: responsavelEmail,
+            email_normalizado: responsavelEmail,
+            atualizado_em: nowIso,
+            updated_at: nowIso,
+            ultima_sincronizacao: nowIso,
+          });
+          const responsavelPessoaUpdate = await supabase.from('pessoas').update(responsavelPessoaPayload as any).eq('id', responsavelPessoaId);
+          if (responsavelPessoaUpdate.error) throw responsavelPessoaUpdate.error;
+        }
+      }
+
+      if (context.cadastro?.id) {
+        const cadastroPayload = await pickPayloadByExistingColumns(supabase, 'cadastro_oficial', {
+          atualizado_em: nowIso,
+          updated_at: nowIso,
+          ultima_sincronizacao: nowIso,
+        });
+        const cadastroUpdate = await supabase.from('cadastro_oficial').update(cadastroPayload as any).eq('id', context.cadastro.id);
+        if (cadastroUpdate.error) throw cadastroUpdate.error;
+      }
+
+      const refreshed = (await fetchActiveMembersFromNormalizedTables(supabase)).find((member: any) => {
+        return cleanText(member?.pessoa_id) === cleanText(context.pessoa?.id);
+      });
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          member: refreshed || normalizeMember(ctx.payload),
+          message: 'Cadastro atualizado com sucesso.',
+        },
+      };
+    }
+
+    if (ctx.action === 'DELETE_MEMBER') {
+      const email = cleanText(ctx.payload.email).toLowerCase();
+      if (!email) {
+        return { ok: true, data: { success: false, error: 'E-mail é obrigatório.' } };
+      }
+
+      const configuredMembersTable = String(process.env.EAC_SUPABASE_TABLE_MEMBERS || '').trim();
+      const configuredIsView = configuredMembersTable.toLowerCase().startsWith('vw_');
+      const tableCandidates = [
+        ...(configuredIsView ? [] : [configuredMembersTable]),
+        'cadastro_oficial',
+        'cadastro',
+        'members',
+        'membros',
+        'adolescentes',
+        ...(configuredIsView ? [configuredMembersTable] : []),
+      ].filter(Boolean);
+
+      const { table } = await queryFirstExistingTable<any[]>(
+        supabase,
+        tableCandidates,
+        async (tableName) => await supabase.from(tableName).select('*').limit(1)
+      );
+
+      const del = await supabase.from(table).delete().eq('email', email);
+      if (del.error) throw del.error;
+
+      return {
+        ok: true,
+        data: { success: true, source: 'supabase', message: 'Cadastro removido com sucesso.' },
+      };
+    }
+
+    if (ctx.action === 'SAVE_EVENT') {
+      return await saveEventService(supabase, ctx.payload);
+    }
+
+    if (ctx.action === 'DELETE_EVENT') {
+      return await deleteEventService(supabase, ctx.payload);
+
+      const id = cleanText(ctx.payload.id);
+      if (!id) {
+        return { ok: true, data: { success: false, error: 'ID é obrigatório para exclusão.' } };
+      }
+
+      const tableCandidates = [
+        String(process.env.EAC_SUPABASE_TABLE_EVENTS || '').trim(),
+        'eventos_agenda',
+        'eventos',
+        'events',
+        'calendar_events',
+      ].filter(Boolean);
+
+      const { table } = await queryFirstExistingTable<any[]>(
+        supabase,
+        tableCandidates,
+        async (tableName) => await supabase.from(tableName).select('*').limit(1)
+      );
+
+      const del = await supabase.from(table).delete().eq('id', id);
+      if (del.error) throw del.error;
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          id,
+          message: `Evento #${id} removido.`,
+        },
+      };
+    }
+
+    if (ctx.action === 'GET_COMUNICADOS') {
+      const rows = await fetchAllRows(
+        supabase,
+        [
+          String(process.env.EAC_SUPABASE_TABLE_COMUNICADOS || '').trim(),
+          'comunicados',
+          'announcements',
+          'notificacoes',
+        ].filter(Boolean)
+      );
+      const comunicados = rows.map(normalizeComunicado).filter((c) => String(c.titulo || c.assunto || '').trim());
+      comunicados.sort((a: any, b: any) => String(b?.dataAgendada || '').localeCompare(String(a?.dataAgendada || '')));
+      return { ok: true, data: { success: true, comunicados, total: comunicados.length, source: 'supabase' } };
+    }
+
+    if (ctx.action === 'SAVE_COMUNICADO') {
+      return await saveComunicadoService(supabase, ctx.payload);
+
+      const id = cleanText(ctx.payload.id);
+      const titulo = cleanText(ctx.payload.titulo);
+      const assunto = cleanText(ctx.payload.assunto);
+      const corpo = cleanText(ctx.payload.corpo);
+      const status = cleanText(ctx.payload.status) || 'Ativo';
+      const dataAgendada = cleanText(ctx.payload.dataAgendada);
+      const dataEventos = cleanText(ctx.payload.dataEventos);
+
+      if (!id || !titulo) {
+        return { ok: true, data: { success: false, error: 'ID e título são obrigatórios.' } };
+      }
+
+      const tableCandidates = [
+        String(process.env.EAC_SUPABASE_TABLE_COMUNICADOS || '').trim(),
+        'comunicados',
+        'announcements',
+        'notificacoes',
+      ].filter(Boolean);
+
+      const { table } = await queryFirstExistingTable<any[]>(
+        supabase,
+        tableCandidates,
+        async (tableName) => await supabase.from(tableName).select('*').limit(1)
+      );
+
+      const payloadSnake = {
+        id,
+        titulo,
+        assunto,
+        corpo,
+        status,
+        data_agendada: dataAgendada || null,
+        data_eventos: dataEventos || null,
+        updated_at: new Date().toISOString(),
+      };
+      const payloadCamel = {
+        id,
+        titulo,
+        assunto,
+        corpo,
+        status,
+        dataAgendada: dataAgendada || null,
+        dataEventos: dataEventos || null,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const existing = await supabase.from(table).select('id').eq('id', id).limit(1);
+      if (existing.error) throw existing.error;
+      const exists = Array.isArray(existing.data) && existing.data.length > 0;
+
+      let result: any = null;
+      if (exists) {
+        let update = await supabase.from(table).update(payloadSnake as any).eq('id', id).select('*').limit(1);
+        if (update.error) update = await supabase.from(table).update(payloadCamel as any).eq('id', id).select('*').limit(1);
+        if (update.error) throw update.error;
+        result = Array.isArray(update.data) ? update.data[0] : null;
+      } else {
+        let insert = await supabase.from(table).insert(payloadSnake as any).select('*').limit(1);
+        if (insert.error) insert = await supabase.from(table).insert(payloadCamel as any).select('*').limit(1);
+        if (insert.error) throw insert.error;
+        result = Array.isArray(insert.data) ? insert.data[0] : null;
+      }
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          comunicado: normalizeComunicado(result || payloadSnake),
+          message: exists ? 'Comunicado atualizado com sucesso.' : 'Comunicado criado com sucesso.',
+        },
+      };
+    }
+
+    if (ctx.action === 'DELETE_COMUNICADO') {
+      return await deleteComunicadoService(supabase, ctx.payload);
+
+      const id = cleanText(ctx.payload.id);
+      if (!id) {
+        return { ok: true, data: { success: false, error: 'ID é obrigatório para exclusão.' } };
+      }
+
+      const tableCandidates = [
+        String(process.env.EAC_SUPABASE_TABLE_COMUNICADOS || '').trim(),
+        'comunicados',
+        'announcements',
+        'notificacoes',
+      ].filter(Boolean);
+
+      const { table } = await queryFirstExistingTable<any[]>(
+        supabase,
+        tableCandidates,
+        async (tableName) => await supabase.from(tableName).select('*').limit(1)
+      );
+
+      const del = await supabase.from(table).delete().eq('id', id);
+      if (del.error) throw del.error;
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          id,
+          message: `Comunicado #${id} removido.`,
+        },
+      };
+    }
+
+    if (ctx.action === 'LOG_DISPATCH_EXECUTION') {
+      return await logDispatchExecutionService(supabase, ctx.payload);
+
+      const dispatchId = cleanText(ctx.payload.dispatchId);
+      const dispatchName = cleanText(ctx.payload.dispatchName);
+      const operator = cleanText(ctx.payload.operator) || 'Sistema';
+      const status = cleanText(ctx.payload.status) || 'SUCCESS';
+      const responseSummary = cleanText(ctx.payload.responseSummary);
+      const duration = Number(ctx.payload.duration || 0);
+      const semanaId = cleanText(ctx.payload.semanaId || ctx.payload.semana_id);
+
+      const logTables = ['logs', 'dispatch_logs', 'audit_logs', 'eac_logs'];
+      let inserted = false;
+      for (const table of logTables) {
+        const attempts = [
+          {
+            dispatch_id: dispatchId,
+            dispatch_name: dispatchName,
+            operator,
+            timestamp: new Date().toISOString(),
+            duration,
+            status,
+            response_summary: responseSummary,
+            semana_id: semanaId || null,
+          },
+          {
+            dispatchId,
+            dispatchName,
+            operator,
+            timestamp: new Date().toISOString(),
+            duration,
+            status,
+            responseSummary,
+            semanaId: semanaId || null,
+          },
+        ];
+        for (const body of attempts) {
+          try {
+            const res = await supabase.from(table).insert(body as any);
+            if (!res.error) {
+              inserted = true;
+              break;
+            }
+          } catch {
+            // tenta próximo formato/tabela
+          }
+        }
+        if (inserted) break;
+      }
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          inserted,
+        },
+      };
+    }
+
+    if (ctx.action === 'LOG_DISPATCH_DESTINATARIOS') {
+      return await logDispatchDestinatariosService(supabase, ctx.payload);
+
+      const dispatchId = cleanText(ctx.payload.dispatchId);
+      const dispatchName = cleanText(ctx.payload.dispatchName);
+      const operator = cleanText(ctx.payload.operator) || 'Sistema';
+      const semanaId = cleanText(ctx.payload.semanaId || ctx.payload.semana_id);
+      const itens = Array.isArray(ctx.payload.itens) ? ctx.payload.itens : [];
+
+      if (!dispatchId || itens.length === 0) {
+        return { ok: true, data: { success: true, source: 'supabase', inserted: 0 } };
+      }
+
+      const tableCandidates = ['disparo_destinatarios', 'dispatch_recipients', 'destinatarios_disparo'];
+      let inserted = 0;
+      for (const table of tableCandidates) {
+        const rowsSnake = itens.map((it: any) => ({
+          dispatch_id: dispatchId,
+          dispatch_name: dispatchName,
+          operator,
+          destinatario: cleanText(it.destinatario || it.email || it.telefone || it.nome),
+          status: cleanText(it.status) || 'IGNORADO',
+          detalhe: cleanText(it.detalhe || it.message || ''),
+          semana_id: semanaId || null,
+          payload: typeof it === 'object' ? it : { valor: it },
+          created_at: new Date().toISOString(),
+        }));
+        const rowsCamel = itens.map((it: any) => ({
+          dispatchId,
+          dispatchName,
+          operator,
+          destinatario: cleanText(it.destinatario || it.email || it.telefone || it.nome),
+          status: cleanText(it.status) || 'IGNORADO',
+          detalhe: cleanText(it.detalhe || it.message || ''),
+          semanaId: semanaId || null,
+          payload: typeof it === 'object' ? it : { valor: it },
+          createdAt: new Date().toISOString(),
+        }));
+
+        const a = await supabase.from(table).insert(rowsSnake as any);
+        if (!a.error) {
+          inserted = rowsSnake.length;
+          break;
+        }
+        const b = await supabase.from(table).insert(rowsCamel as any);
+        if (!b.error) {
+          inserted = rowsCamel.length;
+          break;
+        }
+      }
+
+      return { ok: true, data: { success: true, source: 'supabase', inserted } };
+    }
+
+    if (ctx.action === 'BUILD_NON_ENROLLED_DISPATCH_AUDIENCE') {
+      return await buildNonEnrolledDispatchAudienceService(supabase, ctx.payload);
+
+      const tipo = cleanText(ctx.payload.tipo || 'waitlist');
+      const nonTables = [
+        String(process.env.EAC_SUPABASE_TABLE_NON_ENROLLED || '').trim(),
+        'nao_inscritos',
+        'non_enrolled',
+        'nao_inscritos_raw',
+      ].filter(Boolean);
+      const rows = await fetchAllRows(supabase, nonTables, { maxRows: 30000 });
+      const list = (Array.isArray(rows) ? rows : []).map(normalizeNonEnrolled);
+
+      const isEmailValido = (v: any) => {
+        const e = cleanText(v);
+        return e.includes('@') && e.includes('.');
+      };
+      const isBlank = (v: any) => cleanText(v) === '';
+      const isPriorizado = (v: any) => ['sim', 's', 'yes', 'y', '1', 'true'].includes(cleanText(v));
+
+      const audience = list.filter((row: any) => {
+        const email = cleanText(row.email);
+        const hStatusEnvio = cleanText(row.statusEnvio);
+        const pPreConfirmacao = cleanText(row.statusPreConfirmacao);
+        const qPriorizacao = cleanText(row.statusPriorizacao);
+
+        const base = isBlank(hStatusEnvio) && isEmailValido(email) && isBlank(pPreConfirmacao);
+        if (!base) return false;
+
+        if (tipo === 'waitlist') return true;
+        if (tipo === 'nao_participacao') return !isPriorizado(qPriorizacao);
+        return true;
+      });
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          tipo,
+          total: audience.length,
+          recipients: audience.map((row: any) => ({
+            id: row.linhaOrigem,
+            nome: row.nome,
+            email: row.email,
+            telefone: row.telefone,
+            bairro: row.bairro,
+          })),
+        },
+      };
+    }
+
+    if (ctx.action === 'EXECUTE_CONFIRM_INSCRITOS') {
+      const dispatchName = cleanText(ctx.payload.dispatchName || 'CONFIRMACAO_INSCRICAO');
+      const previewOnly = String(ctx.payload.previewOnly ?? 'false').toLowerCase() === 'true';
+      const executionLimit = Math.max(1, Math.min(500, Number(ctx.payload.limit || 50) || 50));
+      const sourceTables = [
+        String(process.env.EAC_SUPABASE_VIEW_INSCRICOES_COMPLETAS || '').trim(),
+        'vw_inscricoes_completas',
+      ].filter(Boolean);
+      const rows = await fetchAllRows(supabase, sourceTables, { maxRows: 50000 });
+
+      const isEmailValido = (v: any) => {
+        const e = cleanText(v).toLowerCase();
+        return e.includes('@') && e.includes('.') && !e.includes(' ');
+      };
+
+      const list = (Array.isArray(rows) ? rows : []).filter((row: any) =>
+        cleanText(row.status_inscricao || row.status).toUpperCase() === 'INSCRITO'
+      );
+
+      const sentRows = await fetchAllRows(
+        supabase,
+        ['disparo_destinatarios', 'dispatch_recipients', 'destinatarios_disparo'].filter(Boolean),
+        { maxRows: 100000 }
+      );
+      const alreadySent = new Set(
+        (Array.isArray(sentRows) ? sentRows : [])
+          .filter((r: any) => {
+            const status = cleanText(pickFirst(r, ['status'])).toUpperCase();
+            const dname = cleanText(pickFirst(r, ['dispatch_name', 'dispatchName'])).toUpperCase();
+            return status === 'SUCCESS' && (dname === dispatchName.toUpperCase() || dname === 'CONFIRMACAO_INSCRICAO');
+          })
+          .map((r: any) => cleanText(pickFirst(r, ['destinatario', 'email'])).toLowerCase())
+          .filter(Boolean)
+      );
+
+      const dedupe = new Set<string>();
+      const recipients = [];
+      for (const row of list) {
+        const emailResponsavel = cleanText(row.email_responsavel);
+        const emailAdolescente = cleanText(row.email);
+        const emailDestino = emailResponsavel || emailAdolescente;
+        const key = emailDestino.toLowerCase();
+        if (!isEmailValido(emailDestino)) continue;
+        if (alreadySent.has(key)) continue;
+        if (dedupe.has(key)) continue;
+        dedupe.add(key);
+        recipients.push({
+          inscricaoId: cleanText(row.inscricao_id || row.id),
+          adolescenteId: cleanText(row.adolescente_id),
+          nome: cleanText(row.nome_completo || row.nome),
+          email: emailDestino,
+          origemEmail: emailResponsavel ? 'responsavel' : 'adolescente',
+          statusInscricao: cleanText(row.status_inscricao || row.status),
+        });
+      }
+
+      const senderMode = cleanText(process.env.EAC_EMAIL_SENDER_MODE || '');
+      const senderFrom = cleanText(process.env.EAC_EMAIL_FROM || '');
+      const canSendNow = senderMode === 'smtp' && !!senderFrom;
+      const limited = recipients.slice(0, executionLimit);
+
+      if (previewOnly || !canSendNow) {
+        return {
+          ok: true,
+          data: {
+            success: true,
+            source: 'supabase',
+            action: 'EXECUTE_CONFIRM_INSCRITOS',
+            dispatchName,
+            previewOnly,
+            sender: {
+              mode: senderMode || 'not_configured',
+              from: senderFrom || null,
+              canSendNow,
+            },
+            stats: {
+              totalBase: list.length,
+              elegiveis: recipients.length,
+              loteSelecionado: limited.length,
+              jaEnviadosIgnorados: alreadySent.size,
+            },
+            message: canSendNow
+              ? `Público preparado com ${limited.length} destinatários no lote.`
+              : 'Público preparado, mas envio de e-mail no backend ainda não configurado (defina EAC_EMAIL_SENDER_MODE=smtp e EAC_EMAIL_FROM).',
+            recipients: limited,
+          },
+        };
+      }
+
+      const smtpHost = cleanText(process.env.SMTP_HOST || 'smtp.gmail.com');
+      const smtpPort = Number(process.env.SMTP_PORT || 587) || 587;
+      const smtpSecure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || smtpPort === 465;
+      const smtpUser = cleanText(process.env.SMTP_USER || '');
+      const smtpPass = cleanText(process.env.SMTP_PASS || process.env.passwordGmail || '');
+      if (!smtpUser || !smtpPass) {
+        return { ok: true, data: { success: false, error: 'SMTP_USER/SMTP_PASS nao configurados.' } };
+      }
+
+      const nodemailerMod: any = await import('nodemailer');
+      const nodemailer = nodemailerMod?.default || nodemailerMod;
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        auth: { user: smtpUser, pass: smtpPass },
+      });
+
+      const subjectBase = cleanText(ctx.payload.subject || 'EAC: Atualizacao sobre sua Inscricao');
+      const bodyBase = cleanText(ctx.payload.htmlBody || '') || [
+        '<p style="margin:0 0 14px 0; font-size:28px; line-height:1.2; color:#0b3b69; font-weight:800;">Ola, [NOME]!</p>',
+        '<p style="margin:0 0 14px 0;">Recebemos sua inscricao para o EAC e gostariamos de informar que seu cadastro esta em nossa <strong>lista de verificacao</strong>.</p>',
+        '<p style="margin:0 0 14px 0;">Estamos organizando as vagas para o proximo encontro e em breve entraremos em contato para confirmar sua participacao.</p>',
+        '<p style="margin:0 0 14px 0;">Fique atento ao seu E-mail e WhatsApp!</p>',
+        '<p style="margin:22px 0 0 0;">Fraternalmente,<br><strong>Coordenacao EAC</strong></p>',
+      ].join('');
+
+      const wrapEmailTemplate = (innerHtml: string) => `
+        <div style="margin:0;padding:24px;background:#f3f6fb;font-family:Arial,Helvetica,sans-serif;">
+          <div style="max-width:680px;margin:0 auto;border:1px solid #dbe3ef;border-radius:24px;overflow:hidden;background:#ffffff;">
+            <div style="background:#044372;padding:24px 16px;text-align:center;">
+              <img src="https://i.imgur.com/c5XQ7TW.png" alt="Logo EAC" style="height:40px;display:inline-block;" />
+            </div>
+            <div style="padding:28px 30px;color:#334155;font-size:16px;line-height:1.65;">
+              ${innerHtml}
+            </div>
+            <div style="padding:20px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
+              <a href="https://www.instagram.com/eacporciunculadesantana/" style="display:inline-block;background:#044372;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;">Siga nosso Instagram</a>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const execStart = new Date().toISOString();
+      let totalOk = 0;
+      let totalErr = 0;
+      const destinatariosRows: any[] = [];
+
+      for (const rec of limited) {
+        const to = cleanText(rec.email);
+        const nome = cleanText(rec.nome) || 'jovem';
+        const htmlBody = wrapEmailTemplate(bodyBase.replace(/\[NOME\]/g, nome));
+        try {
+          const info = await transporter.sendMail({
+            from: senderFrom,
+            to,
+            subject: subjectBase,
+            html: htmlBody,
+            textEncoding: 'base64',
+          });
+          totalOk += 1;
+          destinatariosRows.push({
+            dispatch_id: dispatchName,
+            dispatch_name: dispatchName,
+            destinatario: to.toLowerCase(),
+            status: 'SUCCESS',
+            detalhe: cleanText(info?.messageId || 'sent'),
+            payload: { inscricaoId: rec.inscricaoId, adolescenteId: rec.adolescenteId, nome: rec.nome },
+            created_at: new Date().toISOString(),
+          });
+        } catch (e: any) {
+          totalErr += 1;
+          destinatariosRows.push({
+            dispatch_id: dispatchName,
+            dispatch_name: dispatchName,
+            destinatario: to.toLowerCase(),
+            status: 'ERROR',
+            detalhe: cleanText(e?.message || 'send_error'),
+            payload: { inscricaoId: rec.inscricaoId, adolescenteId: rec.adolescenteId, nome: rec.nome },
+            created_at: new Date().toISOString(),
+          });
+        }
+      }
+
+      for (const table of ['disparo_destinatarios', 'dispatch_recipients', 'destinatarios_disparo']) {
+        const ins = await supabase.from(table).insert(destinatariosRows as any);
+        if (!ins.error) break;
+      }
+
+      const execRowSnake = {
+        tipo: dispatchName,
+        semana_id: null,
+        status: totalErr > 0 ? (totalOk > 0 ? 'PARCIAL' : 'ERRO') : 'CONCLUIDO',
+        total_destinatarios: limited.length,
+        total_enviados: totalOk,
+        total_erros: totalErr,
+        executado_por: cleanText(ctx.payload.executadoPor || ctx.payload.operator || ctx.payload.email) || 'Sistema',
+        payload: { action: 'EXECUTE_CONFIRM_INSCRITOS', source: 'vw_inscricoes_completas', onlyStatus: 'INSCRITO' },
+        created_at: execStart,
+      };
+      const execRowCamel = {
+        tipo: dispatchName,
+        semanaId: null,
+        status: execRowSnake.status,
+        totalDestinatarios: limited.length,
+        totalEnviados: totalOk,
+        totalErros: totalErr,
+        executadoPor: execRowSnake.executado_por,
+        payload: execRowSnake.payload,
+        createdAt: execStart,
+      };
+      for (const table of ['disparo_execucoes', 'dispatch_executions']) {
+        const a = await supabase.from(table).insert(execRowSnake as any);
+        if (!a.error) break;
+        const b = await supabase.from(table).insert(execRowCamel as any);
+        if (!b.error) break;
+      }
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          action: 'EXECUTE_CONFIRM_INSCRITOS',
+          dispatchName,
+          previewOnly,
+          sender: {
+            mode: senderMode || 'not_configured',
+            from: senderFrom || null,
+            canSendNow,
+          },
+          stats: {
+            totalBase: list.length,
+            elegiveis: recipients.length,
+            loteSelecionado: limited.length,
+            jaEnviadosIgnorados: alreadySent.size,
+            enviados: totalOk,
+            erros: totalErr,
+          },
+          message: `Disparo executado. Enviados: ${totalOk}. Erros: ${totalErr}.`,
+          recipients: limited,
+        },
+      };
+    }
+
+    if (ctx.action === 'EXECUTE_COMUNICADO_99') {
+      const dispatchName = cleanText(ctx.payload.dispatchName || 'COMUNICADO_99_CADASTRO');
+      const previewOnly = String(ctx.payload.previewOnly ?? 'false').toLowerCase() === 'true';
+      const executionLimit = Math.max(1, Math.min(500, Number(ctx.payload.limit || 50) || 50));
+      const sourceTables = [
+        String(process.env.EAC_SUPABASE_TABLE_MEMBERS || '').trim(),
+        'vw_cadastro_oficial',
+      ].filter(Boolean);
+      const rows = await fetchAllRows(supabase, sourceTables, { maxRows: 50000 });
+
+      const senderMode = cleanText(process.env.EAC_EMAIL_SENDER_MODE || '');
+      const senderFrom = cleanText(process.env.EAC_EMAIL_FROM || '');
+      const canSendNow = senderMode === 'smtp' && !!senderFrom;
+
+      const isEmailValido = (v: any) => {
+        const e = cleanText(v).toLowerCase();
+        return e.includes('@') && e.includes('.') && !e.includes(' ');
+      };
+
+      const sentRows = await fetchAllRows(
+        supabase,
+        ['disparo_destinatarios', 'dispatch_recipients', 'destinatarios_disparo'].filter(Boolean),
+        { maxRows: 100000 }
+      );
+      const alreadySent = new Set(
+        (Array.isArray(sentRows) ? sentRows : [])
+          .filter((r: any) => {
+            const status = cleanText(pickFirst(r, ['status'])).toUpperCase();
+            const dname = cleanText(pickFirst(r, ['dispatch_name', 'dispatchName'])).toUpperCase();
+            return status === 'SUCCESS' && (dname === dispatchName.toUpperCase() || dname === 'COMUNICADO_99_CADASTRO');
+          })
+          .map((r: any) => cleanText(pickFirst(r, ['destinatario', 'email'])).toLowerCase())
+          .filter(Boolean)
+      );
+
+      const dedupe = new Set<string>();
+      const recipients: any[] = [];
+      for (const row of Array.isArray(rows) ? rows : []) {
+        const nome = cleanText(pickFirst(row, ['nome_completo', 'nome', 'name']));
+        const email = cleanText(pickFirst(row, ['email', 'e-mail'])).toLowerCase();
+        if (!isEmailValido(email)) continue;
+        if (alreadySent.has(email)) continue;
+        if (dedupe.has(email)) continue;
+        dedupe.add(email);
+        recipients.push({
+          pessoaId: cleanText(pickFirst(row, ['pessoa_id', 'id', 'pessoaId'])),
+          nome: nome || 'amigo(a)',
+          email,
+        });
+      }
+      const limited = recipients.slice(0, executionLimit);
+
+      const comunicadosRows = await fetchAllRows(
+        supabase,
+        [String(process.env.EAC_SUPABASE_TABLE_COMUNICADOS || '').trim(), 'comunicados', 'comunicados_operacionais'].filter(Boolean),
+        { maxRows: 5000 }
+      );
+      const comunicado99 = (Array.isArray(comunicadosRows) ? comunicadosRows : []).find((c: any) => {
+        const id = cleanText(pickFirst(c, ['id', 'ID']));
+        return id === '99';
+      });
+
+      const subjectBase = cleanText(
+        ctx.payload.subject ||
+        pickFirst(comunicado99, ['assunto', 'subject', 'titulo', 'title']) ||
+        'EAC: Comunicado Oficial'
+      );
+      const htmlBaseRaw = cleanText(
+        ctx.payload.htmlBody ||
+        pickFirst(comunicado99, ['corpo', 'body', 'conteudo', 'content']) ||
+        '<p>Olá, [NOME]!</p><p>Temos um comunicado importante da coordenação do EAC.</p><p>Fraternalmente,<br><strong>Coordenação EAC</strong></p>'
+      );
+
+      const wrapEmailTemplate = (innerHtml: string) => `
+        <div style="margin:0;padding:24px;background:#f3f6fb;font-family:Arial,Helvetica,sans-serif;">
+          <div style="max-width:680px;margin:0 auto;border:1px solid #dbe3ef;border-radius:24px;overflow:hidden;background:#ffffff;">
+            <div style="background:#044372;padding:24px 16px;text-align:center;">
+              <img src="https://i.imgur.com/c5XQ7TW.png" alt="Logo EAC" style="height:40px;display:inline-block;" />
+            </div>
+            <div style="padding:28px 30px;color:#334155;font-size:16px;line-height:1.65;">
+              ${innerHtml}
+            </div>
+            <div style="padding:20px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
+              <a href="https://www.instagram.com/eacporciunculadesantana/" style="display:inline-block;background:#044372;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;">Siga nosso Instagram</a>
+            </div>
+          </div>
+        </div>
+      `;
+
+      if (previewOnly || !canSendNow) {
+        return {
+          ok: true,
+          data: {
+            success: true,
+            source: 'supabase',
+            action: 'EXECUTE_COMUNICADO_99',
+            dispatchName,
+            previewOnly,
+            sender: {
+              mode: senderMode || 'not_configured',
+              from: senderFrom || null,
+              canSendNow,
+            },
+            template: {
+              sourceId: '99',
+              subject: subjectBase,
+              htmlBody: htmlBaseRaw,
+            },
+            stats: {
+              totalBase: Array.isArray(rows) ? rows.length : 0,
+              elegiveis: recipients.length,
+              loteSelecionado: limited.length,
+              jaEnviadosIgnorados: alreadySent.size,
+            },
+            message: canSendNow
+              ? `Público preparado com ${limited.length} destinatários no lote.`
+              : 'Público preparado, mas envio de e-mail no backend ainda não configurado (defina EAC_EMAIL_SENDER_MODE=smtp e EAC_EMAIL_FROM).',
+            recipients: limited,
+          },
+        };
+      }
+
+      const smtpHost = cleanText(process.env.SMTP_HOST || 'smtp.gmail.com');
+      const smtpPort = Number(process.env.SMTP_PORT || 587) || 587;
+      const smtpSecure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || smtpPort === 465;
+      const smtpUser = cleanText(process.env.SMTP_USER || '');
+      const smtpPass = cleanText(process.env.SMTP_PASS || process.env.passwordGmail || '');
+      if (!smtpUser || !smtpPass) {
+        return { ok: true, data: { success: false, error: 'SMTP_USER/SMTP_PASS nao configurados.' } };
+      }
+
+      const nodemailerMod: any = await import('nodemailer');
+      const nodemailer = nodemailerMod?.default || nodemailerMod;
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        auth: { user: smtpUser, pass: smtpPass },
+      });
+
+      const execStart = new Date().toISOString();
+      let totalOk = 0;
+      let totalErr = 0;
+      const destinatariosRows: any[] = [];
+
+      for (const rec of limited) {
+        const to = cleanText(rec.email);
+        const nome = cleanText(rec.nome) || 'amigo(a)';
+        const htmlBody = wrapEmailTemplate(htmlBaseRaw.replace(/\[NOME\]/g, nome));
+        try {
+          const info = await transporter.sendMail({
+            from: senderFrom,
+            to,
+            subject: subjectBase,
+            html: htmlBody,
+            textEncoding: 'base64',
+          });
+          totalOk += 1;
+          destinatariosRows.push({
+            dispatch_id: dispatchName,
+            dispatch_name: dispatchName,
+            destinatario: to.toLowerCase(),
+            status: 'SUCCESS',
+            detalhe: cleanText(info?.messageId || 'sent'),
+            payload: { pessoaId: rec.pessoaId, nome: rec.nome, source: 'ID_99' },
+            created_at: new Date().toISOString(),
+          });
+        } catch (e: any) {
+          totalErr += 1;
+          destinatariosRows.push({
+            dispatch_id: dispatchName,
+            dispatch_name: dispatchName,
+            destinatario: to.toLowerCase(),
+            status: 'ERROR',
+            detalhe: cleanText(e?.message || 'send_error'),
+            payload: { pessoaId: rec.pessoaId, nome: rec.nome, source: 'ID_99' },
+            created_at: new Date().toISOString(),
+          });
+        }
+      }
+
+      for (const table of ['disparo_destinatarios', 'dispatch_recipients', 'destinatarios_disparo']) {
+        const ins = await supabase.from(table).insert(destinatariosRows as any);
+        if (!ins.error) break;
+      }
+
+      const execRowSnake = {
+        tipo: dispatchName,
+        semana_id: null,
+        status: totalErr > 0 ? (totalOk > 0 ? 'PARCIAL' : 'ERRO') : 'CONCLUIDO',
+        total_destinatarios: limited.length,
+        total_enviados: totalOk,
+        total_erros: totalErr,
+        executado_por: cleanText(ctx.payload.executadoPor || ctx.payload.operator || ctx.payload.email) || 'Sistema',
+        payload: { action: 'EXECUTE_COMUNICADO_99', source: 'comunicados.id=99' },
+        created_at: execStart,
+      };
+      const execRowCamel = {
+        tipo: dispatchName,
+        semanaId: null,
+        status: execRowSnake.status,
+        totalDestinatarios: limited.length,
+        totalEnviados: totalOk,
+        totalErros: totalErr,
+        executadoPor: execRowSnake.executado_por,
+        payload: execRowSnake.payload,
+        createdAt: execStart,
+      };
+      for (const table of ['disparo_execucoes', 'dispatch_executions']) {
+        const a = await supabase.from(table).insert(execRowSnake as any);
+        if (!a.error) break;
+        const b = await supabase.from(table).insert(execRowCamel as any);
+        if (!b.error) break;
+      }
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          action: 'EXECUTE_COMUNICADO_99',
+          dispatchName,
+          previewOnly,
+          sender: {
+            mode: senderMode || 'not_configured',
+            from: senderFrom || null,
+            canSendNow,
+          },
+          template: {
+            sourceId: '99',
+            subject: subjectBase,
+          },
+          stats: {
+            totalBase: Array.isArray(rows) ? rows.length : 0,
+            elegiveis: recipients.length,
+            loteSelecionado: limited.length,
+            jaEnviadosIgnorados: alreadySent.size,
+            enviados: totalOk,
+            erros: totalErr,
+          },
+          message: `Disparo executado. Enviados: ${totalOk}. Erros: ${totalErr}.`,
+          recipients: limited,
+        },
+      };
+    }
+
+    if (ctx.action === 'EXECUTE_ANIVERSARIANTES') {
+      const dispatchName = cleanText(ctx.payload.dispatchName || 'ANIVERSARIANTES_DIA');
+      const previewOnly = String(ctx.payload.previewOnly ?? 'false').toLowerCase() === 'true';
+      const executionLimit = Math.max(1, Math.min(500, Number(ctx.payload.limit || 50) || 50));
+      const sourceTables = [
+        String(process.env.EAC_SUPABASE_TABLE_MEMBERS || '').trim(),
+        'vw_cadastro_oficial',
+      ].filter(Boolean);
+      const rows = await fetchAllRows(supabase, sourceTables, { maxRows: 50000 });
+
+      const now = new Date();
+      const todayDay = now.getDate();
+      const todayMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
+      const sentRows = await fetchAllRows(
+        supabase,
+        ['disparo_destinatarios', 'dispatch_recipients', 'destinatarios_disparo'].filter(Boolean),
+        { maxRows: 100000 }
+      );
+      const sentThisYearByEmail = new Set(
+        (Array.isArray(sentRows) ? sentRows : [])
+          .filter((r: any) => {
+            const status = cleanText(pickFirst(r, ['status'])).toUpperCase();
+            const dname = cleanText(pickFirst(r, ['dispatch_name', 'dispatchName'])).toUpperCase();
+            if (status !== 'SUCCESS') return false;
+            if (dname !== dispatchName.toUpperCase() && dname !== 'ANIVERSARIANTES_DIA') return false;
+            const sentAt = parseDateFlexible(pickFirst(r, ['created_at', 'createdAt', 'timestamp']));
+            return !!sentAt && sentAt.getFullYear() === currentYear;
+          })
+          .map((r: any) => cleanText(pickFirst(r, ['destinatario', 'email'])).toLowerCase())
+          .filter(Boolean)
+      );
+
+      const recipients: any[] = [];
+      const dedupe = new Set<string>();
+      for (const row of Array.isArray(rows) ? rows : []) {
+        const nome = cleanText(pickFirst(row, ['nome_completo', 'nome', 'name']));
+        const email = cleanText(pickFirst(row, ['email', 'e-mail'])).toLowerCase();
+        const nascimentoRaw = pickFirst(row, ['nascimento', 'data_nascimento', 'dataNascimento']);
+        const nascimento = parseDateFlexible(nascimentoRaw);
+
+        if (!nome || !email || !email.includes('@') || !email.includes('.')) continue;
+        if (!nascimento) continue;
+        if (nascimento.getDate() !== todayDay || (nascimento.getMonth() + 1) !== todayMonth) continue;
+        if (sentThisYearByEmail.has(email)) continue;
+        if (dedupe.has(email)) continue;
+        dedupe.add(email);
+
+        recipients.push({
+          pessoaId: cleanText(pickFirst(row, ['pessoa_id', 'id', 'pessoaId'])),
+          nome,
+          email,
+          nascimento: nascimentoRaw,
+        });
+      }
+
+      const senderMode = cleanText(process.env.EAC_EMAIL_SENDER_MODE || '');
+      const senderFrom = cleanText(process.env.EAC_EMAIL_FROM || '');
+      const canSendNow = senderMode === 'smtp' && !!senderFrom;
+      const limited = recipients.slice(0, executionLimit);
+
+      if (previewOnly || !canSendNow) {
+        return {
+          ok: true,
+          data: {
+            success: true,
+            source: 'supabase',
+            action: 'EXECUTE_ANIVERSARIANTES',
+            dispatchName,
+            previewOnly,
+            sender: {
+              mode: senderMode || 'not_configured',
+              from: senderFrom || null,
+              canSendNow,
+            },
+            stats: {
+              totalBase: Array.isArray(rows) ? rows.length : 0,
+              aniversariantesHoje: recipients.length,
+              loteSelecionado: limited.length,
+              jaEnviadosAnoIgnorados: sentThisYearByEmail.size,
+            },
+            message: canSendNow
+              ? `Publico preparado com ${limited.length} aniversariantes no lote.`
+              : 'Publico preparado, mas envio de e-mail no backend ainda nao configurado (defina EAC_EMAIL_SENDER_MODE=smtp e EAC_EMAIL_FROM).',
+            recipients: limited,
+          },
+        };
+      }
+
+      const smtpHost = cleanText(process.env.SMTP_HOST || 'smtp.gmail.com');
+      const smtpPort = Number(process.env.SMTP_PORT || 587) || 587;
+      const smtpSecure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || smtpPort === 465;
+      const smtpUser = cleanText(process.env.SMTP_USER || '');
+      const smtpPass = cleanText(process.env.SMTP_PASS || process.env.passwordGmail || '');
+      if (!smtpUser || !smtpPass) {
+        return { ok: true, data: { success: false, error: 'SMTP_USER/SMTP_PASS nao configurados.' } };
+      }
+
+      const nodemailerMod: any = await import('nodemailer');
+      const nodemailer = nodemailerMod?.default || nodemailerMod;
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpSecure,
+        auth: { user: smtpUser, pass: smtpPass },
+      });
+
+      const subjectBase = cleanText(ctx.payload.subject || 'EAC: Feliz Aniversario!');
+      const bodyBase = cleanText(ctx.payload.htmlBody || '') || [
+        '<p style="margin:0 0 14px 0; font-size:28px; line-height:1.2; color:#0b3b69; font-weight:800;">Feliz Aniversario, [NOME]!</p>',
+        '<p style="margin:0 0 14px 0;">Hoje e um dia muito especial e toda a familia EAC celebra sua vida com alegria.</p>',
+        '<p style="margin:0 0 14px 0;">Que Deus abencoe seu novo ciclo com saude, paz e muitas gracas.</p>',
+        '<p style="margin:22px 0 0 0;">Fraternalmente,<br><strong>Coordenacao EAC</strong></p>',
+      ].join('');
+      const wrapEmailTemplate = (innerHtml: string) => `
+        <div style="margin:0;padding:24px;background:#f3f6fb;font-family:Arial,Helvetica,sans-serif;">
+          <div style="max-width:680px;margin:0 auto;border:1px solid #dbe3ef;border-radius:24px;overflow:hidden;background:#ffffff;">
+            <div style="background:#044372;padding:24px 16px;text-align:center;">
+              <img src="https://i.imgur.com/c5XQ7TW.png" alt="Logo EAC" style="height:40px;display:inline-block;" />
+            </div>
+            <div style="padding:28px 30px;color:#334155;font-size:16px;line-height:1.65;">
+              ${innerHtml}
+            </div>
+            <div style="padding:20px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
+              <a href="https://www.instagram.com/eacporciunculadesantana/" style="display:inline-block;background:#044372;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;">Siga nosso Instagram</a>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const execStart = new Date().toISOString();
+      let totalOk = 0;
+      let totalErr = 0;
+      const destinatariosRows: any[] = [];
+
+      for (const rec of limited) {
+        const to = cleanText(rec.email);
+        const nome = cleanText(rec.nome) || 'amigo(a)';
+        const htmlBody = wrapEmailTemplate(bodyBase.replace(/\[NOME\]/g, nome));
+        try {
+          const info = await transporter.sendMail({
+            from: senderFrom,
+            to,
+            subject: subjectBase,
+            html: htmlBody,
+            textEncoding: 'base64',
+          });
+          totalOk += 1;
+          destinatariosRows.push({
+            dispatch_id: dispatchName,
+            dispatch_name: dispatchName,
+            destinatario: to.toLowerCase(),
+            status: 'SUCCESS',
+            detalhe: cleanText(info?.messageId || 'sent'),
+            payload: { pessoaId: rec.pessoaId, nome: rec.nome, nascimento: rec.nascimento },
+            created_at: new Date().toISOString(),
+          });
+        } catch (e: any) {
+          totalErr += 1;
+          destinatariosRows.push({
+            dispatch_id: dispatchName,
+            dispatch_name: dispatchName,
+            destinatario: to.toLowerCase(),
+            status: 'ERROR',
+            detalhe: cleanText(e?.message || 'send_error'),
+            payload: { pessoaId: rec.pessoaId, nome: rec.nome, nascimento: rec.nascimento },
+            created_at: new Date().toISOString(),
+          });
+        }
+      }
+
+      for (const table of ['disparo_destinatarios', 'dispatch_recipients', 'destinatarios_disparo']) {
+        const ins = await supabase.from(table).insert(destinatariosRows as any);
+        if (!ins.error) break;
+      }
+
+      const execRowSnake = {
+        tipo: dispatchName,
+        semana_id: null,
+        status: totalErr > 0 ? (totalOk > 0 ? 'PARCIAL' : 'ERRO') : 'CONCLUIDO',
+        total_destinatarios: limited.length,
+        total_enviados: totalOk,
+        total_erros: totalErr,
+        executado_por: cleanText(ctx.payload.executadoPor || ctx.payload.operator || ctx.payload.email) || 'Sistema',
+        payload: { action: 'EXECUTE_ANIVERSARIANTES', source: 'vw_cadastro_oficial', filtro: 'dia/mes de nascimento = hoje' },
+        created_at: execStart,
+      };
+      const execRowCamel = {
+        tipo: dispatchName,
+        semanaId: null,
+        status: execRowSnake.status,
+        totalDestinatarios: limited.length,
+        totalEnviados: totalOk,
+        totalErros: totalErr,
+        executadoPor: execRowSnake.executado_por,
+        payload: execRowSnake.payload,
+        createdAt: execStart,
+      };
+      for (const table of ['disparo_execucoes', 'dispatch_executions']) {
+        const a = await supabase.from(table).insert(execRowSnake as any);
+        if (!a.error) break;
+        const b = await supabase.from(table).insert(execRowCamel as any);
+        if (!b.error) break;
+      }
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          action: 'EXECUTE_ANIVERSARIANTES',
+          dispatchName,
+          previewOnly,
+          sender: {
+            mode: senderMode || 'not_configured',
+            from: senderFrom || null,
+            canSendNow,
+          },
+          stats: {
+            totalBase: Array.isArray(rows) ? rows.length : 0,
+            aniversariantesHoje: recipients.length,
+            loteSelecionado: limited.length,
+            jaEnviadosAnoIgnorados: sentThisYearByEmail.size,
+            enviados: totalOk,
+            erros: totalErr,
+          },
+          message: `Disparo executado. Enviados: ${totalOk}. Erros: ${totalErr}.`,
+          recipients: limited,
+        },
+      };
+    }
+
+    if (ctx.action === 'GET_LOGS') {
+      const rows = await fetchAllRows(
+        supabase,
+        [
+          String(process.env.EAC_SUPABASE_TABLE_LOGS || '').trim(),
+          'logs',
+          'audit_logs',
+          'dispatch_logs',
+        ].filter(Boolean),
+        { maxRows: 5000 }
+      );
+      const logs = rows.map(normalizeLog).filter((l) => String(l.id || l.timestamp || '').trim());
+      logs.sort((a: any, b: any) => String(b?.timestamp || '').localeCompare(String(a?.timestamp || '')));
+      return { ok: true, data: { success: true, logs, total: logs.length, source: 'supabase' } };
+    }
+
+    if (ctx.action === 'GET_DISPARO_EXECUCOES') {
+      const tipo = cleanText(ctx.payload.tipo).toUpperCase();
+      const status = cleanText(ctx.payload.status).toUpperCase();
+      const rows = await fetchAllRows(
+        supabase,
+        ['disparo_execucoes', 'dispatch_executions'].filter(Boolean),
+        { maxRows: 5000, orderBy: 'created_at', ascending: false }
+      );
+      let items = rows.map(normalizeDispatchExecucao);
+      if (tipo) items = items.filter((x: any) => cleanText(x.tipo).toUpperCase() === tipo);
+      if (status) items = items.filter((x: any) => cleanText(x.status).toUpperCase() === status);
+      return { ok: true, data: { success: true, source: 'supabase', execucoes: items, total: items.length } };
+    }
+
+    if (ctx.action === 'START_DISPARO_EXECUCAO') {
+      const tipo = cleanText(ctx.payload.tipo).toUpperCase();
+      if (!tipo) return { ok: true, data: { success: false, error: 'tipo e obrigatorio.' } };
+      const semanaId = cleanText(ctx.payload.semanaId || ctx.payload.semana_id) || null;
+      const executadoPor = cleanText(ctx.payload.executadoPor || ctx.payload.operator || ctx.payload.email) || 'Sistema';
+      const payload = ctx.payload?.payload && typeof ctx.payload.payload === 'object' ? ctx.payload.payload : {};
+      const totalDestinatarios = Number(ctx.payload.totalDestinatarios || ctx.payload.total_destinatarios || 0);
+
+      const attempts = [
+        {
+          tipo,
+          semana_id: semanaId,
+          status: 'PENDENTE',
+          total_destinatarios: totalDestinatarios,
+          total_enviados: 0,
+          total_erros: 0,
+          executado_por: executadoPor,
+          payload,
+          created_at: new Date().toISOString(),
+        },
+        {
+          tipo,
+          semanaId,
+          status: 'PENDENTE',
+          totalDestinatarios,
+          totalEnviados: 0,
+          totalErros: 0,
+          executadoPor,
+          payload,
+          createdAt: new Date().toISOString(),
+        },
+      ];
+
+      let inserted: any = null;
+      let lastErr: any = null;
+      for (const table of ['disparo_execucoes', 'dispatch_executions']) {
+        for (const body of attempts) {
+          const res = await supabase.from(table).insert(body as any).select('*').limit(1);
+          if (!res.error) {
+            inserted = Array.isArray(res.data) ? res.data[0] : null;
+            lastErr = null;
+            break;
+          }
+          lastErr = res.error;
+        }
+        if (inserted) break;
+      }
+      if (!inserted && lastErr) throw lastErr;
+      return { ok: true, data: { success: true, source: 'supabase', execucao: normalizeDispatchExecucao(inserted || {}) } };
+    }
+
+    if (ctx.action === 'UPDATE_DISPARO_EXECUCAO_STATUS') {
+      const id = cleanText(ctx.payload.id);
+      if (!id) return { ok: true, data: { success: false, error: 'id e obrigatorio.' } };
+      const status = cleanText(ctx.payload.status).toUpperCase() || 'PROCESSANDO';
+      const totalEnviados = Number(ctx.payload.totalEnviados ?? ctx.payload.total_enviados ?? 0);
+      const totalErros = Number(ctx.payload.totalErros ?? ctx.payload.total_erros ?? 0);
+      const totalDestinatarios = Number(ctx.payload.totalDestinatarios ?? ctx.payload.total_destinatarios ?? (totalEnviados + totalErros));
+
+      let updated: any = null;
+      let lastErr: any = null;
+      for (const table of ['disparo_execucoes', 'dispatch_executions']) {
+        for (const body of [
+          { status, total_enviados: totalEnviados, total_erros: totalErros, total_destinatarios: totalDestinatarios },
+          { status, totalEnviados, totalErros, totalDestinatarios },
+        ]) {
+          const res = await supabase.from(table).update(body as any).eq('id', id).select('*').limit(1);
+          if (!res.error) {
+            updated = Array.isArray(res.data) ? res.data[0] : null;
+            lastErr = null;
+            break;
+          }
+          lastErr = res.error;
+        }
+        if (updated) break;
+      }
+      if (!updated && lastErr) throw lastErr;
+      return { ok: true, data: { success: true, source: 'supabase', execucao: normalizeDispatchExecucao(updated || {}) } };
+    }
+
+    if (ctx.action === 'RETRY_DISPARO_FALHAS') {
+      const dispatchId = cleanText(ctx.payload.dispatchId || ctx.payload.dispatch_id);
+      if (!dispatchId) return { ok: true, data: { success: false, error: 'dispatchId e obrigatorio.' } };
+
+      const destinatariosRows = await fetchAllRows(
+        supabase,
+        ['disparo_destinatarios', 'dispatch_recipients', 'destinatarios_disparo'].filter(Boolean),
+        { maxRows: 50000 }
+      );
+
+      const normalized = destinatariosRows.map((r: any) => ({
+        dispatchId: cleanText(pickFirst(r, ['dispatch_id', 'dispatchId'])),
+        destinatario: cleanText(pickFirst(r, ['destinatario', 'email', 'telefone'])).toLowerCase(),
+        status: cleanText(pickFirst(r, ['status'])).toUpperCase(),
+        payload: r?.payload ?? null,
+      })).filter((r: any) => r.dispatchId === dispatchId && r.destinatario);
+
+      const successSet = new Set(
+        normalized
+          .filter((r: any) => r.status === 'SUCCESS' || r.status === 'SUCESSO' || r.status === 'ENVIADO')
+          .map((r: any) => r.destinatario)
+      );
+
+      const retryTargetsMap = new Map<string, any>();
+      for (const row of normalized) {
+        const isFailure = row.status.includes('FAIL') || row.status.includes('ERRO') || row.status.includes('FALHA');
+        if (!isFailure) continue;
+        if (successSet.has(row.destinatario)) continue;
+        retryTargetsMap.set(row.destinatario, row);
+      }
+      const retryTargets = Array.from(retryTargetsMap.values());
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          dispatchId,
+          totalRetry: retryTargets.length,
+          recipients: retryTargets,
+        },
+      };
+    }
+
+    if (ctx.action === 'GET_OPERATIONAL_LOGS') {
+      const modulo = cleanText(ctx.payload.modulo || ctx.payload.module).toLowerCase();
+      const operador = cleanText(ctx.payload.operador || ctx.payload.operator).toLowerCase();
+      const status = cleanText(ctx.payload.status).toUpperCase();
+      const dispatchIdFilter = cleanText(ctx.payload.dispatchId || ctx.payload.dispatch_id);
+      const de = toIsoDateOrEmpty(ctx.payload.de || ctx.payload.from);
+      const ate = toIsoDateOrEmpty(ctx.payload.ate || ctx.payload.to);
+
+      const baseRows = await fetchAllRows(
+        supabase,
+        [String(process.env.EAC_SUPABASE_TABLE_LOGS || '').trim(), 'logs', 'audit_logs', 'dispatch_logs'].filter(Boolean),
+        { maxRows: 10000 }
+      );
+      const dispatchRows = await fetchAllRows(
+        supabase,
+        ['disparo_destinatarios', 'dispatch_recipients', 'destinatarios_disparo'].filter(Boolean),
+        { maxRows: 30000 }
+      );
+
+      const logsBase = baseRows.map((l: any) => {
+        const n = normalizeLog(l);
+        return {
+          ...n,
+          modulo: cleanText((l as any).modulo || (l as any).module || 'geral').toLowerCase() || 'geral',
+          tipo: 'execucao',
+        };
+      });
+
+      const logsDispatch = dispatchRows.map((l: any, idx: number) => ({
+        id: cleanText(pickFirst(l, ['id', 'uuid'])) || `dest-${idx + 1}`,
+        dispatchId: pickFirst(l, ['dispatch_id', 'dispatchId']),
+        dispatchName: pickFirst(l, ['dispatch_name', 'dispatchName']),
+        operator: pickFirst(l, ['operator', 'operador', 'usuario']),
+        timestamp: pickFirst(l, ['created_at', 'createdAt', 'timestamp']),
+        duration: 0,
+        status: pickFirst(l, ['status']) || 'UNKNOWN',
+        responseSummary: pickFirst(l, ['detalhe', 'message', 'resumo']),
+        modulo: 'dispatches',
+        tipo: 'destinatario',
+      }));
+
+      let merged = [...logsBase, ...logsDispatch];
+      merged = merged.filter((x: any) => String(x.timestamp || '').trim());
+      if (modulo) merged = merged.filter((x: any) => cleanText(x.modulo).toLowerCase() === modulo);
+      if (operador) merged = merged.filter((x: any) => cleanText(x.operator).toLowerCase().includes(operador));
+      if (status) merged = merged.filter((x: any) => cleanText(x.status).toUpperCase().includes(status));
+      if (dispatchIdFilter) merged = merged.filter((x: any) => cleanText(x.dispatchId) === dispatchIdFilter);
+      if (de) merged = merged.filter((x: any) => toIsoDateOrEmpty(x.timestamp) >= de);
+      if (ate) merged = merged.filter((x: any) => toIsoDateOrEmpty(x.timestamp) <= ate);
+
+      merged.sort((a: any, b: any) => String(b.timestamp || '').localeCompare(String(a.timestamp || '')));
+      return { ok: true, data: { success: true, source: 'supabase', logs: merged, total: merged.length } };
+    }
+
+    if (ctx.action === 'GET_SAFE_SETTINGS') {
+      return { ok: true, data: { success: true, source: 'runtime', settings: safeOperationalSettings() } };
+    }
+
+    if (ctx.action === 'GET_CONTEXT_HELP') {
+      const moduleName = cleanText(ctx.payload.module || ctx.payload.modulo).toLowerCase();
+      if (!moduleName) {
+        return {
+          ok: true,
+          data: {
+            success: true,
+            source: 'runtime',
+            modules: HELP_CONTENT_BY_MODULE,
+          },
+        };
+      }
+      return {
+        ok: true,
+        data: {
+          success: true,
           source: 'runtime',
           module: moduleName,
           help: HELP_CONTENT_BY_MODULE[moduleName] || null,
@@ -1864,64 +4378,43 @@ async function loadEncontreirosForScreen(supabase: SupabaseClient) {
     }
 
     if (ctx.action === 'GET_CIRCULOS_DISTRIBUIDOS') {
-      // A distribuição oficial é uma versão imutável. Propostas geradas na tela
-      // não chegam a este ponto até que a coordenação confirme o salvamento.
-      try {
-        const officialResult = await supabase
-          .from('circulos_execucoes')
-          .select('id,encontro_id,criterios,total_entradas,total_distribuidas,total_excedente,status,executado_por,created_at')
-          .eq('status', 'OFICIAL')
-          .order('created_at', { ascending: false })
-          .limit(1);
-
-        const official = Array.isArray(officialResult.data) ? officialResult.data[0] : null;
-        if (!officialResult.error && official?.id) {
-          const itemsResult = await supabase
-            .from('circulos_execucao_itens')
-            .select('circulo_nome,payload,inscricao_id,pessoa_id,prioridade')
-            .eq('execucao_id', official.id)
-            .order('prioridade', { ascending: true });
-          if (itemsResult.error) throw itemsResult.error;
-
-          const grouped = createEmptyCircleGroups();
-          (itemsResult.data || []).forEach((item: any) => {
-            const circleName = cleanText(item?.circulo_nome) || 'Circulo Excedente';
-            if (!grouped[circleName]) grouped[circleName] = [];
-            grouped[circleName].push({
-              ...(item?.payload && typeof item.payload === 'object' ? item.payload : {}),
-              id: cleanText(item?.payload?.id || item?.inscricao_id || item?.pessoa_id),
-              circulo: circleName,
-            });
-          });
-
-          const criterios = official?.criterios && typeof official.criterios === 'object' ? official.criterios : {};
+      // Quando existe uma versão oficial, ela é a fonte de consulta. A distribuição
+      // de trabalho usada para simulação não pode sobrescrever silenciosamente a
+      // versão aprovada pela coordenação.
+      const officialResult = await supabase
+        .from('circulos_execucoes')
+        .select('*')
+        .eq('status', 'OFICIAL')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (!officialResult.error && officialResult.data?.[0]?.id) {
+        const official = officialResult.data[0];
+        const itemsResult = await supabase
+          .from('circulos_execucao_itens')
+          .select('*')
+          .eq('execucao_id', official.id)
+          .order('prioridade', { ascending: true });
+        if (!itemsResult.error) {
+          const officialRows = (itemsResult.data || []).map((item: any) => ({
+            ...(item?.payload && typeof item.payload === 'object' ? item.payload : {}),
+            grupoSugerido: item.circulo_nome,
+          }));
           return {
             ok: true,
             data: {
               success: true,
-              circulos: grouped,
+              circulos: groupCirculos(officialRows),
+              official,
               source: 'supabase-oficial',
-              official: {
-                id: official.id,
-                createdAt: official.created_at,
-                operator: official.executado_por,
-                total: official.total_distribuidas,
-                criterios,
-              },
-              needsReview: false,
             },
           };
         }
-      } catch (officialError) {
-        // A instalação anterior continua disponível pelo fallback abaixo. O
-        // salvamento oficial passa a exigir a migration US-117.
       }
 
       const rows = await fetchAllRows(
         supabase,
         [
           String(process.env.EAC_SUPABASE_TABLE_CIRCULOS || '').trim(),
-          'vw_distribuicao_circulos',
           'circulos_distribuidos',
           'circulos',
           'circles_distribution',
@@ -1933,57 +4426,64 @@ async function loadEncontreirosForScreen(supabase: SupabaseClient) {
     }
 
     if (ctx.action === 'SAVE_CIRCULOS_DISTRIBUICAO_OFICIAL') {
-      const circlesInput = ctx.payload?.circulos;
-      if (!circlesInput || typeof circlesInput !== 'object') {
-        return { ok: true, data: { success: false, error: 'A proposta de distribuição é obrigatória para salvar.' } };
+      const circulos = ctx.payload.circulos;
+      if (!circulos || typeof circulos !== 'object' || Array.isArray(circulos)) {
+        return { ok: true, data: { success: false, error: 'A distribuição dos círculos é obrigatória.' } };
       }
 
-      const operator = cleanText(ctx.payload?.operator) || 'PAINEL_CIRCULOS';
-      const criterios = ctx.payload?.criterios && typeof ctx.payload.criterios === 'object' ? ctx.payload.criterios : {};
-      const entries: Array<{ circuloNome: string; item: any }> = [];
-      Object.entries(circlesInput).forEach(([circuloNome, rows]) => {
-        (Array.isArray(rows) ? rows : []).forEach((item: any) => entries.push({ circuloNome, item }));
-      });
+      const itens = Object.entries(circulos).flatMap(([circuloNome, participantes]) =>
+        (Array.isArray(participantes) ? participantes : []).map((participante: any, prioridade: number) => ({
+          circulo_nome: cleanText(circuloNome) || 'Circulo Excedente',
+          prioridade: prioridade + 1,
+          payload: participante && typeof participante === 'object' ? participante : { valor: participante },
+        }))
+      );
 
-      const { data: execution, error: executionError } = await supabase
+      if (!itens.length) {
+        return { ok: true, data: { success: false, error: 'Gere uma proposta com participantes antes de salvar a distribuição oficial.' } };
+      }
+
+      const criterios = ctx.payload.criterios && typeof ctx.payload.criterios === 'object'
+        ? ctx.payload.criterios
+        : {};
+      const totalExcedente = itens.filter((item) => item.circulo_nome.toLowerCase().includes('exced')).length;
+
+      // A versão vigente só muda por este comando explícito. As propostas geradas
+      // no painel permanecem em simulação até este ponto.
+      const previous = await supabase
+        .from('circulos_execucoes')
+        .update({ status: 'SUBSTITUIDA' })
+        .eq('status', 'OFICIAL');
+      if (previous.error && !isMissingRelationError(previous.error)) throw previous.error;
+
+      const created = await supabase
         .from('circulos_execucoes')
         .insert({
-          encontro_id: isUuidLike(cleanText(ctx.payload?.encontroId)) ? cleanText(ctx.payload?.encontroId) : null,
-          criterios: { ...criterios, versionType: 'OFICIAL' },
-          total_entradas: Number(ctx.payload?.totalEntradas || entries.length),
-          total_distribuidas: entries.length,
-          total_excedente: entries.filter((entry) => cleanText(entry.circuloNome).toLowerCase().includes('exced')).length,
+          criterios,
+          total_entradas: Number(ctx.payload.totalEntradas || itens.length),
+          total_distribuidas: itens.length,
+          total_excedente: totalExcedente,
           status: 'OFICIAL',
-          executado_por: operator,
+          executado_por: cleanText(ctx.payload.operator) || 'PAINEL_CIRCULOS',
         })
-        .select('id,created_at')
+        .select('*')
         .single();
-      if (executionError || !execution?.id) throw executionError || new Error('Não foi possível criar a versão oficial.');
+      if (created.error) throw created.error;
 
-      const rows = entries.map(({ circuloNome, item }, index) => ({
-        execucao_id: execution.id,
-        inscricao_id: isUuidLike(cleanText(item?.id || item?.inscricao_id)) ? cleanText(item?.id || item?.inscricao_id) : null,
-        pessoa_id: isUuidLike(cleanText(item?.pessoa_id || item?.pessoaId)) ? cleanText(item?.pessoa_id || item?.pessoaId) : null,
-        circulo_nome: cleanText(circuloNome) || 'Circulo Excedente',
-        prioridade: index + 1,
-        payload: item && typeof item === 'object' ? item : {},
-      }));
-      for (let index = 0; index < rows.length; index += 250) {
-        const { error } = await supabase.from('circulos_execucao_itens').insert(rows.slice(index, index + 250));
-        if (error) throw error;
-      }
+      const execucaoId = created.data?.id;
+      const savedItems = await supabase
+        .from('circulos_execucao_itens')
+        .insert(itens.map((item) => ({ ...item, execucao_id: execucaoId })));
+      if (savedItems.error) throw savedItems.error;
 
-      await tryInsertAuditLog(supabase, {
-        action: 'SAVE_CIRCULOS_DISTRIBUICAO_OFICIAL',
-        entity: 'circulos_execucoes',
-        entityId: execution.id,
-        previousValue: '',
-        newValue: `Distribuição oficial com ${entries.length} participantes.`,
-        operator,
-      });
       return {
         ok: true,
-        data: { success: true, official: { id: execution.id, createdAt: execution.created_at, total: entries.length, criterios } },
+        data: {
+          success: true,
+          official: created.data,
+          message: 'Distribuição salva como versão oficial.',
+          source: 'supabase',
+        },
       };
     }
 
@@ -2828,7 +5328,6 @@ async function loadEncontreirosForScreen(supabase: SupabaseClient) {
     return { ok: false, error: message, details: e };
   }
 }
-
 
 
 
