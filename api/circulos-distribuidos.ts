@@ -1,5 +1,7 @@
 ﻿import type { NextApiRequest, NextApiResponse } from 'next';
 
+import { handleSupabaseAction } from '../utils/supabaseActions.js';
+
 function sendError(res: NextApiResponse, status: number, error: string, extra?: Record<string, any>) {
   return res.status(status).json({ success: false, error, message: error, ...(extra || {}) });
 }
@@ -10,31 +12,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const googleWebAppUrl = String(req.query?.googleWebAppUrl || '').trim();
-    const protocol = (req.headers['x-forwarded-proto'] as string) || 'http';
-    const host = req.headers.host || 'localhost:3000';
-    const proxyUrl = `${protocol}://${host}/api/comunicados`;
-
-    const proxyResponse = await fetch(proxyUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'GET_CIRCULOS_DISTRIBUIDOS',
-        data: {},
-        ...(googleWebAppUrl ? { googleWebAppUrl } : {}),
-      }),
-    });
-
-    const text = await proxyResponse.text();
-    let payload: any = {};
-    try {
-      payload = text ? JSON.parse(text) : {};
-    } catch {
-      return sendError(res, 502, 'Resposta invalida do backend.', { sample: (text || '').slice(0, 300) });
-    }
+    const result = await handleSupabaseAction('GET_CIRCULOS_DISTRIBUIDOS', {});
+    if (!result.ok) return sendError(res, 502, result.error || 'Falha ao consultar a distribuição de círculos.', { details: result.details });
+    const payload = result.data && typeof result.data === 'object' ? result.data as Record<string, any> : {};
+    if (!(payload.success ?? true)) return sendError(res, 422, String(payload.error || 'Falha ao carregar distribuição de círculos.'));
 
     res.setHeader('X-EAC-Endpoint', 'circulos-distribuidos');
-    return res.status(proxyResponse.status).json(payload);
+    res.setHeader('X-EAC-Backend', 'supabase');
+    return res.status(200).json(payload);
   } catch (error: any) {
     return sendError(res, 500, error?.message || 'Erro interno.');
   }
