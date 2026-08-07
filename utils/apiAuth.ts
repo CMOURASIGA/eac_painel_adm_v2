@@ -28,14 +28,23 @@ export async function authorizeRequest(req: Request, options: AuthOptions) {
     return { ok: false, status: 500, body: { success: false, error: 'AUTH_NOT_CONFIGURED' } };
   }
 
-  const requireHeader = String(process.env.EAC_AUTH_REQUIRE_HEADER || '').trim().toLowerCase() === 'true';
+  // Seguro por padrao: o header de identidade e sempre exigido, a menos que o
+  // fallback de homologacao/local seja explicitamente habilitado.
+  // (EAC_AUTH_REQUIRE_HEADER=false e mantido apenas por compatibilidade com
+  // configuracoes antigas, mas nao muda mais o comportamento padrao.)
+  const legacyRequireHeaderExplicitlyFalse =
+    String(process.env.EAC_AUTH_REQUIRE_HEADER || '').trim().toLowerCase() === 'false';
+  const allowFallback =
+    String(process.env.EAC_AUTH_ALLOW_FALLBACK || '').trim().toLowerCase() === 'true' ||
+    legacyRequireHeaderExplicitlyFalse;
   const email = getEmailFromRequest(req);
 
   if (!email) {
-    if (requireHeader) {
+    if (!allowFallback) {
       return { ok: false, status: 401, body: { success: false, error: 'AUTH_REQUIRED', message: 'Header x-eac-user-email obrigatorio.' } };
     }
-    // Fallback de homologacao/local: permite se houver ao menos um ADMIN ativo.
+    // Fallback de homologacao/local (opt-in via EAC_AUTH_ALLOW_FALLBACK=true):
+    // permite se houver ao menos um ADMIN ativo. NUNCA habilitar em producao.
     const adminRes = await supabase
       .from('app_user_profiles')
       .select('id')
