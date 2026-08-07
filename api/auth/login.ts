@@ -1,6 +1,7 @@
 ﻿import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseServerClient } from '../../utils/supabaseServer.js';
+import { buildSessionCookieHeader } from '../../utils/authSession.js';
 
 const toBool = (v: any) => ['1','true','sim','yes','y'].includes(String(v ?? '').trim().toLowerCase());
 
@@ -84,6 +85,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     };
 
+    const session = signIn.data.session;
+    if (session?.access_token) {
+      res.setHeader('Set-Cookie', buildSessionCookieHeader(session.access_token, session.expires_in));
+    }
     return send(res, 200, { success: true, user });
   } catch (e: any) {
     return send(res, 500, { success: false, error: e?.message || 'Erro interno.' });

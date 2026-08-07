@@ -1,4 +1,5 @@
 import { getSupabaseServerClient } from './supabaseServer.js';
+import { getAuthenticatedIdentity } from './authSession.js';
 
 type AccessAction = 'view' | 'create' | 'edit' | 'delete';
 
@@ -8,12 +9,6 @@ type AuthOptions = {
 };
 
 const toBool = (v: any) => ['1', 'true', 'sim', 'yes', 'y'].includes(String(v ?? '').trim().toLowerCase());
-
-function getEmailFromRequest(req: Request) {
-  const byHeader = String(req.headers.get('x-eac-user-email') || req.headers.get('x-user-email') || '').trim().toLowerCase();
-  if (byHeader) return byHeader;
-  return '';
-}
 
 function canByAction(action: AccessAction, metadata: any) {
   if (action === 'view') return true;
@@ -28,20 +23,20 @@ export async function authorizeRequest(req: Request, options: AuthOptions) {
     return { ok: false, status: 500, body: { success: false, error: 'AUTH_NOT_CONFIGURED' } };
   }
 
-  // Seguro por padrao: o header de identidade e sempre exigido, a menos que o
-  // fallback de homologacao/local seja explicitamente habilitado.
-  // (EAC_AUTH_REQUIRE_HEADER=false e mantido apenas por compatibilidade com
-  // configuracoes antigas, mas nao muda mais o comportamento padrao.)
+  // Seguro por padrao: exige uma sessao valida do Supabase Auth (cookie
+  // httpOnly assinado), a menos que o fallback de homologacao/local seja
+  // explicitamente habilitado. Nao confia mais em nenhum header enviado
+  // pelo client como identidade (x-eac-user-email podia ser forjado).
   const legacyRequireHeaderExplicitlyFalse =
     String(process.env.EAC_AUTH_REQUIRE_HEADER || '').trim().toLowerCase() === 'false';
   const allowFallback =
     String(process.env.EAC_AUTH_ALLOW_FALLBACK || '').trim().toLowerCase() === 'true' ||
     legacyRequireHeaderExplicitlyFalse;
-  const email = getEmailFromRequest(req);
+  const identity = await getAuthenticatedIdentity(req);
 
-  if (!email) {
+  if (!identity) {
     if (!allowFallback) {
-      return { ok: false, status: 401, body: { success: false, error: 'AUTH_REQUIRED', message: 'Header x-eac-user-email obrigatorio.' } };
+      return { ok: false, status: 401, body: { success: false, error: 'AUTH_REQUIRED', message: 'Sessao invalida ou expirada. Faca login novamente.' } };
     }
     // Fallback de homologacao/local (opt-in via EAC_AUTH_ALLOW_FALLBACK=true):
     // permite se houver ao menos um ADMIN ativo. NUNCA habilitar em producao.
@@ -60,7 +55,7 @@ export async function authorizeRequest(req: Request, options: AuthOptions) {
   const profileRes = await supabase
     .from('app_user_profiles')
     .select('email, role, status, allowed_modules, metadata')
-    .eq('email', email)
+    .eq('auth_user_id', identity.authUserId)
     .limit(1);
 
   if (profileRes.error) {

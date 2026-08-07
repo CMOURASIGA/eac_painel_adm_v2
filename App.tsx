@@ -176,44 +176,11 @@ const App: React.FC = () => {
     return installWindowAlertBridge();
   }, []);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const w = window as any;
-    if (w.__eacFetchWrapped) return;
-
-    const originalFetch = window.fetch.bind(window);
-    w.__eacFetchWrapped = true;
-    w.__eacFetchOriginal = originalFetch;
-
-    window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      try {
-        const url = typeof input === 'string'
-          ? input
-          : (input instanceof URL ? input.toString() : String((input as Request).url || ''));
-
-        const isApiCall =
-          url.startsWith('/api/') ||
-          url.includes('/api/');
-
-        if (!isApiCall) {
-          return originalFetch(input, init);
-        }
-
-        const savedUserRaw = window.localStorage.getItem('eac_user');
-        const savedUser = savedUserRaw ? JSON.parse(savedUserRaw) : null;
-        const email = String(savedUser?.email || '').trim().toLowerCase();
-
-        const headers = new Headers(init?.headers || (input instanceof Request ? input.headers : undefined));
-        if (email && !headers.has('x-eac-user-email')) {
-          headers.set('x-eac-user-email', email);
-        }
-
-        return originalFetch(input, { ...(init || {}), headers });
-      } catch {
-        return originalFetch(input, init);
-      }
-    };
-  }, []);
+  // Nota de seguranca: nao existe mais aqui um wrapper de fetch injetando
+  // "x-eac-user-email" a partir do localStorage. A identidade nas chamadas
+  // de API agora vem do cookie httpOnly de sessao (emitido no login e
+  // validado no servidor em utils/authSession.ts) — o browser o envia
+  // automaticamente em toda requisicao same-origin.
 
   const callApiProxy = useCallback(async (action: string, payload: any) => {
     const localUrl = effectiveGoogleWebAppUrl;
@@ -635,7 +602,11 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col text-slate-900 overflow-x-hidden">
-      <Header user={user} onLogout={() => { setUser(null); localStorage.removeItem('eac_user'); }} onNavigate={handleNavigate} currentView={currentView} />
+      <Header user={user} onLogout={() => {
+        setUser(null);
+        localStorage.removeItem('eac_user');
+        fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+      }} onNavigate={handleNavigate} currentView={currentView} />
       <main className="flex-grow pt-[72px] bg-slate-50 relative">
         {currentView === 'dashboard' && <Dashboard user={user} logs={logs} calendarEvents={calendarEvents} comunicados={comunicados} membersCount={membersCount} nonEnrolledCount={nonEnrolledCount} nonEnrolledPreConfirmadasCount={nonEnrolledIndicators.preConfirmadasCount} nonEnrolledInteresseCount={nonEnrolledIndicators.interesseCount} nonEnrolledInteresseNoCount={nonEnrolledIndicators.interesseNoCount} dashboardInsights={dashboardInsights} onNavigate={handleNavigate} lastSync={lastSync} onRefresh={fetchSpreadsheetData} isLoading={isLoadingSheet} />}
         {currentView === 'members' && (

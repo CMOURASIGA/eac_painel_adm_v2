@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseServerClient } from '../../../../utils/supabaseServer';
+import { buildSessionCookieHeader } from '../../../../utils/authSession';
 
 export const dynamic = 'force-dynamic';
 
@@ -92,7 +93,15 @@ export async function POST(req: Request) {
       },
     };
 
-    return NextResponse.json({ success: true, user }, { status: 200 });
+    const response = NextResponse.json({ success: true, user }, { status: 200 });
+    const session = signIn.data.session;
+    if (session?.access_token) {
+      response.headers.append(
+        'Set-Cookie',
+        buildSessionCookieHeader(session.access_token, session.expires_in)
+      );
+    }
+    return response;
   } catch (e: any) {
     return NextResponse.json({ success: false, error: e?.message || 'Erro interno.' }, { status: 500 });
   }
