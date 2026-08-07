@@ -1,0 +1,70 @@
+From 827718951b0b01535eb85ace40171c2230d97536 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 7 Aug 2026 20:42:01 +0000
+Subject: [PATCH 3/3] fix: torna autorizacao segura por padrao (Fase 0)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- authorizeRequest() agora exige o header de identidade por padrao;
+  o fallback de homologacao vira opt-in explicito via
+  EAC_AUTH_ALLOW_FALLBACK=true (nunca habilitar em producao).
+- Antes, sem o header, a API liberava acesso automaticamente
+  quando existia pelo menos um ADMIN ativo — o que era sempre
+  verdade em producao.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01Dv8mGLtvZ53Ywf6g5iwFv2
+---
+ .env.vercel.example |  3 +++
+ utils/apiAuth.ts    | 15 ++++++++++++---
+ 2 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/.env.vercel.example b/.env.vercel.example
+index 9c54abc..faa4c97 100644
+--- a/.env.vercel.example
++++ b/.env.vercel.example
+@@ -17,6 +17,9 @@ EAC_SUPABASE_TABLE_LOGS=
+ EAC_SUPABASE_TABLE_ENCONTROS=
+ EAC_SUPABASE_TABLE_INSCRICOES=
+ EAC_CRON_SYNC_TOKEN=
++# Seguro por padrao (header x-eac-user-email sempre exigido). So habilitar
++# "true" em ambiente local/homologacao — NUNCA em producao.
++EAC_AUTH_ALLOW_FALLBACK=false
+ EAC_GOOGLE_SHEET_CALENDAR_ID=
+ EAC_GOOGLE_SHEET_CALENDAR_GID=0
+ GOOGLE_WEBAPP_URL=
+diff --git a/utils/apiAuth.ts b/utils/apiAuth.ts
+index f9eaf51..11c2b02 100644
+--- a/utils/apiAuth.ts
++++ b/utils/apiAuth.ts
+@@ -28,14 +28,23 @@ export async function authorizeRequest(req: Request, options: AuthOptions) {
+     return { ok: false, status: 500, body: { success: false, error: 'AUTH_NOT_CONFIGURED' } };
+   }
+ 
+-  const requireHeader = String(process.env.EAC_AUTH_REQUIRE_HEADER || '').trim().toLowerCase() === 'true';
++  // Seguro por padrao: o header de identidade e sempre exigido, a menos que o
++  // fallback de homologacao/local seja explicitamente habilitado.
++  // (EAC_AUTH_REQUIRE_HEADER=false e mantido apenas por compatibilidade com
++  // configuracoes antigas, mas nao muda mais o comportamento padrao.)
++  const legacyRequireHeaderExplicitlyFalse =
++    String(process.env.EAC_AUTH_REQUIRE_HEADER || '').trim().toLowerCase() === 'false';
++  const allowFallback =
++    String(process.env.EAC_AUTH_ALLOW_FALLBACK || '').trim().toLowerCase() === 'true' ||
++    legacyRequireHeaderExplicitlyFalse;
+   const email = getEmailFromRequest(req);
+ 
+   if (!email) {
+-    if (requireHeader) {
++    if (!allowFallback) {
+       return { ok: false, status: 401, body: { success: false, error: 'AUTH_REQUIRED', message: 'Header x-eac-user-email obrigatorio.' } };
+     }
+-    // Fallback de homologacao/local: permite se houver ao menos um ADMIN ativo.
++    // Fallback de homologacao/local (opt-in via EAC_AUTH_ALLOW_FALLBACK=true):
++    // permite se houver ao menos um ADMIN ativo. NUNCA habilitar em producao.
+     const adminRes = await supabase
+       .from('app_user_profiles')
+       .select('id')
+-- 
+2.43.0
+
