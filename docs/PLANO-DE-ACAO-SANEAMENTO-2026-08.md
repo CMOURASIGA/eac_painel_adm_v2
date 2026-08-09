@@ -45,13 +45,19 @@ Nenhuma dessas amarras pode simplesmente sumir numa reorganização de menu — 
 
 ## Fase 1 — Consolidar a camada de API (parar de manter duas implementações)
 
-**Por quê:** existem duas árvores de rotas fazendo a mesma coisa — `api/*.ts` (Pages Router / Vercel Function) e `app/api/*/route.ts` (App Router) — com lógica duplicada e risco real de divergência (já existe um `app/api/inscricoes/create/route-old.ts` esquecido).
+**Por quê:** existem duas árvores de rotas fazendo a mesma coisa — `api/*.ts` (Vercel Function no padrão Pages Router) e `app/api/*/route.ts` (Next.js App Router) — com lógica duplicada e risco real de divergência (já existia um `app/api/inscricoes/create/route-old.ts` esquecido).
 
-- [ ] Decidir qual árvore fica (recomendação: `app/api/*/route.ts`).
-- [ ] Confirmar, olhando o build/deploy real da Vercel, qual árvore está de fato servindo em produção hoje.
-- [ ] Migrar qualquer rota exclusiva de `api/*.ts` para `app/api/*/route.ts` e remover a árvore antiga.
-- [ ] Remover arquivos órfãos (`route-old.ts` e afins).
-- [ ] Documentar no README qual é o padrão de API oficial do projeto daqui pra frente.
+**Decisão (confirmada por evidência de código, não só suposição):** manter `api/*.ts` e remover `app/api/` inteira. Motivos:
+- `vercel.json` declara `"framework": "vite"`; não existe `next.config.js/.mjs/.ts` no repo; `package.json` não tem nenhum script `next build/dev/start` (só `vite`); `app/` não tem `layout.tsx`/`page.tsx`, só as `route.ts` — ou seja, isso nunca foi uma app Next.js de verdade rodando em produção, é uma migração abandonada.
+- Rastreei **todo** `fetch`/`getJson`/`postJson` para `/api/...` no frontend (`components`, `services`, `App.tsx`, `utils`) e cruzei com as duas árvores: **100% das chamadas realmente alcançáveis pela UI têm handler em `api/*.ts`**. As únicas rotas exclusivas de `app/api/*/route.ts` (`nao-inscritos*`, `presenca*`, `encontreiros/create`, `sync/calendar`, `circulos-distribuidos/mover`, `circulos-distribuidos/salvar`, `inscricoes-prioritarias/distribuir`) não são chamadas por nenhum caminho de UI navegável — no caso de `nao-inscritos`, o próprio `MembersPage.tsx` tem a view inteira ("Não Inscritos") órfã: existe `openNonEnrolledView()` mas **nenhum botão no JSX chama essa função**, confirmado também pelo usuário em produção ("não tenho mais essa aba").
+- `api/auth/login.ts` e demais arquivos de `api/*.ts` importam `NextApiRequest`/`NextApiResponse` de `next` só como **tipo** (`import type`) — por isso a dependência `next` no `package.json` deve ser mantida, mesmo removendo `app/api/`.
+
+- [x] Decidir qual árvore fica — **`api/*.ts`** (App Router nunca esteve em produção; ver evidência acima).
+- [x] Confirmar qual árvore está de fato servindo em produção — feito por análise estática (build config + rastreamento de chamadas), sem acesso ao dashboard Vercel do projeto real nesta sessão; usuário confirmou no app publicado que a feature exclusiva do `app/api` (Não Inscritos) não existe mais na UI.
+- [x] Remover a árvore `app/api/` inteira (23 arquivos `route.ts`).
+- [x] Remover arquivos órfãos (`route-old.ts`).
+- [ ] Avaliar, em fase separada, remover o código morto correspondente em `MembersPage.tsx` (view "Não Inscritos", `openNonEnrolledView`, `handleSearchNonEnrolled`, `handleUpdateInterest`, ~700 linhas) — não removido agora para manter o diff desta fase pequeno e revisável.
+- [ ] Documentar no README qual é o padrão de API oficial do projeto daqui pra frente (`api/*.ts`, convenção Vercel Functions).
 
 ---
 
