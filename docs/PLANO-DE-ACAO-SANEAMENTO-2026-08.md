@@ -59,6 +59,17 @@ Nenhuma dessas amarras pode simplesmente sumir numa reorganização de menu — 
 - [ ] Avaliar, em fase separada, remover o código morto correspondente em `MembersPage.tsx` (view "Não Inscritos", `openNonEnrolledView`, `handleSearchNonEnrolled`, `handleUpdateInterest`, ~700 linhas) — não removido agora para manter o diff desta fase pequeno e revisável.
 - [ ] Documentar no README qual é o padrão de API oficial do projeto daqui pra frente (`api/*.ts`, convenção Vercel Functions).
 
+### Restrição descoberta durante a Fase 1: teto de 12 Serverless Functions (plano Hobby)
+
+O deploy do `develop` falhou com `No more than 12 Serverless Functions can be added to a Deployment on the Hobby plan`. A árvore `api/*.ts` já tinha 13 arquivos (1 acima do teto) **antes mesmo da remoção do `app/api/`** — não foi causado pela Fase 1, só ficou visível porque foi o primeiro build novo checado de perto (`app/api/*/route.ts` nunca contava como função no preset Vite).
+
+Ações tomadas para voltar a caber, com folga:
+- [x] Removido `api/nao-inscritos/priorizar.ts` — último arquivo da feature "Não Inscritos", já comprovada 100% morta (13 → 12 funções).
+- [x] Consolidado `api/auth/login.ts` + `api/auth/logout.ts` em `api/auth/[action].ts` (rota dinâmica, mesmas URLs públicas `/api/auth/login` e `/api/auth/logout`, zero mudança no frontend) (12 → 11).
+- [x] Consolidado `api/inscricoes/admin.ts` + `api/inscricoes/admin/lote.ts` em `api/inscricoes/admin/[[...slug]].ts` (catch-all opcional, mesmas URLs públicas, zero mudança no frontend) (11 → 10).
+- **Resultado: 10 funções, 2 de folga.** Validado com `npm run build` e `tsc --noEmit` limpos; **não foi possível validar o build real da Vercel nesta sessão** (sem acesso ao dashboard do projeto) — pedir para o usuário conferir a aba Functions do deployment depois do push.
+- Decisão do usuário: manter no Hobby e ganhar folga por consolidação de código (em vez de upgrade pago para Pro). Se a API crescer de novo, repetir o padrão de rota dinâmica `[[...slug]].ts` em vez de criar arquivos novos por endpoint.
+
 ---
 
 ## Fase 2 — Higiene de repositório

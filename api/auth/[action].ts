@@ -1,7 +1,13 @@
-﻿import type { NextApiRequest, NextApiResponse } from 'next';
+import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseServerClient } from '../../utils/supabaseServer.js';
-import { buildSessionCookieHeader } from '../../utils/authSession.js';
+import { buildSessionCookieHeader, buildClearSessionCookieHeader } from '../../utils/authSession.js';
+
+// Consolida api/auth/login.ts e api/auth/logout.ts num unico Serverless
+// Function (rota dinamica [action]) para caber no teto de 12 funcoes do
+// plano Hobby da Vercel. As URLs publicas continuam identicas:
+//   POST /api/auth/login
+//   POST /api/auth/logout
 
 const toBool = (v: any) => ['1','true','sim','yes','y'].includes(String(v ?? '').trim().toLowerCase());
 
@@ -22,7 +28,7 @@ function buildAllowedModules(role: string, modules: string[]) {
   return Array.from(safe);
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handleLogin(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return send(res, 405, { success: false, error: 'Metodo nao permitido.' });
 
   try {
@@ -93,4 +99,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } catch (e: any) {
     return send(res, 500, { success: false, error: e?.message || 'Erro interno.' });
   }
+}
+
+async function handleLogout(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') return send(res, 405, { success: false, error: 'Metodo nao permitido.' });
+  res.setHeader('Set-Cookie', buildClearSessionCookieHeader());
+  return send(res, 200, { success: true });
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const action = String(req.query?.action || '').trim().toLowerCase();
+
+  if (action === 'login') return handleLogin(req, res);
+  if (action === 'logout') return handleLogout(req, res);
+
+  return send(res, 404, { success: false, error: 'Rota nao encontrada.' });
 }
