@@ -36,10 +36,10 @@ Nenhuma dessas amarras pode simplesmente sumir numa reorganização de menu — 
 
 **Por quê:** falha de autorização identificada em `utils/apiAuth.ts` que pode liberar acesso à API sem autenticação real.
 
-- [ ] Confirmar se `EAC_AUTH_REQUIRE_HEADER=true` está setada no ambiente de **produção** na Vercel. Se não estiver, setar imediatamente — hoje, sem essa flag, uma requisição sem o header `x-eac-user-email` é autorizada (`fallback: true`) desde que exista um ADMIN ativo no sistema, o que é sempre verdade em produção.
-- [ ] Substituir a identidade por header não assinado (`x-eac-user-email`, hoje lido do `localStorage` no client) por validação de sessão real do Supabase Auth (JWT) no servidor, em todas as rotas de API.
-- [ ] Revisar `docs/US-061-proteger-dados-sensiveis-rls.sql` — hoje as policies de RLS são `using (true)` para qualquer usuário `authenticated`, e o backend usa `service_role` (que ignora RLS). Redesenhar RLS para refletir papéis reais, não apenas "existe".
-- [ ] Rodar `get_advisors` (Supabase) do tipo `security` no projeto de produção e tratar os itens críticos apontados.
+- [x] ~~Confirmar se `EAC_AUTH_REQUIRE_HEADER=true` está setada no ambiente de produção~~ — superado: `authorizeRequest()` agora nega por padrão (fail-closed) independente dessa env; o fallback antigo virou opt-in explícito via `EAC_AUTH_ALLOW_FALLBACK=true` (nunca habilitar em produção). Commit `d5520db`.
+- [x] Substituir a identidade por header não assinado (`x-eac-user-email`) por validação de sessão real do Supabase Auth (JWT) no servidor — feito via cookie `httpOnly` (`utils/authSession.ts`) validado contra `supabase.auth.getUser()`; perfil resolvido por `auth_user_id` verificado. Commits `55e514a`.
+- [ ] Revisar `docs/US-061-proteger-dados-sensiveis-rls.sql` — hoje as policies de RLS são `using (true)` para qualquer usuário `authenticated`, e o backend usa `service_role` (que ignora RLS). Redesenhar RLS para refletir papéis reais, não apenas "existe". **Bloqueado:** aguardando acesso ao projeto Supabase do EAC (`niagdoowqmngxjcrmstd`) na integração conectada.
+- [ ] Rodar `get_advisors` (Supabase) do tipo `security` no projeto de produção e tratar os itens críticos apontados. **Bloqueado:** mesmo motivo acima.
 
 ---
 
