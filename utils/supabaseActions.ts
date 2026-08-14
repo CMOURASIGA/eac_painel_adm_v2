@@ -1321,20 +1321,27 @@ function normalizeEncontreiroClassification(payload: JsonObject) {
   return Number(ageDigits) <= 17 ? 'Adolescente' : 'Adulto';
 }
 
-async function saveEncontreiroViaRpc(supabase: SupabaseClient, payload: JsonObject) {
-  const pessoaIdRpc = await supabase.rpc('eac_upsert_pessoa', {
-    p_nome: cleanText(payload.nomeCompleto),
-    p_email: cleanText(payload.email) || null,
-    p_telefone: cleanText(payload.celularWhatsapp) || null,
-    p_data_nascimento: cleanText(payload.dataNascimento) || null,
-    p_bairro: cleanText(payload.bairro) || null,
-    p_observacoes: cleanText(payload.classificacao) || null,
-    p_origem: 'PLANILHA',
-    p_criado_via_sistema: false,
-  });
-  if (pessoaIdRpc.error) throw pessoaIdRpc.error;
-
-  const pessoaId = cleanText(pessoaIdRpc.data);
+async function saveEncontreiroViaRpc(supabase: SupabaseClient, payload: JsonObject, knownPessoaId: string = '') {
+  // Se a pessoa já foi resolvida antes (ex.: por upsertPessoaFromEncontreiro,
+  // que já rodou nesta mesma chamada de SAVE_ENCONTREIRO), reaproveita esse
+  // id em vez de casar de novo por email/telefone via RPC — evita que essa
+  // segunda tentativa de casamento escolha uma pessoa duplicada diferente
+  // da primeira.
+  let pessoaId = cleanText(knownPessoaId);
+  if (!pessoaId) {
+    const pessoaIdRpc = await supabase.rpc('eac_upsert_pessoa', {
+      p_nome: cleanText(payload.nomeCompleto),
+      p_email: cleanText(payload.email) || null,
+      p_telefone: cleanText(payload.celularWhatsapp) || null,
+      p_data_nascimento: cleanText(payload.dataNascimento) || null,
+      p_bairro: cleanText(payload.bairro) || null,
+      p_observacoes: cleanText(payload.classificacao) || null,
+      p_origem: 'PLANILHA',
+      p_criado_via_sistema: false,
+    });
+    if (pessoaIdRpc.error) throw pessoaIdRpc.error;
+    pessoaId = cleanText(pessoaIdRpc.data);
+  }
   if (!pessoaId) throw new Error('Falha ao resolver pessoa do encontreiro.');
 
   const papelRpc = await supabase.rpc('eac_ensure_papel', {
@@ -1563,7 +1570,7 @@ function buildPessoaPayloadFromEncontreiro(payload: JsonObject) {
   };
 }
 
-async function upsertPessoaFromEncontreiro(supabase: SupabaseClient, payload: JsonObject) {
+async function upsertPessoaFromEncontreiro(supabase: SupabaseClient, payload: JsonObject, knownPessoaId: string = '') {
   const pessoaPayload: Record<string, any> = buildPessoaPayloadFromEncontreiro(payload);
   const nome = String(pessoaPayload.nome_completo || '').trim();
   if (!nome) {
@@ -1575,6 +1582,25 @@ async function upsertPessoaFromEncontreiro(supabase: SupabaseClient, payload: Js
   // campo, para não quebrar o cadastro/atualização por causa de uma coluna ausente.
   if (!(await hasColumn(supabase, 'pessoas', 'nome_social'))) {
     delete pessoaPayload.nome_social;
+  }
+
+  // Se já sabemos exatamente qual pessoa é (o encontreiro_id já foi
+  // localizado por uma busca anterior), atualiza direto por id — evita
+  // recasar por email/telefone, o que pode escolher a pessoa errada quando
+  // existem cadastros duplicados com o mesmo contato.
+  if (knownPessoaId) {
+    const { data: updated, error: updateErr } = await supabase
+      .from('pessoas')
+      .update(pessoaPayload)
+      .eq('id', knownPessoaId)
+      .select('id')
+      .limit(1);
+    if (updateErr) throw updateErr;
+    if (Array.isArray(updated) && updated[0]?.id) {
+      return String(updated[0].id);
+    }
+    // id conhecido não bateu com nenhuma linha (registro pode ter sido
+    // removido); segue para o casamento por identidade como fallback.
   }
 
   const email = String(pessoaPayload.email || '').trim().toLowerCase();
@@ -4134,7 +4160,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
 
       const tableCandidates = getEncontreirosWriteCandidates();
       const fallbackToRpc = async () => {
-        const fallback = await saveEncontreiroViaRpc(supabase, ctx.payload);
+        const fallback = await saveEncontreiroViaRpc(supabase, ctx.payload, pessoaId || '');
         return {
           ok: true as const,
           data: {
@@ -4148,7 +4174,23 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         };
       };
 
-      const pessoaId = await upsertPessoaFromEncontreiro(supabase, ctx.payload);
+      // Se o payload já traz o id do encontreiro (veio de uma busca que já
+      // localizou o cadastro certo), resolve a pessoa exatamente por esse
+      // vínculo em vez de deixar o casamento por email/telefone escolher
+      // entre pessoas duplicadas com o mesmo contato.
+      const encontreiroIdForLookup = cleanText(ctx.payload.id);
+      let knownPessoaId = '';
+      if (encontreiroIdForLookup) {
+        const { data: existingEnc } = await supabase
+          .from('encontreiros')
+          .select('pessoa_id')
+          .eq('id', encontreiroIdForLookup)
+          .limit(1)
+          .maybeSingle();
+        knownPessoaId = cleanText(existingEnc?.pessoa_id);
+      }
+
+      const pessoaId = await upsertPessoaFromEncontreiro(supabase, ctx.payload, knownPessoaId);
       if (pessoaId) {
         try {
           await ensurePessoaPapelAtivo(supabase, pessoaId, 'ENCONTREIRO');
