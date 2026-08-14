@@ -1344,7 +1344,7 @@ async function saveEncontreiroViaRpc(supabase: SupabaseClient, payload: JsonObje
   });
   if (papelRpc.error) throw papelRpc.error;
 
-  const encontreiroRpc = await supabase.rpc('eac_ensure_encontreiro', {
+  const encontreiroRpcParamsBase = {
     p_pessoa_id: pessoaId,
     p_nome_completo: cleanText(payload.nomeCompleto),
     p_data_nascimento: cleanText(payload.dataNascimento) || null,
@@ -1368,7 +1368,17 @@ async function saveEncontreiroViaRpc(supabase: SupabaseClient, payload: JsonObje
     p_sugestao_ultimo_encontro: cleanText(payload.sugestaoUltimoEncontro) || null,
     p_dica_pos_encontro: cleanText(payload.dicaPosEncontro) || null,
     p_classificacao: normalizeEncontreiroClassification(payload),
+  };
+
+  let encontreiroRpc = await supabase.rpc('eac_ensure_encontreiro', {
+    ...encontreiroRpcParamsBase,
+    p_nome_social: cleanText(payload.nomeSocial) || null,
   });
+  if (encontreiroRpc.error && isMissingRelationError(encontreiroRpc.error)) {
+    // Migração docs/add-nome-social-param-eac-ensure-encontreiro.sql ainda não
+    // aplicada (função sem o parâmetro p_nome_social); tenta a assinatura antiga.
+    encontreiroRpc = await supabase.rpc('eac_ensure_encontreiro', encontreiroRpcParamsBase);
+  }
   if (encontreiroRpc.error) throw encontreiroRpc.error;
 
   const encontreiroId = cleanText(encontreiroRpc.data);
