@@ -4208,6 +4208,17 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       }
 
       if (saveError) throw saveError;
+      if (!saved) {
+        // Nenhuma linha retornou do insert/update mesmo sem erro do Postgres —
+        // normalmente indica que o id enviado não corresponde a nenhum
+        // registro (ex.: cadastro excluído/id desatualizado). Evita reportar
+        // sucesso falso quando, na prática, nada foi salvo.
+        throw new Error(
+          id
+            ? 'Não foi possível localizar o cadastro para atualizar. Busque seu telefone novamente e tente salvar de novo.'
+            : 'O cadastro não foi salvo. Tente novamente em instantes.'
+        );
+      }
       const savedNormalized = normalizeEncontreiro(saved || {}, 0);
       const emailDestino = cleanText(savedNormalized.email || cleanText(ctx.payload.email));
       let emailConfirmacao: any = { sent: false, reason: 'not_attempted' };

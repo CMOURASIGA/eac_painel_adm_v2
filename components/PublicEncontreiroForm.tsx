@@ -23,27 +23,43 @@ function isValidYMD(y: number, m: number, d: number) {
   return dt.getFullYear() === y && dt.getMonth() === m && dt.getDate() === d;
 }
 
-// Aceita tanto DD/MM/AAAA (o que a pessoa digita) quanto AAAA-MM-DD (formato
-// que cadastros antigos podem ter salvo), sempre retornando um Date local ao
-// meio-dia (evita problema de fuso horario na conversao).
-function parseDateBRFlexible(value: string): Date | null {
+// O que a pessoa digita no campo (com a mascara) e sempre DD/MM/AAAA — sem
+// ambiguidade, porque o formato e imposto pela propria mascara/placeholder.
+function parseUserTypedBRDate(value: string): Date | null {
   const raw = String(value || '').trim();
-  if (!raw) return null;
-
   const br = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (br) {
-    const d = Number(br[1]);
-    const m = Number(br[2]) - 1;
-    const y = Number(br[3]);
-    if (!isValidYMD(y, m, d)) return null;
-    return new Date(y, m, d, 12, 0, 0, 0);
-  }
+  if (!br) return null;
+  const d = Number(br[1]);
+  const m = Number(br[2]) - 1;
+  const y = Number(br[3]);
+  if (!isValidYMD(y, m, d)) return null;
+  return new Date(y, m, d, 12, 0, 0, 0);
+}
+
+// Interpreta uma data ja salva no banco, para exibir no campo (formato
+// DD/MM/AAAA) quando um cadastro existente e localizado pela busca. Cadastros
+// feitos pelo antigo campo type="date" (ou ja salvos por este formulario)
+// ficam em ISO (AAAA-MM-DD), sem ambiguidade. Cadastros antigos importados de
+// planilha, quando salvos como texto com barras, costumam estar no formato
+// americano MM/DD/AAAA — diferente do que a pessoa digita aqui.
+function parseLegacyStoredDate(value: any): Date | null {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
 
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) {
     const y = Number(iso[1]);
     const m = Number(iso[2]) - 1;
     const d = Number(iso[3]);
+    if (!isValidYMD(y, m, d)) return null;
+    return new Date(y, m, d, 12, 0, 0, 0);
+  }
+
+  const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slash) {
+    const m = Number(slash[1]) - 1;
+    const d = Number(slash[2]);
+    const y = Number(slash[3]);
     if (!isValidYMD(y, m, d)) return null;
     return new Date(y, m, d, 12, 0, 0, 0);
   }
@@ -63,10 +79,10 @@ function toIsoDate(date: Date): string {
   return `${date.getFullYear()}-${mm}-${dd}`;
 }
 
-// Recebe qualquer formato ja salvo (BR ou ISO) e devolve sempre DD/MM/AAAA
-// para exibir/editar no campo de texto.
+// Usado só ao pré-preencher a partir de um cadastro já existente encontrado
+// na busca; converte para DD/MM/AAAA para exibir/editar no campo de texto.
 function toBRDateDisplay(value: any): string {
-  const date = parseDateBRFlexible(toCleanString(value));
+  const date = parseLegacyStoredDate(value);
   return date ? formatDateBR(date) : '';
 }
 
@@ -114,7 +130,7 @@ const PublicEncontreiroForm: React.FC = () => {
   const isUpdateMode = Boolean(existingId);
 
   const computedAge = useMemo(() => {
-    const birth = parseDateBRFlexible(form.dataNascimento);
+    const birth = parseUserTypedBRDate(form.dataNascimento);
     if (!birth) return '';
     const age = calcAgeNow(birth);
     return Number.isFinite(age) && age >= 0 ? String(age) : '';
@@ -144,7 +160,7 @@ const PublicEncontreiroForm: React.FC = () => {
     const email = toCleanString(form.email).toLowerCase();
 
     if (nome.replace(/\s/g, '').length < 5) errors.nomeCompleto = 'Informe o nome completo.';
-    const nascimento = parseDateBRFlexible(form.dataNascimento);
+    const nascimento = parseUserTypedBRDate(form.dataNascimento);
     if (!nascimento || nascimento.getTime() > Date.now()) errors.dataNascimento = 'Informe uma data de nascimento válida (DD/MM/AAAA).';
     if (tel.length < 10 || /^0+$/.test(tel)) errors.telefone = 'Informe um telefone/WhatsApp válido.';
     if (bairro.replace(/\s/g, '').length < 2) errors.bairro = 'Informe o bairro.';
@@ -216,7 +232,7 @@ const PublicEncontreiroForm: React.FC = () => {
       return;
     }
 
-    const nascimento = parseDateBRFlexible(form.dataNascimento);
+    const nascimento = parseUserTypedBRDate(form.dataNascimento);
     const visibleFields = {
       nomeCompleto: toCleanString(form.nomeCompleto),
       nomeSocial: toCleanString(form.nomePreferencia),
