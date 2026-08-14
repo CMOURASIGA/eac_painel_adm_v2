@@ -228,6 +228,11 @@ async function getAvailableColumns(supabase: SupabaseClient, tableName: string):
   return new Set(Object.keys(row).map((k) => cleanText(k)).filter(Boolean));
 }
 
+async function hasColumn(supabase: SupabaseClient, table: string, column: string): Promise<boolean> {
+  const probe = await supabase.from(table).select(column).limit(1);
+  return !probe.error;
+}
+
 function pickPayloadByColumns(payload: Record<string, any>, columns: Set<string>) {
   if (!columns || columns.size === 0) return payload;
   const filtered: Record<string, any> = {};
@@ -1191,6 +1196,7 @@ function normalizeEncontreiro(row: any, i: number) {
     rowNumber: Number(pickFirst(row, ['rowNumber', 'row_number', 'linha', 'row']) || (i + 2)),
     timestamp: pickFirst(row, ['data_importacao', 'dataImportacao', 'timestamp', 'data_presenca', 'created_at', 'createdAt', 'criado_em']),
     nomeCompleto: pickFirst(row, ['nomeCompleto', 'nome_completo', 'nome', 'name']),
+    nomeSocial: pickFirst(row, ['nomeSocial', 'nome_social']),
     dataNascimento: pickFirst(row, ['dataNascimento', 'data_nascimento', 'nascimento']),
     idade: pickFirst(row, ['idade', 'idade_snapshot', 'age']),
     email: pickFirst(row, ['email']),
@@ -1281,6 +1287,7 @@ function buildEncontreiroRowPayload(payload: JsonObject, mode: 'camel' | 'snake'
   const out: Record<string, any> = {
     [mapKey('timestamp', 'timestamp')]: cleanText(payload.timestamp) || new Date().toISOString(),
     [mapKey('nomeCompleto', 'nome_completo')]: cleanText(payload.nomeCompleto),
+    [mapKey('nomeSocial', 'nome_social')]: cleanText(payload.nomeSocial),
     [mapKey('dataNascimento', 'data_nascimento')]: cleanText(payload.dataNascimento),
     [mapKey('idade', 'idade')]: cleanText(payload.idade),
     [mapKey('email', 'email')]: cleanText(payload.email),
@@ -1534,6 +1541,7 @@ function buildPessoaPayloadFromEncontreiro(payload: JsonObject) {
 
   return {
     nome_completo: cleanText(payload.nomeCompleto),
+    nome_social: cleanText(payload.nomeSocial) || null,
     nome_normalizado: cleanText(payload.nomeCompleto).toLowerCase(),
     data_nascimento: cleanText(payload.dataNascimento) || null,
     idade_calculada: cleanText(payload.idade) || null,
@@ -1546,10 +1554,17 @@ function buildPessoaPayloadFromEncontreiro(payload: JsonObject) {
 }
 
 async function upsertPessoaFromEncontreiro(supabase: SupabaseClient, payload: JsonObject) {
-  const pessoaPayload = buildPessoaPayloadFromEncontreiro(payload);
+  const pessoaPayload: Record<string, any> = buildPessoaPayloadFromEncontreiro(payload);
   const nome = String(pessoaPayload.nome_completo || '').trim();
   if (!nome) {
     return null;
+  }
+
+  // A coluna nome_social pode ainda não existir em ambientes onde a migração
+  // docs/add-nome-social-pessoas.sql não foi aplicada; nesse caso, não envia o
+  // campo, para não quebrar o cadastro/atualização por causa de uma coluna ausente.
+  if (!(await hasColumn(supabase, 'pessoas', 'nome_social'))) {
+    delete pessoaPayload.nome_social;
   }
 
   const email = String(pessoaPayload.email || '').trim().toLowerCase();
@@ -4152,16 +4167,30 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           supabase,
           tableCandidates,
           async (tableName) => {
-            let result = await runSave(tableName, payloadCamel);
+            // A coluna nome_social pode ainda não existir em ambientes onde a
+            // migração da tabela encontreiros não foi aplicada; nesse caso, não
+            // envia o campo, para não quebrar o cadastro/atualização por causa
+            // de uma coluna ausente.
+            const stripNomeSocialIfMissing = async (body: Record<string, any>) => {
+              if (await hasColumn(supabase, tableName, 'nome_social')) return body;
+              const { nomeSocial, nome_social, ...rest } = body;
+              return rest;
+            };
+            const payloadCamelSafe = await stripNomeSocialIfMissing(payloadCamel);
+            const payloadSnakeSafe = await stripNomeSocialIfMissing(payloadSnake);
+            const payloadCamelBaseSafe = await stripNomeSocialIfMissing(payloadCamelBase);
+            const payloadSnakeBaseSafe = await stripNomeSocialIfMissing(payloadSnakeBase);
+
+            let result = await runSave(tableName, payloadCamelSafe);
             if (result.error) {
-              result = await runSave(tableName, payloadSnake);
+              result = await runSave(tableName, payloadSnakeSafe);
             }
             // Tabelas legadas podem não ter pessoa_id; tenta novamente sem esse campo.
             if (result.error && pessoaId) {
-              result = await runSave(tableName, payloadCamelBase);
+              result = await runSave(tableName, payloadCamelBaseSafe);
             }
             if (result.error && pessoaId) {
-              result = await runSave(tableName, payloadSnakeBase);
+              result = await runSave(tableName, payloadSnakeBaseSafe);
             }
             if (result.error) {
               saveError = result.error;

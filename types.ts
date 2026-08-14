@@ -169,6 +169,7 @@ export interface EncontreiroRecord {
   rowNumber: number;
   timestamp?: any;
   nomeCompleto: string;
+  nomeSocial?: string;
   dataNascimento?: string;
   idade?: string | number;
   email?: string;

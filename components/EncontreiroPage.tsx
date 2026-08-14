@@ -19,6 +19,7 @@ interface EncontreiroFormData {
   id?: string;
   timestamp: string;
   nomeCompleto: string;
+  nomeSocial: string;
   dataNascimento: string;
   idade: string;
   email: string;
@@ -45,6 +46,7 @@ interface EncontreiroFormData {
 const EMPTY_FORM: EncontreiroFormData = {
   timestamp: '',
   nomeCompleto: '',
+  nomeSocial: '',
   dataNascimento: '',
   idade: '',
   email: '',
@@ -70,6 +72,7 @@ const EMPTY_FORM: EncontreiroFormData = {
 
 const FIELD_DEFS: Array<{ key: keyof EncontreiroFormData; label: string; multiline?: boolean }> = [
   { key: 'nomeCompleto', label: 'Nome completo' },
+  { key: 'nomeSocial', label: 'Nome de preferencia' },
   { key: 'dataNascimento', label: 'Data de nascimento' },
   { key: 'idade', label: 'Idade' },
   { key: 'email', label: 'E-mail' },
@@ -538,6 +541,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
       id: record.id,
       timestamp: toClean(record.timestamp),
       nomeCompleto: toClean(record.nomeCompleto),
+      nomeSocial: toClean(record.nomeSocial),
       dataNascimento: toClean(record.dataNascimento),
       idade: toClean(record.idade),
       email: toClean(record.email),
