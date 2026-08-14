@@ -1565,7 +1565,9 @@ function buildPessoaPayloadFromEncontreiro(payload: JsonObject) {
     email: cleanText(payload.email) || null,
     telefone: telefone || null,
     telefone_normalizado: telefoneNormalizado || null,
+    endereco: cleanText(payload.enderecoCompleto) || null,
     bairro: cleanText(payload.bairro) || null,
+    responsavel_contato: cleanText(payload.responsavelContato) || null,
     observacoes: cleanText(payload.classificacao) || null,
   };
 }
@@ -1577,11 +1579,16 @@ async function upsertPessoaFromEncontreiro(supabase: SupabaseClient, payload: Js
     return null;
   }
 
-  // A coluna nome_social pode ainda não existir em ambientes onde a migração
-  // docs/add-nome-social-pessoas.sql não foi aplicada; nesse caso, não envia o
-  // campo, para não quebrar o cadastro/atualização por causa de uma coluna ausente.
+  // As colunas nome_social/responsavel_contato podem ainda não existir em
+  // ambientes onde as migrações docs/add-nome-social-pessoas.sql e
+  // docs/add-responsavel-contato-pessoas.sql não foram aplicadas; nesse
+  // caso, não envia os campos, para não quebrar o cadastro/atualização por
+  // causa de uma coluna ausente.
   if (!(await hasColumn(supabase, 'pessoas', 'nome_social'))) {
     delete pessoaPayload.nome_social;
+  }
+  if (!(await hasColumn(supabase, 'pessoas', 'responsavel_contato'))) {
+    delete pessoaPayload.responsavel_contato;
   }
 
   // Se já sabemos exatamente qual pessoa é (o encontreiro_id já foi
