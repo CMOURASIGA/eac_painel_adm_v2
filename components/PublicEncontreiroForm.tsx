@@ -191,23 +191,42 @@ const PublicEncontreiroForm: React.FC = () => {
       if (found && record) {
         setExistingId(toCleanString(record.id));
         setExistingRecord(record);
-        setForm((p) => ({
-          ...p,
-          nomeCompleto: toCleanString(record.nomeCompleto) || p.nomeCompleto,
-          nomePreferencia: toCleanString(record.nomeSocial) || p.nomePreferencia,
-          dataNascimento: toBRDateDisplay(record.dataNascimento) || p.dataNascimento,
-          idade: toCleanString(record.idade) || p.idade,
-          email: toCleanString(record.email) || p.email,
-          bairro: toCleanString(record.bairro) || p.bairro,
-          enderecoCompleto: toCleanString(record.enderecoCompleto) || p.enderecoCompleto,
-          responsavelContato: toCleanString(record.responsavelContato) || p.responsavelContato,
-          paroquiaFezEac: toCleanString(record.paroquiaFezEac) || p.paroquiaFezEac,
-          observacoes: toCleanString(record.sugestaoUltimoEncontro) || p.observacoes,
-        }));
+        // Substitui o formulário inteiro pelos dados do registro encontrado
+        // (nunca faz merge com o que sobrou de uma busca anterior) — senão um
+        // campo vazio nesse cadastro (ex.: sem nome de preferência) ficava
+        // mostrando o valor da última pessoa pesquisada.
+        setForm({
+          nomeCompleto: toCleanString(record.nomeCompleto),
+          nomePreferencia: toCleanString(record.nomeSocial),
+          dataNascimento: toBRDateDisplay(record.dataNascimento),
+          idade: toCleanString(record.idade),
+          email: toCleanString(record.email),
+          bairro: toCleanString(record.bairro),
+          enderecoCompleto: toCleanString(record.enderecoCompleto),
+          responsavelContato: toCleanString(record.responsavelContato),
+          paroquiaFezEac: toCleanString(record.paroquiaFezEac),
+          observacoes: toCleanString(record.sugestaoUltimoEncontro),
+          aceite_termos: false,
+        });
         showToast(MSG_ENCONTRADO, 'success');
       } else {
         setExistingId('');
         setExistingRecord(null);
+        // Idem: começa um cadastro novo do zero, sem herdar nada de uma
+        // busca anterior (por telefone que tenha sido pesquisado antes).
+        setForm({
+          nomeCompleto: '',
+          nomePreferencia: '',
+          dataNascimento: '',
+          idade: '',
+          email: '',
+          bairro: '',
+          enderecoCompleto: '',
+          responsavelContato: '',
+          paroquiaFezEac: '',
+          observacoes: '',
+          aceite_termos: false,
+        });
         showToast(MSG_BEM_VINDO, 'info');
       }
       setHasSearched(true);
