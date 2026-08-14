@@ -16,6 +16,7 @@ import InscricoesPrioritariasPage from './components/InscricoesPrioritariasPage.
 import InscricoesReviewPage from './components/InscricoesReviewPage.tsx';
 import CirculosDistribuidosPage from './components/CirculosDistribuidosPage.tsx';
 import EncontreiroPage from './components/EncontreiroPage.tsx';
+import EncontristasAuditoriaPage from './components/EncontristasAuditoriaPage.tsx';
 import PresencePage from './components/PresencePage.tsx';
 import VisitacaoPage from './components/VisitacaoPage.tsx';
 import PublicInterestForm from './components/PublicInterestForm.tsx';
@@ -38,6 +39,7 @@ const viewPathMap: Partial<Record<View, string>> = {
   inscricoes_review: '/inscricoes/revisao',
   inscricoes_prioritarias_circulos: '/distribuicao-circulos',
   encontreiros: '/encontreiros',
+  encontristas_auditoria: '/encontreiros/auditoria',
 };
 
 const pathViewMap: Record<string, View> = {
@@ -48,6 +50,7 @@ const pathViewMap: Record<string, View> = {
   '/inscricoes/revisao': 'inscricoes_review',
   '/distribuicao-circulos': 'inscricoes_prioritarias_circulos',
   '/encontreiros': 'encontreiros',
+  '/encontreiros/auditoria': 'encontristas_auditoria',
 };
 
 const publicFormPathMap = {
@@ -408,6 +411,11 @@ const App: React.FC = () => {
     if (currentView === 'encontreiros' && !allowed.includes('encontreiros')) {
       setCurrentView('dashboard');
       showToast('Seu usuÃ¡rio nÃ£o possui acesso ao mÃ³dulo Cadastro de Encontreiro.', 'error');
+      return;
+    }
+    if (currentView === 'encontristas_auditoria' && !allowed.includes('encontreiros') && !allowed.includes('encontristas_auditoria')) {
+      setCurrentView('dashboard');
+      showToast('Seu usuÃ¡rio nÃ£o possui acesso ao mÃ³dulo Auditoria Encontrista x Encontreiro.', 'error');
     }
   }, [currentView, user]);
 
@@ -645,6 +653,7 @@ const App: React.FC = () => {
           />
         )}
         {currentView === 'encontreiros' && <EncontreiroPage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} />}
+        {currentView === 'encontristas_auditoria' && <EncontristasAuditoriaPage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} />}
         {currentView === 'presence' && <PresencePage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} />}
         {currentView === 'dispatches' && <DispatchesPage dispatches={dispatches} onExecute={handleExecuteDispatch} onClearStatus={async (d) => { await callApiProxy('CLEAR_DISPATCH_STATUS', { type: d.type }); fetchSpreadsheetData(); }} operator={user.name} />}
         {currentView === 'calendar' && <CalendarPage googleWebAppUrl={effectiveGoogleWebAppUrl} user={user} />}
