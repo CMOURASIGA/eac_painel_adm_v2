@@ -1,4 +1,4 @@
-import { postComunicadosAction, getJson, emptyOk, type EacApiResult } from './eacApiClient.ts';
+import { postComunicadosAction, emptyOk, type EacApiResult } from './eacApiClient.ts';
 
 export const encontreirosService = {
   async listar(
@@ -44,17 +44,5 @@ export const encontreirosService = {
 
   async salvarEquipesDoEncontreiro(payload: { encontreiroId: string; equipeIds: string[] }, opts: { googleWebAppUrl?: string } = {}): Promise<EacApiResult<any>> {
     return await postComunicadosAction<any>('SAVE_ENCONTREIRO_EQUIPES', payload, opts);
-  },
-
-  async auditoriaEncontristas(): Promise<EacApiResult<{ rows: any[]; resumo: any }>> {
-    const r = await getJson<any>('/api/encontristas-encontreiros-auditoria');
-    if (!r.success) return r;
-    return emptyOk(
-      {
-        rows: Array.isArray((r.data as any)?.rows) ? (r.data as any).rows : [],
-        resumo: (r.data as any)?.resumo || null,
-      },
-      r.raw
-    );
   },
 };
