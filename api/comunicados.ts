@@ -228,6 +228,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       'GET_SAFE_SETTINGS',
       'GET_CONTEXT_HELP',
       'GET_ENCONTREIROS',
+      'GET_ENCONTREIRO_PUBLIC_BY_TELEFONE',
       'GET_PRESENCE',
       'MARK_PRESENCE',
       'GET_PUBLIC_PRESENCE_DATA',

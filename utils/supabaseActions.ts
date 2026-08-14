@@ -4028,6 +4028,44 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       };
     }
 
+    if (ctx.action === 'GET_ENCONTREIRO_PUBLIC_BY_TELEFONE') {
+      // Usado pelo formulário público de encontreiro para localizar um cadastro já
+      // existente (por telefone/WhatsApp ou e-mail) e permitir que a própria pessoa
+      // atualize seus dados, em vez de criar um registro duplicado.
+      const telefoneDigits = normalizeDigits(ctx.payload.telefone);
+      const emailKey = cleanText(ctx.payload.email).toLowerCase();
+      if (telefoneDigits.length < 8 && !emailKey) {
+        return { ok: true, data: { success: true, found: false, encontreiro: null } };
+      }
+
+      let rows: any[] = [];
+      try {
+        rows = await loadEncontreirosForScreen(supabase);
+      } catch (e: any) {
+        if (isMissingRelationError(e) || isPermissionDeniedError(e)) {
+          return { ok: true, data: { success: true, found: false, encontreiro: null } };
+        }
+        throw e;
+      }
+
+      const encontreiros = rows.map(normalizeEncontreiro).filter((r: any) => cleanText(r.nomeCompleto));
+      const match = encontreiros.find((r: any) => {
+        if (telefoneDigits && normalizeDigits(r.celularWhatsapp) === telefoneDigits) return true;
+        if (emailKey && cleanText(r.email).toLowerCase() === emailKey) return true;
+        return false;
+      }) || null;
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          found: Boolean(match),
+          encontreiro: match,
+          source: 'supabase',
+        }
+      };
+    }
+
     if (ctx.action === 'GET_EQUIPES') {
       const rows = await fetchAllRows(
         supabase,

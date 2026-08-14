@@ -26,8 +26,9 @@ function calcAgeNow(birth: Date) {
   return age;
 }
 
-const SUCCESS_MESSAGE =
+const SUCCESS_MESSAGE_NOVO =
   'Cadastro recebido com sucesso! Em breve a coordenação entrará em contato pelos dados informados.';
+const SUCCESS_MESSAGE_ATUALIZACAO = 'Cadastro atualizado com sucesso! Obrigado por manter seus dados em dia.';
 
 const PublicEncontreiroForm: React.FC = () => {
   const [toast, setToast] = useState<ToastState>(null);
@@ -49,6 +50,13 @@ const PublicEncontreiroForm: React.FC = () => {
     observacoes: '',
     aceite_termos: false,
   });
+
+  const [isSearching, setIsSearching] = useState(false);
+  const [existingId, setExistingId] = useState('');
+  const [existingRecord, setExistingRecord] = useState<Record<string, any> | null>(null);
+  const [searchMessage, setSearchMessage] = useState<string | null>(null);
+
+  const isUpdateMode = Boolean(existingId);
 
   const computedAge = useMemo(() => {
     const birth = parseDateOnly(form.dataNascimento);
@@ -80,6 +88,66 @@ const PublicEncontreiroForm: React.FC = () => {
     return errors;
   };
 
+  const clearMatch = () => {
+    setExistingId('');
+    setExistingRecord(null);
+  };
+
+  const handleBuscarCadastro = async () => {
+    if (isSearching) return;
+    const tel = toCleanString(form.celularWhatsapp).replace(/\D/g, '');
+    const email = toCleanString(form.email).toLowerCase();
+    if (tel.length < 10 && !email) {
+      showToast('Informe seu telefone/WhatsApp (ou e-mail) para buscar um cadastro existente.', 'info');
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchMessage(null);
+    try {
+      const r = await postComunicadosAction<any>('GET_ENCONTREIRO_PUBLIC_BY_TELEFONE', {
+        telefone: form.celularWhatsapp,
+        email: form.email,
+      });
+      if (!r.success) throw new Error(r.error || 'Não foi possível buscar seu cadastro agora.');
+
+      const found = Boolean((r.data as any)?.found);
+      const record = (r.data as any)?.encontreiro || null;
+
+      if (found && record) {
+        setExistingId(toCleanString(record.id));
+        setExistingRecord(record);
+        setForm((p) => ({
+          ...p,
+          nomeCompleto: toCleanString(record.nomeCompleto) || p.nomeCompleto,
+          dataNascimento: toCleanString(record.dataNascimento) || p.dataNascimento,
+          idade: toCleanString(record.idade) || p.idade,
+          email: toCleanString(record.email) || p.email,
+          celularWhatsapp: toCleanString(record.celularWhatsapp) || p.celularWhatsapp,
+          bairro: toCleanString(record.bairro) || p.bairro,
+          enderecoCompleto: toCleanString(record.enderecoCompleto) || p.enderecoCompleto,
+          responsavelContato: toCleanString(record.responsavelContato) || p.responsavelContato,
+          paroquiaFezEac: toCleanString(record.paroquiaFezEac) || p.paroquiaFezEac,
+          observacoes: toCleanString(record.sugestaoUltimoEncontro) || p.observacoes,
+        }));
+        const msg = 'Encontramos seu cadastro! Revise seus dados abaixo e atualize o que for preciso.';
+        setSearchMessage(msg);
+        showToast(msg, 'success');
+      } else {
+        clearMatch();
+        const msg = 'Nenhum cadastro encontrado com esse telefone/e-mail. Preencha os dados abaixo para se cadastrar.';
+        setSearchMessage(msg);
+        showToast(msg, 'info');
+      }
+    } catch (e: any) {
+      const msg = e?.message || 'Não foi possível buscar seu cadastro agora.';
+      setSearchMessage(null);
+      showToast(msg, 'error');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading) return;
@@ -93,25 +161,35 @@ const PublicEncontreiroForm: React.FC = () => {
       return;
     }
 
+    const visibleFields = {
+      nomeCompleto: toCleanString(form.nomeCompleto),
+      dataNascimento: toCleanString(form.dataNascimento),
+      idade: toCleanString(form.idade) || computedAge,
+      email: toCleanString(form.email),
+      celularWhatsapp: toCleanString(form.celularWhatsapp),
+      bairro: toCleanString(form.bairro),
+      enderecoCompleto: toCleanString(form.enderecoCompleto),
+      responsavelContato: toCleanString(form.responsavelContato),
+      paroquiaFezEac: toCleanString(form.paroquiaFezEac),
+      sugestaoUltimoEncontro: toCleanString(form.observacoes),
+      aceite_termos: form.aceite_termos,
+    };
+
+    // Em modo de atualização, parte do registro já existente (que inclui campos
+    // não editáveis neste formulário publico, como dados de saúde/participação)
+    // e sobrescreve apenas os campos visíveis acima, evitando apagar informação
+    // que a pessoa não teve chance de revisar aqui.
+    const payload = isUpdateMode
+      ? { ...(existingRecord || {}), ...visibleFields, id: existingId }
+      : visibleFields;
+
     setIsLoading(true);
     try {
-      const payload = {
-        nomeCompleto: toCleanString(form.nomeCompleto),
-        dataNascimento: toCleanString(form.dataNascimento),
-        idade: toCleanString(form.idade) || computedAge,
-        email: toCleanString(form.email),
-        celularWhatsapp: toCleanString(form.celularWhatsapp),
-        bairro: toCleanString(form.bairro),
-        enderecoCompleto: toCleanString(form.enderecoCompleto),
-        responsavelContato: toCleanString(form.responsavelContato),
-        paroquiaFezEac: toCleanString(form.paroquiaFezEac),
-        sugestaoUltimoEncontro: toCleanString(form.observacoes),
-        aceite_termos: form.aceite_termos,
-      };
       const r = await postComunicadosAction<any>('SAVE_ENCONTREIRO', payload);
       if (!r.success) throw new Error((r.raw as any)?.message || r.error || 'Não foi possível enviar o cadastro.');
       setIsSubmitted(true);
-      showToast((r.data as any)?.message || SUCCESS_MESSAGE, 'success');
+      const fallbackMessage = isUpdateMode ? SUCCESS_MESSAGE_ATUALIZACAO : SUCCESS_MESSAGE_NOVO;
+      showToast((r.data as any)?.message || fallbackMessage, 'success');
     } catch (e: any) {
       const msg = e?.message || 'Não foi possível enviar o cadastro agora.';
       setError(msg);
@@ -135,11 +213,19 @@ const PublicEncontreiroForm: React.FC = () => {
             <img src="https://i.imgur.com/c5XQ7TW.png" alt="Logo EAC" className="h-16 mx-auto drop-shadow" />
           </div>
           <div className="p-7 md:p-8">
-            <h1 className="text-3xl font-black text-slate-900 text-center mb-2">Cadastro de Encontreiro</h1>
-            <p className="text-center text-slate-600 mb-7">Preencha seus dados para registrar o cadastro no sistema EAC.</p>
+            <h1 className="text-3xl font-black text-slate-900 text-center mb-2">
+              {isUpdateMode ? 'Atualizar Cadastro de Encontreiro' : 'Cadastro de Encontreiro'}
+            </h1>
+            <p className="text-center text-slate-600 mb-7">
+              {isUpdateMode
+                ? 'Revise seus dados abaixo e atualize o que for necessário.'
+                : 'Preencha seus dados para registrar o cadastro no sistema EAC. Já é cadastrado? Informe seu WhatsApp e busque seus dados antes de preencher.'}
+            </p>
 
             {isSubmitted ? (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-800 font-semibold">{SUCCESS_MESSAGE}</div>
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-800 font-semibold">
+                {isUpdateMode ? SUCCESS_MESSAGE_ATUALIZACAO : SUCCESS_MESSAGE_NOVO}
+              </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -158,8 +244,26 @@ const PublicEncontreiroForm: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="md:col-span-2">
                     <label className={labelClass}>Telefone / WhatsApp *</label>
-                    <input value={form.celularWhatsapp} onChange={(e) => setForm((p) => ({ ...p, celularWhatsapp: e.target.value }))} className={inputClass('celularWhatsapp')} placeholder="(DD) 9xxxx-xxxx" />
+                    <input
+                      value={form.celularWhatsapp}
+                      onChange={(e) => { setForm((p) => ({ ...p, celularWhatsapp: e.target.value })); if (isUpdateMode) clearMatch(); }}
+                      className={inputClass('celularWhatsapp')}
+                      placeholder="(DD) 9xxxx-xxxx"
+                    />
                     {fieldErrors.celularWhatsapp ? <p className="mt-1 text-xs text-red-600">{fieldErrors.celularWhatsapp}</p> : null}
+                    {!isUpdateMode && (
+                      <button
+                        type="button"
+                        onClick={handleBuscarCadastro}
+                        disabled={isSearching}
+                        className="mt-2 text-xs font-bold text-blue-700 underline decoration-dotted underline-offset-2 disabled:opacity-60"
+                      >
+                        {isSearching ? 'Buscando cadastro...' : 'Já é cadastrado? Buscar meus dados'}
+                      </button>
+                    )}
+                    {isUpdateMode && (
+                      <p className="mt-2 text-xs font-bold text-emerald-700">Cadastro encontrado — você está atualizando seus dados.</p>
+                    )}
                   </div>
                   <div>
                     <label className={labelClass}>Idade atual</label>
@@ -167,10 +271,14 @@ const PublicEncontreiroForm: React.FC = () => {
                   </div>
                 </div>
 
+                {searchMessage && !isUpdateMode ? (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-blue-800 text-xs font-bold">{searchMessage}</div>
+                ) : null}
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className={labelClass}>E-mail</label>
-                    <input value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} className={inputClass('email')} placeholder="email@exemplo.com" />
+                    <input value={form.email} onChange={(e) => { setForm((p) => ({ ...p, email: e.target.value })); if (isUpdateMode) clearMatch(); }} className={inputClass('email')} placeholder="email@exemplo.com" />
                     {fieldErrors.email ? <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p> : null}
                   </div>
                   <div>
@@ -205,7 +313,7 @@ const PublicEncontreiroForm: React.FC = () => {
                 </div>
                 {fieldErrors.aceite_termos ? <p className="text-xs text-red-600">{fieldErrors.aceite_termos}</p> : null}
                 <button type="submit" disabled={isLoading} className="w-full bg-gradient-to-r from-[#0a4a86] to-[#1f64bb] text-white font-black py-3.5 px-4 rounded-xl hover:brightness-105 disabled:bg-slate-400 transition-colors duration-300 uppercase tracking-wide">
-                  {isLoading ? 'Enviando cadastro...' : 'Enviar cadastro'}
+                  {isLoading ? (isUpdateMode ? 'Atualizando cadastro...' : 'Enviando cadastro...') : (isUpdateMode ? 'Atualizar cadastro' : 'Enviar cadastro')}
                 </button>
                 {error ? <p className="text-sm text-red-600 text-center">{error}</p> : null}
               </form>
