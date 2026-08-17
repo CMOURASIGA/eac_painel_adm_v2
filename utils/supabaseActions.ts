@@ -4468,6 +4468,38 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       return { ok: true, data: { success: true, circulos, source: 'supabase' } };
     }
 
+    if (ctx.action === 'GET_CIRCULO_ATUAL_MAPA') {
+      // Mapa enxuto pessoa/inscricao -> circulo mais recente, pensado para o frontend casar por conta
+      // propria (usando o pessoaId/inscricaoId que ele ja resolve de forma confiavel, por exemplo via
+      // pessoa_adolescente_id do /api/inscricoes/admin), sem depender de colunas de identidade que a
+      // tabela de prioritarios pode nao ter.
+      const porPessoa: Record<string, string> = {};
+      const porInscricao: Record<string, string> = {};
+      try {
+        const itensTableExists = await hasColumn(supabase, 'circulos_execucao_itens', 'id');
+        if (itensTableExists) {
+          const { data: allItens, error: itensError } = await supabase
+            .from('circulos_execucao_itens')
+            .select('inscricao_id,pessoa_id,circulo_nome,created_at')
+            .order('created_at', { ascending: false })
+            .limit(20000);
+          if (!itensError && Array.isArray(allItens)) {
+            allItens.forEach((it: any) => {
+              const circulo = cleanText(it?.circulo_nome);
+              if (!circulo) return;
+              const pid = cleanText(it?.pessoa_id);
+              const iid = cleanText(it?.inscricao_id);
+              if (pid && !porPessoa[pid]) porPessoa[pid] = circulo;
+              if (iid && !porInscricao[iid]) porInscricao[iid] = circulo;
+            });
+          }
+        }
+      } catch (readError) {
+        console.error('Falha ao ler circulos_execucao_itens para GET_CIRCULO_ATUAL_MAPA:', readError);
+      }
+      return { ok: true, data: { success: true, porPessoa, porInscricao, source: 'supabase' } };
+    }
+
     if (ctx.action === 'GET_INSCRICOES_PRIORITARIAS') {
       const rows = await fetchAllRows(
         supabase,

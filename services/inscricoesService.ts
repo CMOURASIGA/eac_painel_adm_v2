@@ -123,6 +123,21 @@ export const inscricoesService = {
     return emptyOk(grouped && typeof grouped === 'object' ? grouped : {}, r.raw);
   },
 
+  async obterCirculoAtualMapa(
+    opts: { googleWebAppUrl?: string } = {}
+  ): Promise<EacApiResult<{ porPessoa: Record<string, string>; porInscricao: Record<string, string> }>> {
+    const r = await postComunicadosAction<any>('GET_CIRCULO_ATUAL_MAPA', {}, opts);
+    if (!r.success) return r as any;
+    const data = r.data as any;
+    return emptyOk(
+      {
+        porPessoa: data?.porPessoa && typeof data.porPessoa === 'object' ? data.porPessoa : {},
+        porInscricao: data?.porInscricao && typeof data.porInscricao === 'object' ? data.porInscricao : {},
+      },
+      r.raw
+    );
+  },
+
   async executarDistribuicaoCirculos(
     payload: { minAge?: number | null; maxAge?: number | null; items?: any[] } = {},
     opts: { googleWebAppUrl?: string } = {}

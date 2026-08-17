@@ -518,9 +518,10 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     setLoading(true);
     setError('');
     try {
-      const [rPrior, rAdmin] = await Promise.all([
+      const [rPrior, rAdmin, rCirculoMapa] = await Promise.all([
         inscricoesService.listarPrioritarias({ googleWebAppUrl }),
         inscricoesService.listarInscricoesAdmin({ status: 'PRIORIZADO', page: 1, page_size: 1000 }),
+        inscricoesService.obterCirculoAtualMapa({ googleWebAppUrl }),
       ]);
 
       if (!rPrior.success && !rAdmin.success) {
@@ -597,6 +598,19 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
       const normalizedPriorizados = Array.from(mergedByKey.values())
         .filter(hasIdentity)
         .filter((item: any) => normalize(item?.status) === 'priorizado');
+
+      // Casa o circulo mais recente aqui no cliente, usando o pessoaId/inscricaoId ja resolvidos acima
+      // (via pessoa_adolescente_id do /api/inscricoes/admin, que e confiavel). Isso evita depender das
+      // colunas de identidade da tabela de prioritarios, que podem nao existir/nao bater.
+      const porPessoa = (rCirculoMapa as any)?.data?.porPessoa || {};
+      const porInscricao = (rCirculoMapa as any)?.data?.porInscricao || {};
+      normalizedPriorizados.forEach((item: any) => {
+        const pessoaId = String(item?.pessoaId || '').trim();
+        const inscricaoId = String(item?.inscricaoId || '').trim();
+        const circuloAtual = (pessoaId && porPessoa[pessoaId]) || (inscricaoId && porInscricao[inscricaoId]) || '';
+        if (circuloAtual) item.circuloDistribuido = circuloAtual;
+      });
+
       setItems(normalizedPriorizados);
     } catch (err: any) {
       setItems([]);

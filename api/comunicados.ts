@@ -233,6 +233,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       'MARK_PRESENCE',
       'GET_PUBLIC_PRESENCE_DATA',
       'GET_CIRCULOS_DISTRIBUIDOS',
+      'GET_CIRCULO_ATUAL_MAPA',
       'GET_INSCRICOES_PRIORITARIAS',
       'PRIORITIZE_NON_ENROLLED',
       'EXECUTE_DISTRIBUICAO_CIRCULOS',
