@@ -4439,6 +4439,43 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         id: pickFirst(r, ['id', 'uuid']) || `pri-${i + 1}`,
         linhaOrigem: pickFirst(r, ['linhaOrigem', 'linha_origem', 'linha_origem_nao_inscritos', 'linha_origem_origem']),
       }));
+
+      // Enriquece cada item com o círculo da execução de distribuição mais recente em que a pessoa
+      // (ou a inscrição) apareceu, quando essa persistência existir (docs/US-084-092-foundation.sql).
+      try {
+        const itensTableExists = items.length > 0 && (await hasColumn(supabase, 'circulos_execucao_itens', 'id'));
+        if (itensTableExists) {
+          const { data: recentItens, error: recentError } = await supabase
+            .from('circulos_execucao_itens')
+            .select('inscricao_id,pessoa_id,circulo_nome,created_at')
+            .order('created_at', { ascending: false })
+            .limit(5000);
+          if (!recentError && Array.isArray(recentItens)) {
+            const byPessoa = new Map<string, string>();
+            const byInscricao = new Map<string, string>();
+            recentItens.forEach((it: any) => {
+              const circulo = cleanText(it?.circulo_nome);
+              if (!circulo) return;
+              const pid = cleanText(it?.pessoa_id);
+              const iid = cleanText(it?.inscricao_id);
+              if (pid && !byPessoa.has(pid)) byPessoa.set(pid, circulo);
+              if (iid && !byInscricao.has(iid)) byInscricao.set(iid, circulo);
+            });
+            items.forEach((item: any) => {
+              const pessoaId = cleanText(pickFirst(item, ['pessoa_id', 'pessoaId', 'id_pessoa', 'idPessoa']));
+              const inscricaoId = cleanText(pickFirst(item, ['inscricao_id', 'inscricaoId', 'id']));
+              const circuloAtual = (pessoaId && byPessoa.get(pessoaId)) || (inscricaoId && byInscricao.get(inscricaoId)) || '';
+              if (circuloAtual) {
+                item.circuloDistribuido = circuloAtual;
+                item.circulo_distribuido = circuloAtual;
+              }
+            });
+          }
+        }
+      } catch (enrichError) {
+        console.error('Falha ao enriquecer inscrições prioritárias com círculo distribuído:', enrichError);
+      }
+
       return { ok: true, data: { success: true, inscricoesPrioritarias: items, items, total: items.length, source: 'supabase' } };
     }
 
@@ -4827,6 +4864,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           sexo_resolvido: pickFirst(row, ['sexo', 'sexo_snapshot']) || pickFirst(person, ['sexo']),
           bairro_resolvido: pickFirst(row, ['bairro', 'bairro_snapshot']) || pickFirst(person, ['bairro']),
           nome_resolvido: pickFirst(row, ['nome', 'nome_completo', 'name']) || pickFirst(person, ['nome_completo']),
+          pessoa_id_resolvida: cleanText(person?.id) || null,
         };
       });
 
@@ -4892,6 +4930,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         idade: row?.idade_resolvida ?? pickFirst(row, ['idade', 'idade_snapshot', 'age']),
         bairro: row?.bairro_resolvido ?? pickFirst(row, ['bairro', 'bairro_snapshot']),
         circulo: circleName,
+        pessoaId: row?.pessoa_id_resolvida || null,
         ...extra,
       });
 
@@ -5067,6 +5106,61 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         return acc;
       }, {});
 
+      const totalDistribuidoCalc = Object.values(grouped).reduce((acc, list) => acc + list.length, 0);
+
+      let totalPersistido = 0;
+      let persistencia: 'client-fallback' | 'supabase' = 'client-fallback';
+      let execucaoId: string | null = null;
+      try {
+        const execucoesTableExists = await hasColumn(supabase, 'circulos_execucoes', 'id');
+        const itensTableExists = execucoesTableExists && (await hasColumn(supabase, 'circulos_execucao_itens', 'id'));
+        if (execucoesTableExists && itensTableExists) {
+          const { data: execRows, error: execError } = await supabase
+            .from('circulos_execucoes')
+            .insert({
+              criterios: { minAge, maxAge, maxPerCircle, origemDadosDistribuicao: rowsSource },
+              total_entradas: allRows.length,
+              total_distribuidas: totalDistribuidoCalc,
+              total_excedente: (grouped['Circulo Excedente'] || []).length,
+              status: 'SUCESSO',
+              executado_por: cleanText(ctx.payload.operator) || null,
+            })
+            .select('id')
+            .limit(1);
+          if (execError) throw execError;
+          const newExecucaoId = Array.isArray(execRows) ? cleanText(execRows[0]?.id) : '';
+          if (newExecucaoId) {
+            execucaoId = newExecucaoId;
+            const itemRows: any[] = [];
+            Object.entries(grouped).forEach(([circleName, entries]) => {
+              (entries as any[]).forEach((entry) => {
+                const isRealInscricao = rowsSource === 'inscricoes' && isUuidLike(entry?.id);
+                itemRows.push({
+                  execucao_id: execucaoId,
+                  inscricao_id: isRealInscricao ? entry.id : null,
+                  pessoa_id: isUuidLike(entry?.pessoaId) ? entry.pessoaId : null,
+                  circulo_nome: circleName,
+                  payload: entry,
+                });
+              });
+            });
+
+            for (let i = 0; i < itemRows.length; i += 200) {
+              const chunk = itemRows.slice(i, i + 200);
+              if (chunk.length === 0) continue;
+              const { error: itemError } = await supabase.from('circulos_execucao_itens').insert(chunk as any);
+              if (itemError) throw itemError;
+            }
+            totalPersistido = itemRows.length;
+            persistencia = 'supabase';
+          }
+        }
+      } catch (persistError) {
+        console.error('Falha ao persistir execução de distribuição de círculos:', persistError);
+        totalPersistido = 0;
+        persistencia = 'client-fallback';
+      }
+
       return {
         ok: true,
         data: {
@@ -5077,10 +5171,11 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           faixa: { minAge, maxAge },
           totalPrioritarios: (Array.isArray(rows) ? rows : []).length,
           totalAptos: eligible.length,
-          totalDistribuido: Object.values(grouped).reduce((acc, list) => acc + list.length, 0),
+          totalDistribuido: totalDistribuidoCalc,
           totalPendentesMontagem: pendentesMontagem.length,
-          totalPersistido: 0,
-          persistencia: 'client-fallback',
+          totalPersistido,
+          persistencia,
+          execucaoId,
           janelasAplicadas: circleWindows,
           pendentesMontagem,
           resumoPendentes,

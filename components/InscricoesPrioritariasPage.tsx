@@ -28,6 +28,7 @@ type Prioritario = {
   idade?: string | number;
   sexo?: string;
   statusValidacao?: string;
+  circuloDistribuido?: string;
   U?: any;
   V?: any;
   W?: any;
@@ -514,6 +515,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
         sexo: String(row?.sexo || row?.sexo_snapshot || ''),
         encontro: row?.encontro || row?.nome_encontro || '',
         origem: row?.origem || '',
+        circuloDistribuido: String(row?.circuloDistribuido || row?.circulo_distribuido || ''),
       }));
       const fromAdminRaw = Array.isArray((rAdmin as any)?.data?.data) ? (rAdmin as any).data.data : [];
       const fromAdmin = fromAdminRaw.map((row: any) => ({
@@ -1157,6 +1159,10 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
                     ...(item.sexo ? [{
                       label: `Sexo: ${item.sexo}`,
                       className: 'bg-violet-50 text-violet-700 border border-violet-200'
+                    }] : []),
+                    ...(item.circuloDistribuido ? [{
+                      label: `Círculo: ${item.circuloDistribuido}`,
+                      className: 'bg-amber-50 text-amber-700 border border-amber-200'
                     }] : [])
                   ]}
                   actions={[
@@ -1232,6 +1238,10 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
               <div className="bg-slate-50 rounded-xl border border-slate-200 p-3">
                 <p className="text-[10px] uppercase tracking-widest font-black text-slate-400">Bairro</p>
                 <p className="text-sm font-black text-slate-800 mt-1">{selectedItem.bairro || '-'}</p>
+              </div>
+              <div className="bg-slate-50 rounded-xl border border-slate-200 p-3">
+                <p className="text-[10px] uppercase tracking-widest font-black text-slate-400">Círculo distribuído</p>
+                <p className="text-sm font-black text-slate-800 mt-1">{selectedItem.circuloDistribuido || 'Ainda não distribuído'}</p>
               </div>
               <div className="bg-slate-50 rounded-xl border border-slate-200 p-3">
                 <p className="text-[10px] uppercase tracking-widest font-black text-slate-400">Status envio</p>
