@@ -4409,6 +4409,51 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
     }
 
     if (ctx.action === 'GET_CIRCULOS_DISTRIBUIDOS') {
+      // Fonte principal: circulos_execucao_itens, pegando o item mais recente por pessoa/inscricao.
+      // Isso inclui tanto o resultado da ultima distribuicao automatica quanto qualquer ajuste manual
+      // feito depois (SET_INSCRICAO_CIRCULO), ja que o ajuste manual grava um item com created_at mais
+      // novo, que passa a vencer aqui.
+      try {
+        const itensTableExists = await hasColumn(supabase, 'circulos_execucao_itens', 'id');
+        if (itensTableExists) {
+          const { data: allItens, error: itensError } = await supabase
+            .from('circulos_execucao_itens')
+            .select('inscricao_id,pessoa_id,circulo_nome,payload,created_at')
+            .order('created_at', { ascending: false })
+            .limit(20000);
+          if (!itensError && Array.isArray(allItens) && allItens.length > 0) {
+            const seen = new Set<string>();
+            const grouped = createEmptyCircleGroups();
+            allItens.forEach((it: any) => {
+              const pid = cleanText(it?.pessoa_id);
+              const iid = cleanText(it?.inscricao_id);
+              const identityKey = pid ? `p:${pid}` : (iid ? `i:${iid}` : '');
+              if (identityKey) {
+                if (seen.has(identityKey)) return;
+                seen.add(identityKey);
+              }
+              const circuloRaw = cleanText(it?.circulo_nome) || 'Circulo Excedente';
+              const circulo = grouped[circuloRaw] ? circuloRaw : 'Circulo Excedente';
+              const payload = it?.payload && typeof it.payload === 'object' ? it.payload : {};
+              grouped[circulo].push({
+                id: pid || iid || undefined,
+                nome: pickFirst(payload, ['nome', 'nome_completo', 'name']),
+                idade: pickFirst(payload, ['idade']),
+                bairro: pickFirst(payload, ['bairro']),
+                sexo: pickFirst(payload, ['sexo']),
+                grupoSugerido: circulo,
+              });
+            });
+            if (Object.values(grouped).some((list) => list.length > 0)) {
+              return { ok: true, data: { success: true, circulos: grouped, source: 'supabase' } };
+            }
+          }
+        }
+      } catch (readError) {
+        console.error('Falha ao ler circulos_execucao_itens para GET_CIRCULOS_DISTRIBUIDOS:', readError);
+      }
+
+      // Fallback: tabelas legadas (mantido por compatibilidade; nenhum fluxo atual grava nelas).
       const rows = await fetchAllRows(
         supabase,
         [

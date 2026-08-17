@@ -381,6 +381,10 @@ const formatPrioritarioExportValue = (columnKey: string, value: any) => {
     return formatted === '-' ? '' : formatted;
   }
 
+  if (columnKey === 'circuloDistribuido') {
+    return getCirculoColorLabel(raw);
+  }
+
   return raw;
 };
 
@@ -400,6 +404,24 @@ const SECRETARY_CIRCLE_NAMES = [
   'Circulo 6',
   'Circulo Excedente',
 ];
+
+// Mesma convencao de cor por circulo usada na tela de Circulos Distribuidos (CirculosDistribuidosPage) -
+// aqui na tela de Prioridades o numero do circulo e so um identificador interno, quem opera enxerga a cor.
+const CIRCLE_COLOR_LABELS: Record<string, string> = {
+  'Circulo 1': 'Azul',
+  'Circulo 2': 'Roxo',
+  'Circulo 3': 'Vermelho',
+  'Circulo 4': 'Verde',
+  'Circulo 5': 'Laranja',
+  'Circulo 6': 'Amarelo',
+  'Circulo Excedente': 'Excedente',
+};
+
+const getCirculoColorLabel = (raw?: string) => {
+  const name = String(raw || '').trim();
+  if (!name) return '';
+  return CIRCLE_COLOR_LABELS[name] || name;
+};
 
 function createSecretaryEmptyGroups() {
   return SECRETARY_CIRCLE_NAMES.reduce((acc, name) => {
@@ -1214,7 +1236,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
                       className: 'bg-violet-50 text-violet-700 border border-violet-200'
                     }] : []),
                     ...(item.circuloDistribuido ? [{
-                      label: `Círculo: ${item.circuloDistribuido}`,
+                      label: `Círculo: ${getCirculoColorLabel(item.circuloDistribuido)}`,
                       className: 'bg-amber-50 text-amber-700 border border-amber-200'
                     }] : [])
                   ]}
@@ -1306,7 +1328,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
                   >
                     <option value="">Ainda não distribuído</option>
                     {SECRETARY_CIRCLE_NAMES.map((name) => (
-                      <option key={name} value={name}>{name}</option>
+                      <option key={name} value={name}>{getCirculoColorLabel(name)}</option>
                     ))}
                   </select>
                   <button
