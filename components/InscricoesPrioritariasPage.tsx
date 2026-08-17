@@ -656,6 +656,9 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
         inscricaoId: inscricaoId || undefined,
         circulo,
         nome: selectedItem.nome,
+        idade: selectedItem.idade,
+        sexo: selectedItem.sexo,
+        bairro: selectedItem.bairro,
       });
       if (!r.success) {
         throw new Error(r.error || 'Não foi possível salvar o círculo.');

@@ -4437,6 +4437,8 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
               const payload = it?.payload && typeof it.payload === 'object' ? it.payload : {};
               grouped[circulo].push({
                 id: pid || iid || undefined,
+                pessoaId: pid || null,
+                inscricaoId: iid || null,
                 nome: pickFirst(payload, ['nome', 'nome_completo', 'name']),
                 idade: pickFirst(payload, ['idade']),
                 bairro: pickFirst(payload, ['bairro']),
@@ -5272,6 +5274,9 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       const inscricaoId = cleanText(ctx.payload.inscricaoId || ctx.payload.inscricao_id);
       const circulo = cleanText(ctx.payload.circulo || ctx.payload.circuloNome || ctx.payload.circulo_nome);
       const nome = cleanText(ctx.payload.nome);
+      const idade = cleanText(ctx.payload.idade);
+      const sexo = cleanText(ctx.payload.sexo);
+      const bairro = cleanText(ctx.payload.bairro);
       const operator = cleanText(ctx.payload.operator) || 'SYSTEM';
 
       if (!circulo) {
@@ -5316,7 +5321,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         inscricao_id: isUuidLike(inscricaoId) ? inscricaoId : null,
         pessoa_id: isUuidLike(pessoaId) ? pessoaId : null,
         circulo_nome: circulo,
-        payload: { nome, ajusteManual: true, operator },
+        payload: { nome, idade, sexo, bairro, ajusteManual: true, operator },
       } as any);
       if (itemError) throw itemError;
 

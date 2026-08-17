@@ -1,9 +1,12 @@
 ﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import html2canvas from 'html2canvas';
 import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
+import { inscricoesService } from '../services/inscricoesService.ts';
 
 type PessoaCirculo = {
   id?: string;
+  pessoaId?: string;
+  inscricaoId?: string;
   nome?: string;
   idade?: string | number;
   bairro?: string;
@@ -129,6 +132,8 @@ function normalizeCirculosPayload(input: any) {
     rows.forEach((row: any) => {
       grouped[target].push({
         id: toCleanString(row?.id || row?.uuid || row?.linhaOrigem || row?.linha_origem),
+        pessoaId: toCleanString(row?.pessoaId || row?.pessoa_id),
+        inscricaoId: toCleanString(row?.inscricaoId || row?.inscricao_id),
         nome: toCleanString(row?.nome),
         idade: toCleanString(row?.idade ?? ''),
         bairro: toCleanString(row?.bairro),
@@ -471,7 +476,9 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
 
   const moverParticipante = useCallback(async (item: PessoaCirculo, fromCirculo: string) => {
     const participantId = toCleanString(item?.id);
-    if (!participantId) {
+    const pessoaId = toCleanString(item?.pessoaId);
+    const inscricaoId = toCleanString(item?.inscricaoId);
+    if (!participantId && !pessoaId && !inscricaoId) {
       setError('Nao foi possivel mover: identificador do participante nao encontrado.');
       return;
     }
@@ -519,23 +526,29 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
         });
       };
 
-      const response = await fetch('/api/circulos-distribuidos/mover', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: participantId,
-          fromCirculo,
-          toCirculo,
-          operator: 'PAINEL_CIRCULOS',
-        }),
+      if (!pessoaId && !inscricaoId) {
+        // Registro antigo (sem pessoaId/inscricaoId resolvido) - so da pra mover localmente.
+        applyLocalMove();
+        setError('Movimento salvo apenas neste navegador: este registro não tem pessoa/inscrição identificada para persistir.');
+        return;
+      }
+
+      // Persiste via a mesma acao usada pelo ajuste manual na tela de Prioridades (grava um novo
+      // item em circulos_execucao_itens, que passa a valer como a atribuicao mais recente da pessoa).
+      const r = await inscricoesService.definirCirculoPrioritario({
+        pessoaId: pessoaId || undefined,
+        inscricaoId: inscricaoId || undefined,
+        circulo: toCirculo,
+        nome: item?.nome,
+        idade: item?.idade,
+        sexo: item?.sexo,
+        bairro: item?.bairro,
+        operator: 'PAINEL_CIRCULOS',
       });
 
-      const raw = await response.text();
-      if (!raw) throw new Error(`Resposta vazia da API (HTTP ${response.status}).`);
-      const json = sanitizeTextDeep(JSON.parse(raw));
-      if (!response.ok || !(json?.success ?? json?.ok)) {
+      if (!r.success) {
         applyLocalMove();
-        setError('Movimento salvo apenas neste navegador porque a persistência do backend não está disponível.');
+        setError(r.error || 'Movimento salvo apenas neste navegador porque a persistência do backend falhou.');
         return;
       }
 

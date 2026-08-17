@@ -147,7 +147,16 @@ export const inscricoesService = {
   },
 
   async definirCirculoPrioritario(
-    payload: { pessoaId?: string; inscricaoId?: string; circulo: string; nome?: string; operator?: string },
+    payload: {
+      pessoaId?: string;
+      inscricaoId?: string;
+      circulo: string;
+      nome?: string;
+      idade?: string | number;
+      sexo?: string;
+      bairro?: string;
+      operator?: string;
+    },
   ): Promise<EacApiResult<{ circulo: string; execucaoId?: string }>> {
     const r = await postComunicadosAction<any>('SET_INSCRICAO_CIRCULO', payload);
     if (!r.success) return r as any;
