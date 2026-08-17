@@ -34,3 +34,13 @@ create table if not exists public.circulos_execucao_itens (
 create index if not exists ix_circulos_execucao_itens_execucao on public.circulos_execucao_itens (execucao_id);
 create index if not exists ix_circulos_execucao_itens_pessoa on public.circulos_execucao_itens (pessoa_id, created_at desc);
 create index if not exists ix_circulos_execucao_itens_inscricao on public.circulos_execucao_itens (inscricao_id, created_at desc);
+
+-- Tabelas criadas via SQL Editor nao herdam automaticamente os GRANTs que o
+-- Supabase costuma configurar por padrao para as roles da API. Sem isso o
+-- app (que acessa com SUPABASE_SERVICE_ROLE_KEY) recebe erro de permissao e
+-- trata como "tabela nao existe". Repetir esse GRANT nao tem efeito colateral.
+grant select, insert, update, delete on public.circulos_execucoes to service_role;
+grant select, insert, update, delete on public.circulos_execucao_itens to service_role;
+
+-- Forca o PostgREST a recarregar o schema depois de criar as tabelas/GRANTs.
+NOTIFY pgrst, 'reload schema';
