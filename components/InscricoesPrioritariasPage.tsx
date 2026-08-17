@@ -544,6 +544,8 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
         sexo: String(row?.sexo || row?.sexo_adolescente || row?.sexo_snapshot || ''),
         encontro: row?.encontro_nome || '',
         origem: row?.origem_inscricao || '',
+        pessoaId: String(row?.pessoa_adolescente_id || ''),
+        inscricaoId: String(row?.inscricao_id || ''),
       }));
 
       const mergedByKey = new Map<string, any>();
