@@ -20,6 +20,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, googleWebAppUrl }) => {
   const [error, setError] = useState('');
 
   const LOGO_URL = "https://i.imgur.com/c5XQ7TW.png";
+  const MASCOTE_URL = "/mascote-eac.png";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,38 +173,73 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, googleWebAppUrl }) => {
         </svg>
       </div>
 
-      <div className="w-full max-w-lg relative z-10 animate-in fade-in slide-in-from-bottom-12 duration-1000">
-        <div className="bg-white rounded-[3rem] shadow-2xl p-12 md:p-16 border border-white/20">
-          <div className="flex justify-center mb-10">
-            <div className="blue-gradient p-5 rounded-[2rem] shadow-2xl rotate-12 hover:rotate-0 transition-transform border-4 border-white/10 flex items-center justify-center overflow-hidden">
-              <img src={LOGO_URL} alt="EAC Logo" className="w-16 h-16 object-contain" />
+      <div className="w-full max-w-4xl relative z-10 animate-in fade-in slide-in-from-bottom-12 duration-1000">
+        <div className="bg-white rounded-[3rem] shadow-2xl border border-white/20 overflow-hidden grid md:grid-cols-2">
+          {/* Painel de marca, com a mascote parada ao lado do formulário */}
+          <div className="blue-gradient relative flex flex-col p-10 pb-0 min-h-[300px] md:min-h-[600px] overflow-visible isolate">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-white/15 border border-white/10 flex items-center justify-center overflow-hidden p-1.5 shrink-0">
+                <img src={LOGO_URL} alt="EAC Logo" className="w-full h-full object-contain" />
+              </div>
+              <span className="text-white font-black text-lg tracking-tight">Painel EAC</span>
+            </div>
+
+            <div className="mt-8 pr-8">
+              <h1 className="text-white font-black text-2xl md:text-[28px] leading-tight [text-wrap:balance]">
+                Firmes na fé,<br />unidos no amor.
+              </h1>
+              <p className="text-white/75 text-sm leading-relaxed mt-2.5 max-w-[28ch]">
+                Porciúncula de Sant'Ana — acesso da equipe do Encontro de Adolescentes com Cristo.
+              </p>
+            </div>
+
+            <div className="mt-5 mr-8 inline-flex items-center gap-2 bg-white/12 border border-white/15 text-white text-[13px] font-bold px-3.5 py-2 rounded-full w-fit backdrop-blur-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-300 shrink-0" />
+              Oi! Preenche aí que eu ajudo 👋
+            </div>
+
+            <div
+              className="relative mt-auto self-end w-[58%] md:w-[64%] max-w-[300px] -mr-[10%] md:-mr-[12%] z-10 pointer-events-none"
+              style={{ aspectRatio: '700 / 1050' }}
+            >
+              <div
+                className="absolute left-[8%] right-[30%] bottom-[2%] h-[5%] rounded-full"
+                style={{ background: 'radial-gradient(closest-side, rgba(0,0,0,0.32), transparent 75%)' }}
+              />
+              <img
+                src={MASCOTE_URL}
+                alt="Mascote da EAC apontando para o formulário de login"
+                className="block w-full h-full object-contain object-bottom"
+                style={{ filter: 'drop-shadow(0 16px 18px rgba(0,0,0,0.3))' }}
+              />
             </div>
           </div>
 
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-black text-slate-900 tracking-tighter">Login Operacional</h1>
-            <p className="text-slate-400 mt-3 font-bold uppercase tracking-[0.2em] text-[10px]">Painel de Gestão EAC</p>
+          {/* Painel do formulário */}
+          <div className="relative z-[1] p-10 md:p-14 flex flex-col justify-center">
+            <p className="text-red-600 text-[11px] font-black uppercase tracking-[0.12em] mb-1.5">Acesso ao painel</p>
+            <h2 className="text-slate-900 text-2xl font-black mb-8">Entrar na sua conta</h2>
+
+            {error && (
+              <div className="bg-red-50 border-2 border-red-100 p-5 mb-6 rounded-2xl text-center">
+                <p className="text-xs text-red-700 font-black">{error}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] ml-1">Usuário</label>
+                <input type="text" required className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 font-bold text-slate-900 outline-none focus:border-blue-600 focus:bg-white transition-all" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] ml-1">Senha</label>
+                <input type="password" required className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 font-bold text-slate-900 outline-none focus:border-blue-600 focus:bg-white transition-all" value={password} onChange={(e) => setPassword(e.target.value)} />
+              </div>
+              <button type="submit" disabled={loading} className="w-full blue-gradient text-white font-black py-4 rounded-2xl shadow-xl transition-all hover:-translate-y-0.5 active:scale-95 text-sm uppercase tracking-widest disabled:opacity-60">
+                {loading ? 'Aguarde...' : 'Acessar Painel'}
+              </button>
+            </form>
           </div>
-
-          {error && (
-            <div className="bg-red-50 border-2 border-red-100 p-6 mb-10 rounded-3xl text-center">
-              <p className="text-sm text-red-700 font-black">{error}</p>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-8">
-            <div className="space-y-3">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-4">Usuário</label>
-              <input type="text" required className="w-full px-8 py-5 rounded-3xl border-2 border-blue-900/10 bg-[#0f172a] font-bold text-white outline-none focus:border-blue-600 transition-all" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-            <div className="space-y-3">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-4">Senha</label>
-              <input type="password" required className="w-full px-8 py-5 rounded-3xl border-2 border-blue-900/10 bg-[#0f172a] font-bold text-white outline-none focus:border-blue-600 transition-all" value={password} onChange={(e) => setPassword(e.target.value)} />
-            </div>
-            <button type="submit" disabled={loading} className="w-full blue-gradient text-white font-black py-6 rounded-3xl shadow-2xl transition-all hover:-translate-y-1 active:scale-95 text-lg uppercase tracking-widest">
-              {loading ? 'Aguarde...' : 'Acessar Painel'}
-            </button>
-          </form>
         </div>
       </div>
     </div>
