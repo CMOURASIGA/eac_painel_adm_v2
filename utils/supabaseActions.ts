@@ -4438,6 +4438,8 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         ...r,
         id: pickFirst(r, ['id', 'uuid']) || `pri-${i + 1}`,
         linhaOrigem: pickFirst(r, ['linhaOrigem', 'linha_origem', 'linha_origem_nao_inscritos', 'linha_origem_origem']),
+        pessoaId: cleanText(pickFirst(r, ['pessoa_id', 'pessoaId', 'id_pessoa', 'idPessoa'])) || null,
+        inscricaoId: cleanText(pickFirst(r, ['inscricao_id', 'inscricaoId'])) || null,
       }));
 
       // Enriquece cada item com o círculo da execução de distribuição mais recente em que a pessoa
@@ -5180,6 +5182,74 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           pendentesMontagem,
           resumoPendentes,
           circulos: grouped,
+        },
+      };
+    }
+
+    if (ctx.action === 'SET_INSCRICAO_CIRCULO') {
+      // Ajuste manual do círculo de uma pessoa na tela de Prioridades: registra um novo item
+      // de execução (marcado como AJUSTE_MANUAL) para que essa passe a ser a atribuição mais
+      // recente dela em GET_INSCRICOES_PRIORITARIAS, sobrepondo o que veio de uma distribuição
+      // automática anterior (que pode ter sido só para análise).
+      const pessoaId = cleanText(ctx.payload.pessoaId || ctx.payload.pessoa_id);
+      const inscricaoId = cleanText(ctx.payload.inscricaoId || ctx.payload.inscricao_id);
+      const circulo = cleanText(ctx.payload.circulo || ctx.payload.circuloNome || ctx.payload.circulo_nome);
+      const nome = cleanText(ctx.payload.nome);
+      const operator = cleanText(ctx.payload.operator) || 'SYSTEM';
+
+      if (!circulo) {
+        return { ok: true, data: { success: false, error: 'Círculo é obrigatório.' } };
+      }
+      if (!pessoaId && !inscricaoId) {
+        return { ok: true, data: { success: false, error: 'Não foi possível identificar a pessoa/inscrição para ajustar o círculo.' } };
+      }
+
+      const execucoesTableExists = await hasColumn(supabase, 'circulos_execucoes', 'id');
+      const itensTableExists = execucoesTableExists && (await hasColumn(supabase, 'circulos_execucao_itens', 'id'));
+      if (!execucoesTableExists || !itensTableExists) {
+        return {
+          ok: true,
+          data: {
+            success: false,
+            error: 'As tabelas de execução de círculos ainda não existem neste banco. Rode docs/create-circulos-execucoes-tables.sql.',
+          },
+        };
+      }
+
+      const { data: execRows, error: execError } = await supabase
+        .from('circulos_execucoes')
+        .insert({
+          criterios: { tipo: 'AJUSTE_MANUAL' },
+          total_entradas: 1,
+          total_distribuidas: 1,
+          total_excedente: 0,
+          status: 'MANUAL',
+          executado_por: operator,
+        })
+        .select('id')
+        .limit(1);
+      if (execError) throw execError;
+      const execucaoId = Array.isArray(execRows) ? cleanText(execRows[0]?.id) : '';
+      if (!execucaoId) {
+        return { ok: true, data: { success: false, error: 'Não foi possível registrar o ajuste manual de círculo.' } };
+      }
+
+      const { error: itemError } = await supabase.from('circulos_execucao_itens').insert({
+        execucao_id: execucaoId,
+        inscricao_id: isUuidLike(inscricaoId) ? inscricaoId : null,
+        pessoa_id: isUuidLike(pessoaId) ? pessoaId : null,
+        circulo_nome: circulo,
+        payload: { nome, ajusteManual: true, operator },
+      } as any);
+      if (itemError) throw itemError;
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          source: 'supabase',
+          circulo,
+          execucaoId,
         },
       };
     }

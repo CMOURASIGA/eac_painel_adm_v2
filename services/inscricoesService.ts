@@ -131,6 +131,18 @@ export const inscricoesService = {
     return await postJson('/api/inscricoes-prioritarias', { ...payload, ...(opts.googleWebAppUrl ? { googleWebAppUrl: opts.googleWebAppUrl } : {}) });
   },
 
+  async definirCirculoPrioritario(
+    payload: { pessoaId?: string; inscricaoId?: string; circulo: string; nome?: string; operator?: string },
+  ): Promise<EacApiResult<{ circulo: string; execucaoId?: string }>> {
+    const r = await postComunicadosAction<any>('SET_INSCRICAO_CIRCULO', payload);
+    if (!r.success) return r as any;
+    const data = r.data as any;
+    if (data && data.success === false) {
+      return { success: false, error: data.error || 'Não foi possível salvar o círculo.', raw: r.raw } as any;
+    }
+    return emptyOk({ circulo: data?.circulo, execucaoId: data?.execucaoId }, r.raw);
+  },
+
   async priorizarNaoInscrito(
     payload: { linhaOrigem?: string | number; id?: string | number; priorizar?: boolean },
   ): Promise<EacApiResult<any>> {

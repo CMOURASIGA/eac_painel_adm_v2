@@ -29,6 +29,8 @@ type Prioritario = {
   sexo?: string;
   statusValidacao?: string;
   circuloDistribuido?: string;
+  pessoaId?: string;
+  inscricaoId?: string;
   U?: any;
   V?: any;
   W?: any;
@@ -244,8 +246,11 @@ const PRIORITARIO_EXPORT_BASE_COLUMNS = [
   'dataNascimento',
   'idade',
   'sexo',
+  'circuloDistribuido',
   'statusValidacao',
 ];
+
+const PRIORITARIO_EXPORT_HIDDEN_COLUMNS = new Set(['pessoaId', 'inscricaoId', 'circulo_distribuido']);
 
 const PRIORITARIO_EXPORT_LABELS: Record<string, string> = {
   id: 'ID',
@@ -268,6 +273,7 @@ const PRIORITARIO_EXPORT_LABELS: Record<string, string> = {
   dataNascimento: 'Data nascimento',
   idade: 'Idade',
   sexo: 'Sexo',
+  circuloDistribuido: 'Círculo distribuído',
   statusValidacao: 'Status validacao',
 };
 
@@ -321,7 +327,7 @@ const getPrioritarioExportColumns = (records: Prioritario[]) => {
 
   const preferred = PRIORITARIO_EXPORT_BASE_COLUMNS.filter((col) => keys.has(col));
   const extra = Array.from(keys)
-    .filter((col) => !PRIORITARIO_EXPORT_BASE_COLUMNS.includes(col))
+    .filter((col) => !PRIORITARIO_EXPORT_BASE_COLUMNS.includes(col) && !PRIORITARIO_EXPORT_HIDDEN_COLUMNS.has(col))
     .sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
   return [...preferred, ...extra];
@@ -466,6 +472,8 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
   const [info, setInfo] = useState('');
   const [selectedItem, setSelectedItem] = useState<Prioritario | null>(null);
   const [showDrawer, setShowDrawer] = useState(false);
+  const [circuloEditValue, setCirculoEditValue] = useState('');
+  const [savingCirculo, setSavingCirculo] = useState(false);
   const [isDistributing, setIsDistributing] = useState(false);
   const [isGeneratingSecretaryReport, setIsGeneratingSecretaryReport] = useState(false);
   const [distributionRange, setDistributionRange] = useState({ minAge: '13', maxAge: '17' });
@@ -516,6 +524,8 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
         encontro: row?.encontro || row?.nome_encontro || '',
         origem: row?.origem || '',
         circuloDistribuido: String(row?.circuloDistribuido || row?.circulo_distribuido || ''),
+        pessoaId: String(row?.pessoaId || row?.pessoa_id || ''),
+        inscricaoId: String(row?.inscricaoId || row?.inscricao_id || ''),
       }));
       const fromAdminRaw = Array.isArray((rAdmin as any)?.data?.data) ? (rAdmin as any).data.data : [];
       const fromAdmin = fromAdminRaw.map((row: any) => ({
@@ -551,6 +561,9 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
           inscricao_id: item?.inscricao_id || current?.inscricao_id || '',
           linhaOrigem: item?.linhaOrigem || current?.linhaOrigem || item?.inscricao_id || current?.inscricao_id || '',
           status: item?.status || current?.status || 'PRIORIZADO',
+          pessoaId: item?.pessoaId || current?.pessoaId || '',
+          inscricaoId: item?.inscricaoId || current?.inscricaoId || '',
+          circuloDistribuido: item?.circuloDistribuido || current?.circuloDistribuido || '',
         });
       };
 
@@ -580,8 +593,46 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
 
   const handleView = useCallback((item: Prioritario) => {
     setSelectedItem(item);
+    setCirculoEditValue(item.circuloDistribuido || '');
     setShowDrawer(true);
   }, []);
+
+  const handleSaveCirculo = useCallback(async () => {
+    if (!selectedItem) return;
+    const circulo = circuloEditValue.trim();
+    if (!circulo) {
+      await showAppAlert('Selecione um círculo antes de salvar.');
+      return;
+    }
+    const pessoaId = String(selectedItem.pessoaId || '').trim();
+    const inscricaoId = String(selectedItem.inscricaoId || '').trim();
+    if (!pessoaId && !inscricaoId) {
+      await showAppAlert('Não foi possível identificar esta pessoa/inscrição para gravar o círculo.');
+      return;
+    }
+
+    setSavingCirculo(true);
+    try {
+      const r = await inscricoesService.definirCirculoPrioritario({
+        pessoaId: pessoaId || undefined,
+        inscricaoId: inscricaoId || undefined,
+        circulo,
+        nome: selectedItem.nome,
+      });
+      if (!r.success) {
+        throw new Error(r.error || 'Não foi possível salvar o círculo.');
+      }
+
+      const updatedItem = { ...selectedItem, circuloDistribuido: circulo };
+      setSelectedItem(updatedItem);
+      setItems((prev) => prev.map((it) => (it === selectedItem ? updatedItem : it)));
+      showInfo('Círculo atualizado com sucesso.');
+    } catch (err: any) {
+      await showAppAlert(err?.message || 'Erro ao salvar o círculo.');
+    } finally {
+      setSavingCirculo(false);
+    }
+  }, [selectedItem, circuloEditValue, showInfo]);
 
   const handleDistribuir = useCallback(async () => {
     const minAge = parseDistributionAgeValue(distributionRange.minAge);
@@ -1239,9 +1290,32 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
                 <p className="text-[10px] uppercase tracking-widest font-black text-slate-400">Bairro</p>
                 <p className="text-sm font-black text-slate-800 mt-1">{selectedItem.bairro || '-'}</p>
               </div>
-              <div className="bg-slate-50 rounded-xl border border-slate-200 p-3">
+              <div className="bg-slate-50 rounded-xl border border-slate-200 p-3 md:col-span-2">
                 <p className="text-[10px] uppercase tracking-widest font-black text-slate-400">Círculo distribuído</p>
-                <p className="text-sm font-black text-slate-800 mt-1">{selectedItem.circuloDistribuido || 'Ainda não distribuído'}</p>
+                <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                  Preenchido automaticamente pela última distribuição executada. Pode ser ajustado manualmente aqui, por exemplo quando a distribuição foi apenas para análise e a divisão final foi feita à mão.
+                </p>
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <select
+                    value={circuloEditValue}
+                    onChange={(e) => setCirculoEditValue(e.target.value)}
+                    disabled={savingCirculo}
+                    className="text-sm font-black text-slate-800 border border-slate-300 rounded-lg px-2.5 py-1.5 bg-white disabled:opacity-60"
+                  >
+                    <option value="">Ainda não distribuído</option>
+                    {SECRETARY_CIRCLE_NAMES.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => { void handleSaveCirculo(); }}
+                    disabled={savingCirculo || circuloEditValue.trim() === (selectedItem.circuloDistribuido || '').trim()}
+                    className="text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {savingCirculo ? 'Salvando...' : 'Salvar círculo'}
+                  </button>
+                </div>
               </div>
               <div className="bg-slate-50 rounded-xl border border-slate-200 p-3">
                 <p className="text-[10px] uppercase tracking-widest font-black text-slate-400">Status envio</p>

@@ -237,6 +237,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       'PRIORITIZE_NON_ENROLLED',
       'EXECUTE_DISTRIBUICAO_CIRCULOS',
       'MOVE_CIRCULO_PARTICIPANTE',
+      'SET_INSCRICAO_CIRCULO',
       'GET_EMAIL_STATUS_SUMMARY',
       'GET_EMAIL_CALLS_BY_PERSON',
       'SAVE_ENCONTREIRO',
