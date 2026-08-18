@@ -11,6 +11,8 @@ export type View =
   | 'visitacao'
   | 'inscricoes_review'
   | 'encontreiros'
+  | 'encontros'
+  | 'equipes'
   | 'presence'
   | 'dispatches'
   | 'calendar'

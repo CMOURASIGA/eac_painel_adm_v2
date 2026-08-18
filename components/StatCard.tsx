@@ -18,10 +18,10 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, color, note }) => {
   };
 
   return (
-    <div className={`bg-white p-4 rounded-2xl border-l-4 shadow-sm ${colors[color]} flex flex-col justify-between h-full min-h-[90px]`}>
-      <p className="text-[10px] font-black text-gray-400 uppercase tracking-wider mb-1 truncate">{title}</p>
-      {note && <p className="text-[9px] text-gray-500 font-semibold leading-tight mb-2">{note}</p>}
-      <p className={`font-black tracking-tight leading-none break-words ${value.length > 10 ? 'text-lg' : 'text-2xl'}`}>
+    <div className={`bg-white p-4 rounded-2xl border shadow-sm ${colors[color]} flex flex-col justify-between h-full min-h-[96px] transition-shadow hover:shadow-md`}>
+      <p className="text-xs font-semibold text-slate-600 leading-snug mb-2">{title}</p>
+      {note && <p className="text-[11px] text-slate-500 leading-tight mb-2">{note}</p>}
+      <p className={`font-bold tracking-tight leading-none break-words ${value.length > 10 ? 'text-lg' : 'text-3xl'}`}>
         {value}
       </p>
     </div>

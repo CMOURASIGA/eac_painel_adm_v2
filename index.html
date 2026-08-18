@@ -11,9 +11,16 @@
     <style>
       body {
         font-family: 'Inter', sans-serif;
-        background-color: #f1f5f9;
+        background-color: #f5f7fb;
         color: #0f172a;
         -webkit-font-smoothing: antialiased;
+      }
+      button, input, select, textarea {
+        font: inherit;
+      }
+      button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+        outline: 3px solid rgba(37, 99, 235, .35);
+        outline-offset: 2px;
       }
       .blue-gradient {
         background: linear-gradient(135deg, #044372 0%, #1e40af 100%);

@@ -34,6 +34,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   const canDispatch = isAdmin || user.permissions.allowedModules.includes('dispatches');
   const canSeeCalendar = isAdmin || user.permissions.allowedModules.includes('calendar');
   const canSeeComunicados = isAdmin || user.permissions.allowedModules.includes('comunicados');
+  const canSeePrioritarios = isAdmin || user.permissions.allowedModules.includes('inscricoes_prioritarias');
 
   const qtdEventos = calendarEvents.length;
   const triagem = dashboardInsights?.triagemStatusCounts || { inscrito: 0, priorizado: 0, confirmado: 0 };
@@ -63,22 +64,22 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const bannerTitle = canDispatch ? "Painel de Operações EAC" : "Portal de Consulta EAC";
   const bannerSubtitle = canDispatch 
-    ? "Central de execução massiva com auditoria e controle de disparos em tempo real."
+    ? "Acompanhe inscrições, priorizações, equipes, presença e comunicação do encontro."
     : "Bem-vindo ao portal de informações do EAC. Consulte a agenda oficial e a base de comunicados ativos.";
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="flex items-center justify-between px-2">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6 md:space-y-8 pb-20">
+      <div className="flex items-center justify-between px-1">
         <div className="flex items-center space-x-2">
           <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`}></div>
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+          <span className="text-xs font-medium text-slate-500">
             {isLoading ? 'Sincronizando...' : `Dados atualizados: ${lastSync || '--:--'}`}
           </span>
         </div>
         <button 
           onClick={onRefresh} 
           disabled={isLoading}
-          className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors active:rotate-180 duration-500"
+          className="p-2 text-blue-700 hover:bg-blue-50 rounded-xl transition-colors active:rotate-180 duration-500"
           title="Recarregar Dados"
         >
           <svg className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -90,14 +91,18 @@ const Dashboard: React.FC<DashboardProps> = ({
       <Banner 
         title={bannerTitle} 
         subtitle={bannerSubtitle}
-        onPrimaryAction={isAdmin ? (() => canDispatch ? onNavigate('dispatches') : (canSeeCalendar ? onNavigate('calendar') : onNavigate('help'))) : undefined}
-        onSecondaryAction={isAdmin ? (() => canDispatch ? onNavigate('logs') : (canSeeComunicados ? onNavigate('comunicados') : undefined)) : undefined}
-        primaryLabel={isAdmin ? (canDispatch ? "INICIAR DISPARO" : "VER AGENDA") : undefined}
-        secondaryLabel={isAdmin ? (canDispatch ? "AUDITORIA COMPLETA" : "COMUNICADOS") : undefined}
+        onPrimaryAction={isAdmin ? (() => canSeePrioritarios ? onNavigate('inscricoes_prioritarias') : (canSeeCalendar ? onNavigate('calendar') : onNavigate('help'))) : undefined}
+        onSecondaryAction={isAdmin ? (() => canSeeComunicados ? onNavigate('comunicados') : onNavigate('help')) : undefined}
+        primaryLabel={isAdmin ? (canSeePrioritarios ? "VER PRIORITÁRIOS" : "VER AGENDA") : undefined}
+        secondaryLabel={isAdmin ? (canSeeComunicados ? "COMUNICADOS" : "AJUDA") : undefined}
       />
 
       {/* Grid de Indicadores Estratégicos */}
-      <div className={`grid grid-cols-2 gap-4 ${isAdmin ? 'md:grid-cols-3 lg:grid-cols-6' : 'md:grid-cols-3 lg:grid-cols-6'}`}>
+      <section>
+        <div className="flex items-end justify-between mb-3 px-1">
+          <div><h3 className="font-bold text-slate-900">Visão geral</h3><p className="text-sm text-slate-500">Acompanhe os números principais antes de entrar nos módulos.</p></div>
+        </div>
+      <div className={`grid grid-cols-2 gap-3 md:gap-4 ${isAdmin ? 'md:grid-cols-3 lg:grid-cols-6' : 'md:grid-cols-3 lg:grid-cols-6'}`}>
         <StatCard title="Inscritos (Triagem)" value={String(triagem.inscrito || 0)} color="blue" />
         <StatCard title="Priorizados" value={String(triagem.priorizado || 0)} color="indigo" />
         <StatCard title="Confirmados" value={String(triagem.confirmado || 0)} color="green" />
@@ -113,11 +118,12 @@ const Dashboard: React.FC<DashboardProps> = ({
           </>
         )}
       </div>
+      </section>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <section className="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-6 md:p-8">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Idade por Status da Triagem</h3>
+            <h3 className="text-lg font-bold text-slate-900 tracking-tight">Idade por status da triagem</h3>
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase tracking-widest"><span className="w-2.5 h-2.5 rounded-full bg-blue-600" />Inscrito</span>
               <span className="inline-flex items-center gap-1 text-[10px] font-black text-slate-500 uppercase tracking-widest"><span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />Priorizado</span>
@@ -150,8 +156,8 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         <section className="bg-white rounded-[2rem] shadow-sm border border-slate-200 p-6 md:p-8">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Inscrições por Mês (Ano Atual)</h3>
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Até o mês atual</span>
+            <h3 className="text-lg font-bold text-slate-900 tracking-tight">Inscrições por mês</h3>
+            <span className="text-xs font-medium text-slate-500">Ano atual</span>
           </div>
           {monthly.length === 0 ? (
             <p className="text-sm text-slate-500 font-semibold">Sem inscrições registradas no ano atual.</p>
@@ -217,24 +223,24 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="space-y-6">
           <div className="blue-gradient rounded-[2.5rem] shadow-xl p-8 text-white relative overflow-hidden group min-h-[350px] flex flex-col justify-between">
             <div>
-              <h3 className="text-xl font-black mb-6 uppercase tracking-tight">Protocolo EAC</h3>
+              <h3 className="text-xl font-black mb-6 uppercase tracking-tight">Próximos passos</h3>
               <p className="text-blue-100 text-sm mb-8 leading-relaxed font-medium opacity-90">
-                Lembre-se: Disparos são processados em tempo real na nuvem. A auditoria registra sua identidade e o IP da requisição para segurança da comunidade.
+                Use a triagem para acompanhar as inscrições, organize os círculos e equipes, e deixe a comunicação para o momento de envio.
               </p>
             </div>
             <button onClick={() => onNavigate('help')} className="w-full bg-white text-blue-900 py-4 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-blue-50 transition-all shadow-lg active:scale-95">Manual do Operador</button>
           </div>
 
           <div className="bg-slate-900 rounded-[2rem] p-6 text-white border border-slate-800">
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-4">Sincronização de Dados</h4>
+            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-4">Situação do sistema</h4>
             <div className="flex items-center justify-between text-sm mb-2">
-              <span className="text-slate-400 font-bold text-[10px] uppercase">Proxy Vercel</span>
+              <span className="text-slate-400 font-bold text-[10px] uppercase">Dados do painel</span>
               <span className="flex items-center text-green-400 font-black uppercase text-[10px] tracking-widest">
                 CONECTADO
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-400 font-bold text-[10px] uppercase">Supabase Sync</span>
+              <span className="text-slate-400 font-bold text-[10px] uppercase">Atualização</span>
               <span className="flex items-center text-blue-400 font-black uppercase text-[10px] tracking-widest">
                 {isLoading ? 'SYNC...' : 'OK'}
               </span>

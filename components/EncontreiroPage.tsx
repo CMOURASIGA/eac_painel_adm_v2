@@ -5,10 +5,12 @@ import PersonCard from './PersonCard.tsx';
 import { toCleanString } from '../utils/textEncoding.ts';
 import DataOriginAudit from './DataOriginAudit.tsx';
 import { encontreirosService } from '../services/encontreirosService.ts';
+import EquipesPorEncontroPanel from './EquipesPorEncontroPanel.tsx';
 
 interface EncontreiroPageProps {
   user: User;
   googleWebAppUrl: string;
+  initialView?: 'cadastros' | 'equipes';
 }
 
 const PAGE_SIZE = 20;
@@ -230,7 +232,7 @@ const isInCurrentBusinessSemester = (value: any) => {
   return date >= start && date <= end;
 };
 
-const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl }) => {
+const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl, initialView = 'cadastros' }) => {
   const [records, setRecords] = useState<EncontreiroRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [normalizingId, setNormalizingId] = useState<string | null>(null);
@@ -263,6 +265,11 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
     dataFimFilter: '',
   });
   const [page, setPage] = useState(1);
+  const [activeView, setActiveView] = useState<'cadastros' | 'equipes'>(initialView);
+
+  useEffect(() => {
+    setActiveView(initialView);
+  }, [initialView]);
 
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<EncontreiroFormData>(EMPTY_FORM);
@@ -270,6 +277,8 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
 
   const [selectedRecord, setSelectedRecord] = useState<EncontreiroRecord | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [historicoEquipes, setHistoricoEquipes] = useState<any[]>([]);
+  const [isLoadingHistorico, setIsLoadingHistorico] = useState(false);
   const [equipes, setEquipes] = useState<Array<{ id: string; nome: string }>>([]);
   const [selectedEquipeIds, setSelectedEquipeIds] = useState<string[]>([]);
 
@@ -664,6 +673,19 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
     }
   };
 
+  const openDetails = async (record: EncontreiroRecord) => {
+    setSelectedRecord(record);
+    setShowDetails(true);
+    setHistoricoEquipes([]);
+    setIsLoadingHistorico(true);
+    const res = await encontreirosService.historicoEquipesDoEncontreiro(
+      { encontreiroId: record.id },
+      { googleWebAppUrl }
+    );
+    if (res.success) setHistoricoEquipes(Array.isArray(res.data?.historico) ? res.data.historico : []);
+    setIsLoadingHistorico(false);
+  };
+
   const indicatorButtonClass = (active: boolean) => {
     return `p-5 rounded-[1.8rem] border transition-all min-w-[180px] text-left ${active ? 'bg-blue-600 border-blue-600 text-white shadow-xl' : 'bg-white border-slate-200 text-slate-700 hover:shadow-md'}`;
   };
@@ -672,8 +694,8 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
     <div className="p-4 md:p-8 max-w-[100rem] mx-auto animate-in fade-in duration-500 pb-24 space-y-6">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <h2 className="text-3xl md:text-4xl font-black tracking-tight text-slate-900 leading-none">Cadastro de Encontreiros</h2>
-          <p className="text-slate-500 font-bold mt-2 text-sm">Gestao completa de encontreiros com indicadores e filtros.</p>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tight text-slate-900 leading-none">{activeView === 'cadastros' ? 'Cadastro de Encontreiros' : 'Equipes por encontro'}</h2>
+           <p className="text-slate-500 font-bold mt-2 text-sm">{activeView === 'cadastros' ? 'Gestao completa de encontreiros com indicadores e filtros.' : 'Organize integrantes por equipe, mantendo o histórico de cada encontro.'}</p>
         </div>
         <div className="flex flex-wrap gap-3 w-full md:w-auto">
           {canCreate && (
@@ -700,7 +722,14 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
           </button>
         </div>
       </header>
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
+        <button type="button" onClick={() => setActiveView('cadastros')} className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${activeView === 'cadastros' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Encontreiros</button>
+        <button type="button" onClick={() => setActiveView('equipes')} className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${activeView === 'equipes' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Equipes por encontro</button>
+      </div>
 
+      {activeView === 'equipes' && <EquipesPorEncontroPanel records={records} googleWebAppUrl={googleWebAppUrl} canEdit={canEdit} />}
+
+      {activeView === 'cadastros' && (<>
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <button
           className={indicatorButtonClass(indicatorFilter === null)}
@@ -920,7 +949,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
                       key: 'view',
                       title: 'Visualizar',
                       variant: 'view',
-                      onClick: () => { setSelectedRecord(record); setShowDetails(true); },
+                      onClick: () => { void openDetails(record); },
                       icon: (
                         <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
@@ -1022,6 +1051,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
           </div>
         )}
       </section>
+      </>)}
 
       {showForm && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
@@ -1169,6 +1199,25 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
                   <DataOriginAudit record={selectedRecord} />
                 </div>
               </div>
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                <div className="px-4 py-3 bg-slate-50 border-b">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Histórico de equipes por encontro</p>
+                </div>
+                {isLoadingHistorico ? (
+                  <p className="p-4 text-sm font-bold text-slate-500">Carregando histórico...</p>
+                ) : historicoEquipes.length === 0 ? (
+                  <p className="p-4 text-sm font-bold text-slate-500">Nenhuma equipe registrada para este encontreiro.</p>
+                ) : (
+                  <div className="divide-y divide-slate-100">
+                    {historicoEquipes.map((item, index) => (
+                      <div key={`${item.encontroId}-${item.equipe}-${index}`} className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                        <div><p className="font-black text-slate-800">{toClean(item.encontro) || 'Encontro'}</p><p className="text-sm font-bold text-slate-500">{toClean(item.equipe) || 'Equipe'} · {toClean(item.funcao) || 'Membro'}</p></div>
+                        {toClean(item.observacao) && <p className="text-sm font-medium text-slate-500">{toClean(item.observacao)}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1178,7 +1227,6 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
 };
 
 export default EncontreiroPage;
-
 
 
 

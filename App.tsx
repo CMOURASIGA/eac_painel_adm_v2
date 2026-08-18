@@ -38,6 +38,8 @@ const viewPathMap: Partial<Record<View, string>> = {
   inscricoes_review: '/inscricoes/revisao',
   inscricoes_prioritarias_circulos: '/distribuicao-circulos',
   encontreiros: '/encontreiros',
+  encontros: '/encontros',
+  equipes: '/equipes',
 };
 
 const pathViewMap: Record<string, View> = {
@@ -48,6 +50,8 @@ const pathViewMap: Record<string, View> = {
   '/inscricoes/revisao': 'inscricoes_review',
   '/distribuicao-circulos': 'inscricoes_prioritarias_circulos',
   '/encontreiros': 'encontreiros',
+  '/encontros': 'encontros',
+  '/equipes': 'equipes',
 };
 
 const publicFormPathMap = {
@@ -92,7 +96,7 @@ const App: React.FC = () => {
     return parsed || {
       googleWebAppUrl: envWebAppUrl,
       botUrl: 'https://seu-bot.render.com',
-      chaveMestra: 'EAC-Admin-Secure-778899'
+      chaveMestra: ''
     };
   });
 
@@ -400,6 +404,16 @@ const App: React.FC = () => {
       showToast('Seu usuÃ¡rio nÃ£o possui acesso ao mÃ³dulo Cadastro de Encontrista.', 'error');
       return;
     }
+    if (currentView === 'encontros' && !allowed.includes('encontros') && !allowed.includes('settings')) {
+      setCurrentView('dashboard');
+      showToast('Seu usuário não possui acesso ao módulo Encontros.', 'error');
+      return;
+    }
+    if (currentView === 'equipes' && !allowed.includes('equipes') && !allowed.includes('encontreiros')) {
+      setCurrentView('dashboard');
+      showToast('Seu usuário não possui acesso ao módulo Equipes.', 'error');
+      return;
+    }
     if (currentView === 'presence' && !allowed.includes('presence')) {
       setCurrentView('dashboard');
       showToast('Seu usuÃ¡rio nÃ£o possui acesso ao mÃ³dulo Controle de PresenÃ§a.', 'error');
@@ -622,7 +636,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col text-slate-900 overflow-x-hidden">
       <Header user={user} onLogout={() => { setUser(null); localStorage.removeItem('eac_user'); }} onNavigate={handleNavigate} currentView={currentView} />
-      <main className="flex-grow pt-16 bg-slate-50 relative">
+      <main className="flex-grow pt-[72px] bg-slate-50 relative">
         {currentView === 'dashboard' && <Dashboard user={user} logs={logs} calendarEvents={calendarEvents} comunicados={comunicados} membersCount={membersCount} nonEnrolledCount={nonEnrolledCount} nonEnrolledPreConfirmadasCount={nonEnrolledIndicators.preConfirmadasCount} nonEnrolledInteresseCount={nonEnrolledIndicators.interesseCount} nonEnrolledInteresseNoCount={nonEnrolledIndicators.interesseNoCount} dashboardInsights={dashboardInsights} onNavigate={handleNavigate} lastSync={lastSync} onRefresh={fetchSpreadsheetData} isLoading={isLoadingSheet} />}
         {currentView === 'members' && (
           <MembersPage
@@ -645,6 +659,8 @@ const App: React.FC = () => {
           />
         )}
         {currentView === 'encontreiros' && <EncontreiroPage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} />}
+        {currentView === 'encontros' && <SettingsPage settings={settings} onSave={(next) => { setSettings(next); localStorage.setItem('eac_settings', JSON.stringify(next)); }} focusEncontros />}
+        {currentView === 'equipes' && <EncontreiroPage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialView="equipes" />}
         {currentView === 'presence' && <PresencePage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} />}
         {currentView === 'dispatches' && <DispatchesPage dispatches={dispatches} onExecute={handleExecuteDispatch} onClearStatus={async (d) => { await callApiProxy('CLEAR_DISPATCH_STATUS', { type: d.type }); fetchSpreadsheetData(); }} operator={user.name} />}
         {currentView === 'calendar' && <CalendarPage googleWebAppUrl={effectiveGoogleWebAppUrl} user={user} />}
@@ -661,5 +677,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-
-
