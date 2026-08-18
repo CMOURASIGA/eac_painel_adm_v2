@@ -229,11 +229,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, googleWebAppUrl }) => {
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] ml-1">Usuário</label>
-                <input type="text" required className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 font-bold text-slate-900 outline-none focus:border-blue-600 focus:bg-white transition-all" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <input type="text" required className="w-full px-5 py-4 rounded-2xl border-2 border-slate-300 bg-slate-50 font-bold text-slate-900 outline-none focus:border-blue-600 focus:bg-white transition-all shadow-sm" value={email} onChange={(e) => setEmail(e.target.value)} />
               </div>
               <div className="space-y-2">
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-[0.15em] ml-1">Senha</label>
-                <input type="password" required className="w-full px-5 py-4 rounded-2xl border-2 border-slate-100 bg-slate-50 font-bold text-slate-900 outline-none focus:border-blue-600 focus:bg-white transition-all" value={password} onChange={(e) => setPassword(e.target.value)} />
+                <input type="password" required className="w-full px-5 py-4 rounded-2xl border-2 border-slate-300 bg-slate-50 font-bold text-slate-900 outline-none focus:border-blue-600 focus:bg-white transition-all shadow-sm" value={password} onChange={(e) => setPassword(e.target.value)} />
               </div>
               <button type="submit" disabled={loading} className="w-full blue-gradient text-white font-black py-4 rounded-2xl shadow-xl transition-all hover:-translate-y-0.5 active:scale-95 text-sm uppercase tracking-widest disabled:opacity-60">
                 {loading ? 'Aguarde...' : 'Acessar Painel'}
