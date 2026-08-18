@@ -204,6 +204,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       'DELETE_USER',
       'GET_MEMBERS',
       'SEARCH_MEMBERS',
+      'SAVE_MEMBER',
       'DELETE_MEMBER',
       'GET_NON_ENROLLED',
       'ATUALIZAR_NAO_INSCRITOS',
