@@ -1915,21 +1915,6 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
     }
   };
 
-  const handleNewRegistry = () => {
-    setOriginalEmail(null);
-    setFormData({
-      nome: '', nascimento: '', sexo: 'Masculino', endereco: '', bairro: '', telefone: '', email: '',
-      responsavelNome: '', responsavelTel: '', responsavelEmail: '',
-      tempoParoquia: '', participaGrupo: '', motivacao: '', expectativas: '',
-      autorizaImagem: 'Sim', concordaNormas: 'Sim', pertencePorciuncula: 'Sim',
-      whatsapp: ''
-    });
-    setIsEditing(false);
-    setIsConverting(false);
-    setActiveTab('pessoais');
-    setShowEditor(true);
-  };
-
   const handleCloseEditor = () => {
     setShowEditor(false);
     setIsEditing(false);
@@ -3192,10 +3177,6 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
           </div>
 
           <div className="flex flex-wrap gap-3 w-full xl:w-auto xl:justify-end">
-            <button onClick={handleNewRegistry} className="px-6 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-sm whitespace-nowrap">
-              Novo
-            </button>
-
             <button
               onClick={exportMembersCsv}
               disabled={isExportingMembersCsv}
@@ -3597,7 +3578,7 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
       <header className="flex flex-col md:flex-row justify-between gap-6 items-end">
         <div>
           <h2 className="text-3xl font-black uppercase tracking-tighter text-slate-900 leading-none">
-            {isConverting ? 'Converso de Candidato' : isEditing ? 'Editar Registro' : 'Novo Cadastro'}
+            {isConverting ? 'Converso de Candidato' : 'Editar Registro'}
           </h2>
           <p className="text-slate-500 font-medium italic mt-3 text-sm">Base de manuteno EAC Porcincula.</p>
         </div>
