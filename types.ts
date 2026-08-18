@@ -5,6 +5,10 @@
 // ========================
 export type View =
   | 'dashboard'
+  | 'pessoas_hub'
+  | 'encontros_hub'
+  | 'comunicacao_hub'
+  | 'gestao_hub'
   | 'members'
   | 'inscricoes_prioritarias'
   | 'inscricoes_prioritarias_circulos'

@@ -1,7 +1,7 @@
-﻿
+
 import React, { useState } from 'react';
 import { User, View } from '../types';
-import { NAVIGATION_ROADMAP } from '../utils/navigationRoadmap.ts';
+import { STANDALONE_ITEMS, NAVIGATION_GROUPS, canAccessView, visibleGroupItems } from '../utils/navigationRoadmap.ts';
 
 interface HeaderProps {
   user: User;
@@ -12,40 +12,49 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ user, onLogout, onNavigate, currentView }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-  const navItems: { label: string, view: View }[] = NAVIGATION_ROADMAP
-    .filter((item) => item.enabled)
-    .map((item) => ({ label: item.label, view: item.view }));
+  const isAdmin = user.role === 'ADMIN';
+  const allowed = user.permissions?.allowedModules || [];
 
-  const filteredNav = navItems.filter(item => {
-    if (user.role === 'ADMIN') return true;
-    const allowed = user.permissions?.allowedModules || [];
-    if (item.view === 'dashboard') return true;
-    if (item.view === 'members') return allowed.includes('members');
-    if (item.view === 'inscricoes_prioritarias') return allowed.includes('inscricoes_prioritarias');
-    if (item.view === 'inscricoes_prioritarias_circulos') return allowed.includes('inscricoes_prioritarias_circulos');
-    if (item.view === 'visitacao') return allowed.includes('visitacao');
-    if (item.view === 'inscricoes_review') return allowed.includes('inscricoes_review');
-    if (item.view === 'encontreiros') return allowed.includes('encontreiros');
-    if (item.view === 'encontros') return allowed.includes('encontros') || allowed.includes('settings');
-    if (item.view === 'equipes') return allowed.includes('equipes') || allowed.includes('encontreiros');
-    if (item.view === 'presence') return allowed.includes('presence');
-    if (item.view === 'dispatches') return allowed.includes('dispatches');
-    if (item.view === 'calendar') return allowed.includes('calendar');
-    if (item.view === 'comunicados') return allowed.includes('comunicados');
-    if (item.view === 'logs') return allowed.includes('logs');
-    if (item.view === 'users') return allowed.includes('users');
-    if (item.view === 'settings') return allowed.includes('settings');
-    if (item.view === 'help') return allowed.includes('help');
-    return false;
-  });
+  const visibleStandalone = STANDALONE_ITEMS.filter((item) => item.enabled && canAccessView(item.view, isAdmin, allowed));
+  const visibleGroups = NAVIGATION_GROUPS
+    .map((group) => ({ group, items: visibleGroupItems(group, isAdmin, allowed) }))
+    .filter(({ items }) => items.length > 0);
 
   const handleNavigate = (view: View) => {
     onNavigate(view);
     setIsMobileMenuOpen(false);
   };
 
-  const currentItem = filteredNav.find((item) => item.view === currentView);
+  const toggleGroup = (groupId: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+
+  const handleGroupHeaderClick = (groupId: string, hubView: View) => {
+    setExpandedGroups((prev) => new Set(prev).add(groupId));
+    handleNavigate(hubView);
+  };
+
+  const currentTitle = (() => {
+    // Telas que não têm item de menu próprio (ex.: Distribuição de Círculos,
+    // que só abre a partir de dentro de Inscrições Prioritárias) ainda
+    // precisam de um título no cabeçalho.
+    if (currentView === 'inscricoes_prioritarias_circulos') return 'Distribuição de Círculos';
+    const standalone = visibleStandalone.find((item) => item.view === currentView);
+    if (standalone) return standalone.label;
+    for (const { group, items } of visibleGroups) {
+      if (group.hubView === currentView) return group.label;
+      const leaf = items.find((item) => item.view === currentView);
+      if (leaf) return leaf.label;
+    }
+    return 'EAC';
+  })();
 
   const LOGO_URL = "https://i.imgur.com/c5XQ7TW.png";
 
@@ -61,7 +70,7 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onNavigate, currentView
           </button>
           <div className="flex min-w-0 flex-col">
             <span className="text-[10px] font-semibold text-blue-200">Painel operacional</span>
-            <h1 className="truncate text-sm md:text-base font-bold tracking-tight">{currentItem?.label || 'EAC'}</h1>
+            <h1 className="truncate text-sm md:text-base font-bold tracking-tight">{currentTitle}</h1>
           </div>
         </div>
 
@@ -86,12 +95,47 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout, onNavigate, currentView
               <button aria-label="Fechar menu" onClick={() => setIsMobileMenuOpen(false)} className="p-2 hover:bg-white/10 rounded-full"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg></button>
             </div>
             <nav aria-label="Menu principal" className="flex-grow p-4 space-y-1 overflow-y-auto">
-              {filteredNav.map((item) => (
+              {visibleStandalone.map((item) => (
                 <button key={item.view} onClick={() => handleNavigate(item.view)} className={`w-full flex items-center space-x-3 p-3.5 rounded-xl font-semibold text-sm transition-colors ${currentView === item.view ? 'bg-blue-50 text-blue-800' : 'text-slate-600 hover:bg-slate-50'}`}>
                   <div className={`w-2 h-2 rounded-full ${currentView === item.view ? 'bg-blue-600' : 'bg-slate-300'}`}></div>
-                  <span>{item.label.trimStart()}</span>
+                  <span>{item.label}</span>
                 </button>
               ))}
+
+              <div className="h-px bg-slate-100 my-2" />
+
+              {visibleGroups.map(({ group, items }) => {
+                const isOpen = expandedGroups.has(group.id);
+                const isActiveGroup = currentView === group.hubView || items.some((item) => item.view === currentView);
+                return (
+                  <div key={group.id} className="space-y-0.5">
+                    <div className={`w-full flex items-center rounded-xl font-semibold text-sm transition-colors ${isActiveGroup ? 'bg-blue-50 text-blue-800' : 'text-slate-600 hover:bg-slate-50'}`}>
+                      <button onClick={() => handleGroupHeaderClick(group.id, group.hubView)} className="flex-1 flex items-center space-x-3 p-3.5 text-left min-w-0">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${isActiveGroup ? 'bg-blue-600' : 'bg-slate-300'}`}></div>
+                        <span className="truncate">{group.label}</span>
+                        <span className="text-[10px] font-bold text-slate-400">{items.length}</span>
+                      </button>
+                      <button
+                        aria-label={isOpen ? `Recolher ${group.label}` : `Expandir ${group.label}`}
+                        onClick={() => toggleGroup(group.id)}
+                        className="p-3.5 pl-2"
+                      >
+                        <svg className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" /></svg>
+                      </button>
+                    </div>
+                    {isOpen && (
+                      <div className="pl-4 space-y-0.5">
+                        {items.map((item) => (
+                          <button key={item.view} onClick={() => handleNavigate(item.view)} className={`w-full flex items-center space-x-3 p-3 pl-4 rounded-xl font-semibold text-[13px] transition-colors ${currentView === item.view ? 'bg-blue-50 text-blue-800' : 'text-slate-500 hover:bg-slate-50'}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${currentView === item.view ? 'bg-blue-600' : 'bg-slate-300'}`}></div>
+                            <span>{item.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </nav>
           </div>
         </div>

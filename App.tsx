@@ -28,7 +28,8 @@ import AppDialog from './components/AppDialog.tsx';
 import { AppDialogRequest, installWindowAlertBridge, registerAppDialogHandler } from './utils/appDialog.ts';
 import { sanitizeTextDeep } from './utils/textEncoding.ts';
 import { getJson, postComunicadosAction } from './services/eacApiClient.ts';
-import { NAVIGATION_ROADMAP, isViewEnabledInRoadmap } from './utils/navigationRoadmap.ts';
+import GroupHubPage from './components/GroupHubPage.tsx';
+import { NAVIGATION_ROADMAP, NAVIGATION_GROUPS, isViewEnabledInRoadmap, groupHasAccess, visibleGroupItems } from './utils/navigationRoadmap.ts';
 
 const viewPathMap: Partial<Record<View, string>> = {
   members: '/cadastro',
@@ -40,6 +41,10 @@ const viewPathMap: Partial<Record<View, string>> = {
   encontreiros: '/encontreiros',
   encontros: '/encontros',
   equipes: '/equipes',
+  pessoas_hub: '/menu/pessoas',
+  encontros_hub: '/menu/encontros',
+  comunicacao_hub: '/menu/comunicacao',
+  gestao_hub: '/menu/gestao',
 };
 
 const pathViewMap: Record<string, View> = {
@@ -52,6 +57,10 @@ const pathViewMap: Record<string, View> = {
   '/encontreiros': 'encontreiros',
   '/encontros': 'encontros',
   '/equipes': 'equipes',
+  '/menu/pessoas': 'pessoas_hub',
+  '/menu/encontros': 'encontros_hub',
+  '/menu/comunicacao': 'comunicacao_hub',
+  '/menu/gestao': 'gestao_hub',
 };
 
 const publicFormPathMap = {
@@ -378,6 +387,12 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!user || user.role === 'ADMIN') return;
     const allowed = user.permissions?.allowedModules || [];
+    const hubGroup = NAVIGATION_GROUPS.find((g) => g.hubView === currentView);
+    if (hubGroup && !groupHasAccess(hubGroup, false, allowed)) {
+      setCurrentView('dashboard');
+      showToast(`Seu usuário não possui acesso ao grupo ${hubGroup.label}.`, 'error');
+      return;
+    }
     const isPrioritariasView = currentView === 'inscricoes_prioritarias';
     if (isPrioritariasView && !allowed.includes('inscricoes_prioritarias')) {
       setCurrentView('dashboard');
@@ -638,6 +653,13 @@ const App: React.FC = () => {
       <Header user={user} onLogout={() => { setUser(null); localStorage.removeItem('eac_user'); }} onNavigate={handleNavigate} currentView={currentView} />
       <main className="flex-grow pt-[72px] bg-slate-50 relative">
         {currentView === 'dashboard' && <Dashboard user={user} logs={logs} calendarEvents={calendarEvents} comunicados={comunicados} membersCount={membersCount} nonEnrolledCount={nonEnrolledCount} nonEnrolledPreConfirmadasCount={nonEnrolledIndicators.preConfirmadasCount} nonEnrolledInteresseCount={nonEnrolledIndicators.interesseCount} nonEnrolledInteresseNoCount={nonEnrolledIndicators.interesseNoCount} dashboardInsights={dashboardInsights} onNavigate={handleNavigate} lastSync={lastSync} onRefresh={fetchSpreadsheetData} isLoading={isLoadingSheet} />}
+        {(() => {
+          const hubGroup = NAVIGATION_GROUPS.find((g) => g.hubView === currentView);
+          if (!hubGroup) return null;
+          const isAdmin = user.role === 'ADMIN';
+          const allowed = user.permissions?.allowedModules || [];
+          return <GroupHubPage group={hubGroup} items={visibleGroupItems(hubGroup, isAdmin, allowed)} onNavigate={handleNavigate} />;
+        })()}
         {currentView === 'members' && (
           <MembersPage
             user={user}
