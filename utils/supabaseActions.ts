@@ -2632,11 +2632,14 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       const adolescentePayload = await pickPayloadByExistingColumns(supabase, 'adolescentes', {
         tempo_participacao_paroquia: cleanText(ctx.payload.tempoParoquia),
         grupo_ministerio_descricao: cleanText(ctx.payload.participaGrupo),
-        participa_grupo_ministerio: cleanText(ctx.payload.participaGrupo),
+        // autorizacao_imagem, aceite_normas e participa_grupo_ministerio são
+        // colunas boolean no Supabase (o formulário manda "Sim"/"Não", que o
+        // Postgres rejeita com "invalid input syntax for type boolean").
+        participa_grupo_ministerio: toBool(ctx.payload.participaGrupo),
         motivacao: cleanText(ctx.payload.motivacao),
         expectativas: cleanText(ctx.payload.expectativas),
-        autorizacao_imagem: cleanText(ctx.payload.autorizaImagem),
-        aceite_normas: cleanText(ctx.payload.concordaNormas),
+        autorizacao_imagem: toBool(ctx.payload.autorizaImagem),
+        aceite_normas: toBool(ctx.payload.concordaNormas),
         atualizado_em: nowIso,
         ultima_sincronizacao: nowIso,
       });
