@@ -214,6 +214,17 @@ const PublicPresenceForm: React.FC = () => {
             <h1 className="text-3xl font-black text-slate-900 text-center mb-2">Registro de Presenca</h1>
             <p className="text-center text-slate-600 mb-7">Selecione o evento e o nome para confirmar sua presenca.</p>
 
+            <div className="mb-6 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-700">
+              <p className="font-extrabold text-[#044372]">Como registrar sua presenca</p>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 marker:font-bold">
+                <li>Escolha o tipo de evento e o grupo que deseja consultar.</li>
+                <li>Digite parte do nome e clique na pessoa correta na lista.</li>
+                <li>Confira ou informe o circulo. Para encontreiro, ele pode ser preenchido automaticamente.</li>
+                <li>Atualize telefone ou e-mail somente se os dados estiverem ausentes ou incorretos.</li>
+                <li>Finalize em <strong>Registrar presenca</strong>.</li>
+              </ol>
+            </div>
+
             {isSubmitted && (
               <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800 font-semibold">
                 Presenca registrada com sucesso.
