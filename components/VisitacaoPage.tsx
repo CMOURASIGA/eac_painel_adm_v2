@@ -401,46 +401,50 @@ const VisitacaoPage: React.FC<{ user: User }> = ({ user }) => {
       {modalOpen && selectedItem ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/50" onClick={() => setModalOpen(false)} />
-          <form onSubmit={handleSave} className="relative w-full max-w-2xl rounded-[2rem] bg-white border border-slate-200 shadow-2xl p-6 space-y-5">
-            <div>
+          <form onSubmit={handleSave} className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl">
+            <div className="shrink-0 px-6 pt-6">
               <p className="text-[11px] font-black uppercase tracking-[0.25em] text-blue-600">Atualizar visitação</p>
               <h3 className="mt-2 text-2xl font-black text-slate-900">{selectedItem.nome}</h3>
               <p className="mt-1 text-sm text-slate-500">{selectedItem.bairro || 'Bairro não informado'} • Responsável cadastrado: {selectedItem.responsavel_nome || 'não informado'}</p>
             </div>
-            <div className="grid md:grid-cols-2 gap-4">
-              <label className="space-y-2">
-                <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">Status da ação</span>
-                <select value={form.status_visitacao} onChange={(event) => setForm((current) => ({ ...current, status_visitacao: event.target.value as VisitacaoStatus }))} className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-blue-500">
-                  {ACTION_STATUSES.map((status) => <option key={status} value={status}>{STATUS_VISITACAO_UI[status].label}</option>)}
-                </select>
-              </label>
-              <label className="space-y-2">
-                <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">Data da ação</span>
-                <input type="datetime-local" value={form.data_acao} onChange={(event) => setForm((current) => ({ ...current, data_acao: event.target.value }))} className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-blue-500" required />
-              </label>
-            </div>
-            {selectedItem.respostas_questionario ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-                <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">Últimas respostas</div>
-                <div className="mt-2 font-semibold text-slate-700">{summarizeVisitacaoQuestionario(selectedItem.respostas_questionario)}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+              <div className="space-y-5">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <label className="space-y-2">
+                    <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">Status da ação</span>
+                    <select value={form.status_visitacao} onChange={(event) => setForm((current) => ({ ...current, status_visitacao: event.target.value as VisitacaoStatus }))} className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-blue-500">
+                      {ACTION_STATUSES.map((status) => <option key={status} value={status}>{STATUS_VISITACAO_UI[status].label}</option>)}
+                    </select>
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">Data da ação</span>
+                    <input type="datetime-local" value={form.data_acao} onChange={(event) => setForm((current) => ({ ...current, data_acao: event.target.value }))} className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-blue-500" required />
+                  </label>
+                </div>
+                {selectedItem.respostas_questionario ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                    <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">Últimas respostas</div>
+                    <div className="mt-2 font-semibold text-slate-700">{summarizeVisitacaoQuestionario(selectedItem.respostas_questionario)}</div>
+                  </div>
+                ) : null}
+                <label className="space-y-2 block">
+                  <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">Responsável pela ação</span>
+                  <input value={form.responsavel_acao} onChange={(event) => setForm((current) => ({ ...current, responsavel_acao: event.target.value }))} className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-blue-500" required />
+                </label>
+                <div className="space-y-3 rounded-[2rem] border border-blue-100 bg-blue-50/60 p-5">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.25em] text-blue-600">Perguntas da visitação</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-600">Registre as respostas da visita antes de salvar a ação operacional.</p>
+                  </div>
+                  <VisitacaoQuestionarioFields value={questionario} onChange={setQuestionario} compact />
+                </div>
+                <label className="space-y-2 block">
+                  <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">Observação</span>
+                  <textarea rows={4} value={form.observacao} onChange={(event) => setForm((current) => ({ ...current, observacao: event.target.value }))} className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-blue-500" placeholder="Detalhes do contato, retorno ou observação operacional." />
+                </label>
               </div>
-            ) : null}
-            <label className="space-y-2 block">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">Responsável pela ação</span>
-              <input value={form.responsavel_acao} onChange={(event) => setForm((current) => ({ ...current, responsavel_acao: event.target.value }))} className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-blue-500" required />
-            </label>
-            <div className="space-y-3 rounded-[2rem] border border-blue-100 bg-blue-50/60 p-5">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.25em] text-blue-600">Perguntas da visitação</p>
-                <p className="mt-1 text-sm font-semibold text-slate-600">Registre as respostas da visita antes de salvar a ação operacional.</p>
-              </div>
-              <VisitacaoQuestionarioFields value={questionario} onChange={setQuestionario} compact />
             </div>
-            <label className="space-y-2 block">
-              <span className="text-[11px] font-black uppercase tracking-widest text-slate-500">Observação</span>
-              <textarea rows={4} value={form.observacao} onChange={(event) => setForm((current) => ({ ...current, observacao: event.target.value }))} className="w-full rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:border-blue-500" placeholder="Detalhes do contato, retorno ou observação operacional." />
-            </label>
-            <div className="flex justify-end gap-3">
+            <div className="flex shrink-0 justify-end gap-3 border-t border-slate-100 bg-white px-6 py-4">
               <button type="button" onClick={() => setModalOpen(false)} className="rounded-2xl border border-slate-200 px-5 py-3 text-xs font-black uppercase tracking-widest text-slate-600">Cancelar</button>
               <button type="submit" disabled={saving} className="rounded-2xl bg-blue-600 text-white px-5 py-3 text-xs font-black uppercase tracking-widest disabled:opacity-60">{saving ? 'Salvando...' : 'Salvar atualização'}</button>
             </div>
