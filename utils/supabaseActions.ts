@@ -4340,11 +4340,37 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       const tableCandidates = getEncontreirosWriteCandidates();
       const fallbackToRpc = async () => {
         const fallback = await saveEncontreiroViaRpc(supabase, ctx.payload, pessoaId || '');
+        // Em alguns bancos a tabela de encontreiros possui colunas legadas e o
+        // salvamento principal precisa usar a RPC. A RPC não conhece os campos
+        // de manifestação deste formulário, portanto estes precisam ser
+        // gravados logo depois no mesmo registro, sem informar sucesso antes.
+        const manifestacaoEncontroId = cleanText(ctx.payload.manifestacaoEncontroId);
+        const desejaTrabalhar = cleanText(ctx.payload.desejaTrabalharProximoEac);
+        let savedNormalized = fallback.savedNormalized;
+        if (manifestacaoEncontroId && desejaTrabalhar) {
+          const registroId = cleanText(ctx.payload.id) || cleanText(fallback.savedNormalized?.id);
+          if (!registroId) {
+            throw new Error('Não foi possível identificar o cadastro para registrar sua manifestação.');
+          }
+          const manifestacao = await supabase
+            .from('encontreiros')
+            .update({
+              deseja_trabalhar_proximo_eac: desejaTrabalhar,
+              manifestacao_encontro_id: manifestacaoEncontroId,
+              manifestacao_atualizada_em: cleanText(ctx.payload.manifestacaoAtualizadaEm) || new Date().toISOString(),
+            })
+            .eq('id', registroId)
+            .select('*')
+            .maybeSingle();
+          if (manifestacao.error) throw manifestacao.error;
+          if (!manifestacao.data) throw new Error('A manifestação não foi gravada. Tente novamente.');
+          savedNormalized = normalizeEncontreiro(manifestacao.data, 0);
+        }
         return {
           ok: true as const,
           data: {
             success: true,
-            data: fallback.savedNormalized,
+            data: savedNormalized,
             pessoa_id: fallback.pessoaId || null,
             email_confirmacao: { sent: false, reason: 'not_attempted' },
             table: 'rpc:eac_ensure_encontreiro',
@@ -5706,7 +5732,6 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
     return { ok: false, error: message, details: e };
   }
 }
-
 
 
 
