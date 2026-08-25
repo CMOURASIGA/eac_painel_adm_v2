@@ -69,6 +69,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, focusEnco
     try {
       const r = await postComunicadosAction<any>('SAVE_FORMULARIOS_CONFIG', formSettings);
       if (!r.success) throw new Error(r.error || 'Não foi possível salvar os controles dos formulários.');
+      const saved = (r.data as any)?.config;
+      if (saved) setFormSettings(saved);
       setEncontrosFeedback('Controles dos formulários atualizados. Se o EAC de confirmação mudou, as respostas anteriores foram limpas.');
     } catch (e: any) {
       setEncontrosError(e?.message || 'Não foi possível salvar os controles dos formulários.');
@@ -193,6 +195,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, focusEnco
             <p className="mt-2 text-xs text-slate-500">Ao trocar este encontro, as respostas Sim e Não do ciclo anterior serão limpas para todos responderem novamente.</p>
           </div>
           <button type="button" onClick={saveFormSettings} disabled={savingForms} className="mt-5 rounded-xl bg-blue-600 px-5 py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-60">{savingForms ? 'Salvando...' : 'Salvar controles dos formulários'}</button>
+          {encontrosError ? <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-700">{encontrosError}</div> : null}
+          {encontrosFeedback ? <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">{encontrosFeedback}</div> : null}
         </section>}
         {!focusEncontros && <section className={`bg-white rounded-[2.5rem] border overflow-hidden shadow-sm transition-all ${isVercelConfigured ? 'border-green-300 ring-4 ring-green-50 shadow-green-100/50' : 'border-slate-200'}`}>
           <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
