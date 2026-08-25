@@ -4450,6 +4450,29 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
             : 'O cadastro não foi salvo. Tente novamente em instantes.'
         );
       }
+
+      // A manifestação é uma informação operacional crítica. Grava-a em uma
+      // atualização explícita e confirma o retorno, para nunca reportar um
+      // cadastro atualizado sem que o SIM/NÃO tenha sido persistido.
+      const manifestacaoEncontroId = cleanText(ctx.payload.manifestacaoEncontroId);
+      const desejaTrabalhar = cleanText(ctx.payload.desejaTrabalharProximoEac);
+      if (manifestacaoEncontroId && desejaTrabalhar) {
+        const registroId = id || cleanText(saved?.id);
+        if (!registroId) throw new Error('Não foi possível identificar o cadastro para registrar sua manifestação.');
+        const manifestacao = await supabase
+          .from(table || 'encontreiros')
+          .update({
+            deseja_trabalhar_proximo_eac: desejaTrabalhar,
+            manifestacao_encontro_id: manifestacaoEncontroId,
+            manifestacao_atualizada_em: cleanText(ctx.payload.manifestacaoAtualizadaEm) || new Date().toISOString(),
+          })
+          .eq('id', registroId)
+          .select('*')
+          .maybeSingle();
+        if (manifestacao.error) throw manifestacao.error;
+        if (!manifestacao.data) throw new Error('A manifestação não foi gravada. Tente novamente.');
+        saved = manifestacao.data;
+      }
       const savedNormalized = normalizeEncontreiro(saved || {}, 0);
       const emailDestino = cleanText(savedNormalized.email || cleanText(ctx.payload.email));
       let emailConfirmacao: any = { sent: false, reason: 'not_attempted' };
@@ -5683,7 +5706,6 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
     return { ok: false, error: message, details: e };
   }
 }
-
 
 
 
