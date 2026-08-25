@@ -1619,7 +1619,7 @@ async function upsertPessoaFromEncontreiro(supabase: SupabaseClient, payload: Js
   const email = String(pessoaPayload.email || '').trim().toLowerCase();
   const telNorm = String(pessoaPayload.telefone_normalizado || '').trim();
 
-  let query = supabase.from('pessoas').select('id').limit(1);
+  let query = supabase.from('pessoas').select('id').limit(20);
   if (email && telNorm) {
     query = query.or(`email.eq.${email},telefone_normalizado.eq.${telNorm}`);
   } else if (email) {
@@ -1633,7 +1633,26 @@ async function upsertPessoaFromEncontreiro(supabase: SupabaseClient, payload: Js
   const { data: existing, error: existingError } = await query;
   if (existingError) throw existingError;
 
-  const existingId = Array.isArray(existing) && existing[0]?.id ? String(existing[0].id) : '';
+  const existingIds = Array.isArray(existing)
+    ? existing.map((row: any) => cleanText(row?.id)).filter(Boolean)
+    : [];
+
+  // Quando existirem pessoas antigas duplicadas pelo mesmo contato, prioriza
+  // aquela que já possui cadastro de encontreiro. Assim um formulário nunca
+  // recria um segundo encontreiro para uma pessoa órfã com o mesmo telefone.
+  let existingId = existingIds[0] || '';
+  if (existingIds.length > 1) {
+    const { data: existentesEncontreiros, error: encontreiroLookupError } = await supabase
+      .from('encontreiros')
+      .select('pessoa_id,criado_em')
+      .in('pessoa_id', existingIds)
+      .order('criado_em', { ascending: true });
+    if (encontreiroLookupError) throw encontreiroLookupError;
+    const pessoaComCadastro = (Array.isArray(existentesEncontreiros) ? existentesEncontreiros : [])
+      .map((row: any) => cleanText(row?.pessoa_id))
+      .find(Boolean);
+    if (pessoaComCadastro) existingId = pessoaComCadastro;
+  }
   if (existingId) {
     const { data: updated, error: updateErr } = await supabase
       .from('pessoas')
@@ -5664,7 +5683,6 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
     return { ok: false, error: message, details: e };
   }
 }
-
 
 
 
