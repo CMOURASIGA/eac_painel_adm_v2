@@ -1,6 +1,7 @@
 ﻿import React, { useMemo, useState } from 'react';
 import Toast from './Toast';
 import { inscricoesService } from '../services/inscricoesService.ts';
+import { postComunicadosAction } from '../services/eacApiClient.ts';
 import { toCleanString } from '../utils/textEncoding.ts';
 
 type ToastState = { message: string; type: 'success' | 'error' | 'info' } | null;
@@ -37,6 +38,14 @@ const PublicInscricaoForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [formConfig, setFormConfig] = useState<any>(null);
+
+  React.useEffect(() => {
+    void (async () => {
+      const r = await postComunicadosAction<any>('GET_FORMULARIOS_CONFIG', {});
+      if (r.success) setFormConfig((r.data as any)?.config || null);
+    })();
+  }, []);
 
   const [form, setForm] = useState({
     nome_adolescente: '',
@@ -167,6 +176,10 @@ const PublicInscricaoForm: React.FC = () => {
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </div>
     );
+  }
+
+  if (formConfig && formConfig.encontrista_ativo === false) {
+    return <div className="min-h-screen bg-slate-50 grid place-items-center p-4"><div className="max-w-md rounded-[28px] bg-white p-8 text-center shadow"><img src="https://i.imgur.com/c5XQ7TW.png" alt="Logo EAC" className="mx-auto mb-6 h-16" /><h1 className="text-2xl font-black text-slate-900">Formulário indisponível</h1><p className="mt-3 text-slate-600">Em breve retornará.</p></div></div>;
   }
 
   const inputClass = (field: string) =>

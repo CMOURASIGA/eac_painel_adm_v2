@@ -29,6 +29,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, focusEnco
   const [savingEncontro, setSavingEncontro] = useState(false);
   const [encontrosError, setEncontrosError] = useState('');
   const [encontrosFeedback, setEncontrosFeedback] = useState('');
+  const [formSettings, setFormSettings] = useState<any>({ encontrista_ativo: true, encontreiro_ativo: true, presenca_ativo: true, encontro_confirmacao_id: '' });
+  const [savingForms, setSavingForms] = useState(false);
   const [editingId, setEditingId] = useState('');
   const [encontroForm, setEncontroForm] = useState({
     numero: '',
@@ -54,6 +56,24 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, focusEnco
     };
     void load();
   }, []);
+
+  React.useEffect(() => {
+    void (async () => {
+      const r = await postComunicadosAction<any>('GET_FORMULARIOS_CONFIG', {});
+      if (r.success) setFormSettings((r.data as any)?.config || formSettings);
+    })();
+  }, []);
+
+  const saveFormSettings = async () => {
+    setSavingForms(true);
+    try {
+      const r = await postComunicadosAction<any>('SAVE_FORMULARIOS_CONFIG', formSettings);
+      if (!r.success) throw new Error(r.error || 'Não foi possível salvar os controles dos formulários.');
+      setEncontrosFeedback('Controles dos formulários atualizados. Se o EAC de confirmação mudou, as respostas anteriores foram limpas.');
+    } catch (e: any) {
+      setEncontrosError(e?.message || 'Não foi possível salvar os controles dos formulários.');
+    } finally { setSavingForms(false); }
+  };
 
   const loadEncontros = React.useCallback(async () => {
     setLoadingEncontros(true);
@@ -154,6 +174,26 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, focusEnco
       </header>
 
       <div className="grid grid-cols-1 gap-8">
+        {!focusEncontros && <section className="rounded-[2.5rem] border border-slate-200 bg-white p-8 shadow-sm">
+          <h3 className="text-sm font-black uppercase tracking-wider text-slate-900">Formulários públicos</h3>
+          <p className="mt-2 text-sm text-slate-500">Defina quais formulários podem ser usados e qual EAC recebe a confirmação de equipe.</p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            {([
+              ['encontrista_ativo', 'Encontrista'],
+              ['encontreiro_ativo', 'Encontreiro'],
+              ['presenca_ativo', 'Presença'],
+            ] as const).map(([field, label]) => <label key={field} className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-sm font-bold text-slate-700"><input type="checkbox" checked={formSettings[field] !== false} onChange={(e) => setFormSettings((prev: any) => ({ ...prev, [field]: e.target.checked }))} /> {label} ativo</label>)}
+          </div>
+          <div className="mt-5">
+            <label className="mb-1 block text-sm font-extrabold text-slate-800">EAC aberto para confirmação de equipe</label>
+            <select value={formSettings.encontro_confirmacao_id || ''} onChange={(e) => setFormSettings((prev: any) => ({ ...prev, encontro_confirmacao_id: e.target.value }))} className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4">
+              <option value="">Nenhum encontro aberto para confirmação</option>
+              {encontros.map((item) => <option key={item.id} value={item.id}>{item.nome || `${item.numero || ''}º EAC`}</option>)}
+            </select>
+            <p className="mt-2 text-xs text-slate-500">Ao trocar este encontro, as respostas Sim e Não do ciclo anterior serão limpas para todos responderem novamente.</p>
+          </div>
+          <button type="button" onClick={saveFormSettings} disabled={savingForms} className="mt-5 rounded-xl bg-blue-600 px-5 py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-60">{savingForms ? 'Salvando...' : 'Salvar controles dos formulários'}</button>
+        </section>}
         {!focusEncontros && <section className={`bg-white rounded-[2.5rem] border overflow-hidden shadow-sm transition-all ${isVercelConfigured ? 'border-green-300 ring-4 ring-green-50 shadow-green-100/50' : 'border-slate-200'}`}>
           <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
             <div className="flex items-center space-x-4">

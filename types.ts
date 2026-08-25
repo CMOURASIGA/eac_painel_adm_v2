@@ -199,6 +199,9 @@ export interface EncontreiroRecord {
   classificacao?: string;
   whatsappNormalizado?: string;
   whatsappLink?: string;
+  desejaTrabalharProximoEac?: string;
+  manifestacaoEncontroId?: string;
+  manifestacaoAtualizadaEm?: string;
 }
 
 export interface PresenceRecord {
@@ -341,4 +344,3 @@ export interface LogEntry {
   message: string;
   context?: any;
 }
-

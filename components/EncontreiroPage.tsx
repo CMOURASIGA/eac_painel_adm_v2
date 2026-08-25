@@ -487,6 +487,8 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
         'Sugestao para melhorarmos',
         'Dica para pos-encontro',
         'Classificacao',
+        'Deseja trabalhar no proximo EAC',
+        'Data da manifestacao',
       ];
 
       const rows = filteredRecords.map((r) => ([
@@ -513,6 +515,8 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
         toClean(r.sugestaoUltimoEncontro),
         toClean(r.dicaPosEncontro),
         toClean(r.classificacao),
+        toClean(r.desejaTrabalharProximoEac),
+        formatDateTime(r.manifestacaoAtualizadaEm),
       ]));
 
       const sep = ';';
@@ -1227,6 +1231,5 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
 };
 
 export default EncontreiroPage;
-
 
 

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Toast from './Toast';
 import { postComunicadosAction } from '../services/eacApiClient.ts';
 import { toCleanString } from '../utils/textEncoding.ts';
@@ -112,6 +112,8 @@ const PublicEncontreiroForm: React.FC = () => {
   const [hasSearched, setHasSearched] = useState(false);
   const [existingId, setExistingId] = useState('');
   const [existingRecord, setExistingRecord] = useState<Record<string, any> | null>(null);
+  const [formConfig, setFormConfig] = useState<any>(null);
+  const [workInterest, setWorkInterest] = useState('');
 
   const [form, setForm] = useState({
     nomeCompleto: '',
@@ -128,6 +130,13 @@ const PublicEncontreiroForm: React.FC = () => {
   });
 
   const isUpdateMode = Boolean(existingId);
+
+  useEffect(() => {
+    void (async () => {
+      const r = await postComunicadosAction<any>('GET_FORMULARIOS_CONFIG', {});
+      if (r.success) setFormConfig((r.data as any)?.config || null);
+    })();
+  }, []);
 
   const computedAge = useMemo(() => {
     const birth = parseUserTypedBRDate(form.dataNascimento);
@@ -166,6 +175,9 @@ const PublicEncontreiroForm: React.FC = () => {
     if (bairro.replace(/\s/g, '').length < 2) errors.bairro = 'Informe o bairro.';
     if (email && (!email.includes('@') || !email.includes('.'))) errors.email = 'Informe um e-mail válido.';
     if (!form.aceite_termos) errors.aceite_termos = 'É necessário aceitar os termos para enviar.';
+    if (formConfig?.encontreiro_ativo && formConfig?.encontro_confirmacao_id && !workInterest) {
+      errors.desejaTrabalhar = 'Informe se deseja trabalhar neste EAC.';
+    }
 
     return errors;
   };
@@ -191,6 +203,11 @@ const PublicEncontreiroForm: React.FC = () => {
       if (found && record) {
         setExistingId(toCleanString(record.id));
         setExistingRecord(record);
+        setWorkInterest(
+          String(record.manifestacaoEncontroId || '') === String(formConfig?.encontro_confirmacao_id || '')
+            ? String(record.desejaTrabalharProximoEac || '')
+            : ''
+        );
         // Substitui o formulário inteiro pelos dados do registro encontrado
         // (nunca faz merge com o que sobrou de uma busca anterior) — senão um
         // campo vazio nesse cadastro (ex.: sem nome de preferência) ficava
@@ -212,6 +229,7 @@ const PublicEncontreiroForm: React.FC = () => {
       } else {
         setExistingId('');
         setExistingRecord(null);
+        setWorkInterest('');
         // Idem: começa um cadastro novo do zero, sem herdar nada de uma
         // busca anterior (por telefone que tenha sido pesquisado antes).
         setForm({
@@ -265,6 +283,11 @@ const PublicEncontreiroForm: React.FC = () => {
       paroquiaFezEac: toCleanString(form.paroquiaFezEac),
       sugestaoUltimoEncontro: toCleanString(form.observacoes),
       aceite_termos: form.aceite_termos,
+      ...(formConfig?.encontro_confirmacao_id && workInterest ? {
+        desejaTrabalharProximoEac: workInterest,
+        manifestacaoEncontroId: formConfig.encontro_confirmacao_id,
+        manifestacaoAtualizadaEm: new Date().toISOString(),
+      } : {}),
     };
 
     // Em modo de atualização, parte do registro já existente (que inclui campos
@@ -297,6 +320,18 @@ const PublicEncontreiroForm: React.FC = () => {
     }`;
   const labelClass = 'block text-sm font-extrabold text-slate-800 mb-1';
 
+  if (formConfig && formConfig.encontreiro_ativo === false) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-[#eef4ff] via-[#f8fafc] to-[#eef2f7] grid place-items-center p-4">
+        <div className="w-full max-w-md rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-[0_12px_34px_-20px_rgba(15,23,42,0.45)]">
+          <img src="https://i.imgur.com/c5XQ7TW.png" alt="Logo EAC" className="mx-auto mb-6 h-16" />
+          <h1 className="text-2xl font-black text-slate-900">Formulário indisponível</h1>
+          <p className="mt-3 text-slate-600">Em breve retornará. Acompanhe os canais oficiais do EAC.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#eef4ff] via-[#f8fafc] to-[#eef2f7] py-10 px-4">
       <div className="mx-auto w-full max-w-2xl space-y-5">
@@ -309,6 +344,16 @@ const PublicEncontreiroForm: React.FC = () => {
             <p className="text-center text-slate-600 mb-7">
               Informe seu telefone/WhatsApp para localizarmos um cadastro já existente, ou para começar um novo cadastro.
             </p>
+
+            <div className="mb-6 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-700">
+              <p className="font-extrabold text-[#044372]">Como preencher este formulário</p>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 marker:font-bold">
+                <li>Informe seu WhatsApp e use a busca para localizar seu cadastro.</li>
+                <li>Revise seus dados e altere apenas o que estiver desatualizado.</li>
+                {formConfig?.encontro_confirmacao_nome ? <li>Confirme se deseja trabalhar no {formConfig.encontro_confirmacao_nome}.</li> : null}
+                <li>Leia os termos e finalize em <strong>Enviar cadastro</strong>.</li>
+              </ol>
+            </div>
 
             {isSubmitted ? (
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-800 font-semibold">
@@ -410,6 +455,16 @@ const PublicEncontreiroForm: React.FC = () => {
                   <label className={labelClass}>Observações</label>
                   <textarea rows={3} value={form.observacoes} onChange={(e) => setForm((p) => ({ ...p, observacoes: e.target.value }))} className="w-full px-4 py-3 border border-slate-300 rounded-xl bg-white transition focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500" />
                 </div>
+                {formConfig?.encontreiro_ativo && formConfig?.encontro_confirmacao_id ? (
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                    <label className={labelClass}>Deseja trabalhar no {formConfig.encontro_confirmacao_nome}? *</label>
+                    <p className="mb-3 text-xs font-semibold text-slate-600">Sua resposta vale somente para este encontro e será solicitada novamente quando a coordenação abrir o próximo EAC.</p>
+                    <div className="flex gap-3">
+                      {['SIM', 'NÃO'].map((option) => <button key={option} type="button" onClick={() => setWorkInterest(option)} className={`flex-1 rounded-xl border px-4 py-3 text-sm font-black ${workInterest === option ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-300 bg-white text-slate-700'}`}>{option}</button>)}
+                    </div>
+                    {fieldErrors.desejaTrabalhar ? <p className="mt-2 text-xs text-red-600">{fieldErrors.desejaTrabalhar}</p> : null}
+                  </div>
+                ) : null}
                 <div className="flex items-start gap-3">
                   <input type="checkbox" checked={form.aceite_termos} onChange={(e) => setForm((p) => ({ ...p, aceite_termos: e.target.checked }))} className="mt-1 w-5 h-5" />
                   <div>

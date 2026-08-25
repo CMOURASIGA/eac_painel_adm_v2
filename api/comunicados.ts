@@ -227,6 +227,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       'GET_LOGS',
       'GET_OPERATIONAL_LOGS',
       'GET_SAFE_SETTINGS',
+      'GET_FORMULARIOS_CONFIG',
+      'SAVE_FORMULARIOS_CONFIG',
       'GET_CONTEXT_HELP',
       'GET_ENCONTREIROS',
       'GET_ENCONTREIRO_PUBLIC_BY_TELEFONE',
@@ -427,5 +429,3 @@ function errorToSample(error: unknown) {
   if (idx === -1) return '';
   return message.slice(idx + marker.length).slice(0, 400);
 }
-
-

@@ -1220,6 +1220,9 @@ function normalizeEncontreiro(row: any, i: number) {
     classificacao: pickFirst(row, ['classificacao', 'classificação']),
     whatsappNormalizado: pickFirst(row, ['whatsappNormalizado', 'whatsapp_normalizado']),
     whatsappLink: pickFirst(row, ['whatsappLink', 'whatsapp_link']),
+    desejaTrabalharProximoEac: pickFirst(row, ['desejaTrabalharProximoEac', 'deseja_trabalhar_proximo_eac']),
+    manifestacaoEncontroId: pickFirst(row, ['manifestacaoEncontroId', 'manifestacao_encontro_id']),
+    manifestacaoAtualizadaEm: pickFirst(row, ['manifestacaoAtualizadaEm', 'manifestacao_atualizada_em']),
   };
 }
 
@@ -1309,6 +1312,9 @@ function buildEncontreiroRowPayload(payload: JsonObject, mode: 'camel' | 'snake'
     [mapKey('sugestaoUltimoEncontro', 'sugestao_ultimo_encontro')]: cleanText(payload.sugestaoUltimoEncontro),
     [mapKey('dicaPosEncontro', 'dica_pos_encontro')]: cleanText(payload.dicaPosEncontro),
     [mapKey('classificacao', 'classificacao')]: cleanText(payload.classificacao),
+    [mapKey('desejaTrabalharProximoEac', 'deseja_trabalhar_proximo_eac')]: cleanText(payload.desejaTrabalharProximoEac) || null,
+    [mapKey('manifestacaoEncontroId', 'manifestacao_encontro_id')]: cleanText(payload.manifestacaoEncontroId) || null,
+    [mapKey('manifestacaoAtualizadaEm', 'manifestacao_atualizada_em')]: cleanText(payload.manifestacaoAtualizadaEm) || null,
   };
   return out;
 }
@@ -3994,6 +4000,43 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       return { ok: true, data: { success: true, source: 'runtime', settings: safeOperationalSettings() } };
     }
 
+    if (ctx.action === 'GET_FORMULARIOS_CONFIG') {
+      const { data: config, error } = await supabase
+        .from('configuracoes_formularios')
+        .select('*')
+        .eq('id', 'geral')
+        .maybeSingle();
+      if (error && !isMissingRelationError(error)) throw error;
+      const encontroId = cleanText((config as any)?.encontro_confirmacao_id);
+      let encontro: any = null;
+      if (encontroId) {
+        const result = await supabase.from('encontros').select('id,numero,nome').eq('id', encontroId).maybeSingle();
+        if (!result.error) encontro = result.data;
+      }
+      const nome = cleanText(pickFirst(encontro, ['nome'])) || (cleanText(pickFirst(encontro, ['numero'])) ? `${pickFirst(encontro, ['numero'])}º EAC` : 'próximo EAC');
+      return { ok: true, data: { success: true, config: {
+        encontrista_ativo: config ? (config as any).encontrista_ativo !== false : true,
+        encontreiro_ativo: config ? (config as any).encontreiro_ativo !== false : true,
+        presenca_ativo: config ? (config as any).presenca_ativo !== false : true,
+        encontro_confirmacao_id: encontroId || null,
+        encontro_confirmacao_nome: encontroId ? nome : null,
+      } } };
+    }
+
+    if (ctx.action === 'SAVE_FORMULARIOS_CONFIG') {
+      const payload = {
+        id: 'geral',
+        encontrista_ativo: ctx.payload.encontrista_ativo !== false,
+        encontreiro_ativo: ctx.payload.encontreiro_ativo !== false,
+        presenca_ativo: ctx.payload.presenca_ativo !== false,
+        encontro_confirmacao_id: cleanText(ctx.payload.encontro_confirmacao_id) || null,
+        atualizado_em: new Date().toISOString(),
+      };
+      const result = await supabase.from('configuracoes_formularios').upsert(payload).select('*').maybeSingle();
+      if (result.error) throw result.error;
+      return { ok: true, data: { success: true, config: result.data } };
+    }
+
     if (ctx.action === 'GET_CONTEXT_HELP') {
       const moduleName = cleanText(ctx.payload.module || ctx.payload.modulo).toLowerCase();
       if (!moduleName) {
@@ -5621,8 +5664,6 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
     return { ok: false, error: message, details: e };
   }
 }
-
-
 
 
 

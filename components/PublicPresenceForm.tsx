@@ -37,6 +37,14 @@ const PublicPresenceForm: React.FC = () => {
   const [emailAtualizado, setEmailAtualizado] = useState('');
   const [forcarCorrecaoEmail, setForcarCorrecaoEmail] = useState(false);
   const [candidates, setCandidates] = useState<PresenceCandidate[]>([]);
+  const [formConfig, setFormConfig] = useState<any>(null);
+
+  useEffect(() => {
+    void (async () => {
+      const r = await postComunicadosAction<any>('GET_FORMULARIOS_CONFIG', {});
+      if (r.success) setFormConfig((r.data as any)?.config || null);
+    })();
+  }, []);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info') => {
     setToast({ message, type });
@@ -201,6 +209,8 @@ const PublicPresenceForm: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  if (formConfig && formConfig.presenca_ativo === false) return <div className="min-h-screen bg-slate-50 grid place-items-center p-4"><div className="max-w-md rounded-[28px] bg-white p-8 text-center shadow"><img src="https://i.imgur.com/c5XQ7TW.png" alt="Logo EAC" className="mx-auto mb-6 h-16" /><h1 className="text-2xl font-black text-slate-900">Formulário indisponível</h1><p className="mt-3 text-slate-600">Em breve retornará.</p></div></div>;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#eef4ff] via-[#f8fafc] to-[#eef2f7] py-10 px-4">
