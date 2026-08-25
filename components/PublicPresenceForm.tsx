@@ -29,6 +29,8 @@ const PublicPresenceForm: React.FC = () => {
   const [eventType, setEventType] = useState<EventType>('POS_ENCONTRO');
   const [audienceType, setAudienceType] = useState<AudienceType>('TODOS');
   const [selectedKey, setSelectedKey] = useState('');
+  const [nameQuery, setNameQuery] = useState('');
+  const [isSuggestionsOpen, setIsSuggestionsOpen] = useState(false);
   const [circulo, setCirculo] = useState('');
   const [telefoneAtualizado, setTelefoneAtualizado] = useState('');
   const [forcarCorrecaoTelefone, setForcarCorrecaoTelefone] = useState(false);
@@ -83,6 +85,20 @@ const PublicPresenceForm: React.FC = () => {
     }
     return candidates;
   }, [audienceType, candidates]);
+
+  const normalizedNameQuery = useMemo(
+    () => nameQuery.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase(),
+    [nameQuery]
+  );
+
+  const suggestedCandidates = useMemo(() => {
+    if (!normalizedNameQuery) return [];
+    return filteredCandidates
+      .filter((candidate) =>
+        candidate.nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(normalizedNameQuery)
+      )
+      .slice(0, 8);
+  }, [filteredCandidates, normalizedNameQuery]);
 
   const selectedCandidate = useMemo(
     () => filteredCandidates.find((c) => c.key === selectedKey) || null,
@@ -169,6 +185,8 @@ const PublicPresenceForm: React.FC = () => {
 
       setIsSubmitted(true);
       setSelectedKey('');
+      setNameQuery('');
+      setIsSuggestionsOpen(false);
       setCirculo('');
       setTelefoneAtualizado('');
       setForcarCorrecaoTelefone(false);
@@ -195,6 +213,17 @@ const PublicPresenceForm: React.FC = () => {
           <div className="p-7 md:p-8">
             <h1 className="text-3xl font-black text-slate-900 text-center mb-2">Registro de Presenca</h1>
             <p className="text-center text-slate-600 mb-7">Selecione o evento e o nome para confirmar sua presenca.</p>
+
+            <div className="mb-6 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm text-slate-700">
+              <p className="font-extrabold text-[#044372]">Como registrar sua presenca</p>
+              <ol className="mt-2 list-decimal space-y-1 pl-5 marker:font-bold">
+                <li>Escolha o tipo de evento e o grupo que deseja consultar.</li>
+                <li>Digite parte do nome e clique na pessoa correta na lista.</li>
+                <li>Confira ou informe o circulo. Para encontreiro, ele pode ser preenchido automaticamente.</li>
+                <li>Atualize telefone ou e-mail somente se os dados estiverem ausentes ou incorretos.</li>
+                <li>Finalize em <strong>Registrar presenca</strong>.</li>
+              </ol>
+            </div>
 
             {isSubmitted && (
               <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800 font-semibold">
@@ -224,6 +253,8 @@ const PublicPresenceForm: React.FC = () => {
                   onChange={(e) => {
                     setAudienceType(e.target.value as AudienceType);
                     setSelectedKey('');
+                    setNameQuery('');
+                    setIsSuggestionsOpen(false);
                     setCirculo('');
                     setTelefoneAtualizado('');
                     setForcarCorrecaoTelefone(false);
@@ -240,25 +271,64 @@ const PublicPresenceForm: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-extrabold text-slate-800 mb-1">Nome completo *</label>
-                <select
-                  value={selectedKey}
-                  onChange={(e) => {
-                    setSelectedKey(e.target.value);
-                    setTelefoneAtualizado('');
-                    setForcarCorrecaoTelefone(false);
-                    setEmailAtualizado('');
-                    setForcarCorrecaoEmail(false);
-                  }}
-                  disabled={isLoadingBase}
-                  className="w-full h-12 px-4 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 disabled:opacity-60"
-                >
-                  <option value="">{isLoadingBase ? 'Carregando nomes...' : 'Selecione o nome'}</option>
-                  {filteredCandidates.map((c) => (
-                    <option key={c.key} value={c.key}>
-                      {`${c.nome} (${getOriginLabel(c.origem)})`}
-                    </option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="search"
+                    value={nameQuery}
+                    onChange={(e) => {
+                      setNameQuery(e.target.value);
+                      setSelectedKey('');
+                      setCirculo('');
+                      setTelefoneAtualizado('');
+                      setForcarCorrecaoTelefone(false);
+                      setEmailAtualizado('');
+                      setForcarCorrecaoEmail(false);
+                      setIsSuggestionsOpen(true);
+                    }}
+                    onFocus={() => setIsSuggestionsOpen(true)}
+                    onBlur={() => window.setTimeout(() => setIsSuggestionsOpen(false), 150)}
+                    placeholder={isLoadingBase ? 'Carregando nomes...' : 'Digite o nome para buscar'}
+                    disabled={isLoadingBase}
+                    className="w-full h-12 px-4 border border-slate-300 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 disabled:opacity-60"
+                    autoComplete="off"
+                    aria-autocomplete="list"
+                    aria-expanded={isSuggestionsOpen}
+                  />
+
+                  {isSuggestionsOpen && normalizedNameQuery ? (
+                    <div className="absolute z-20 mt-2 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl">
+                      {suggestedCandidates.length ? (
+                        suggestedCandidates.map((candidate) => (
+                          <button
+                            key={candidate.key}
+                            type="button"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setSelectedKey(candidate.key);
+                              setNameQuery(candidate.nome);
+                              setTelefoneAtualizado('');
+                              setForcarCorrecaoTelefone(false);
+                              setEmailAtualizado('');
+                              setForcarCorrecaoEmail(false);
+                              setIsSuggestionsOpen(false);
+                            }}
+                            className="w-full rounded-lg px-3 py-3 text-left hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+                          >
+                            <span className="block font-bold text-slate-900">{candidate.nome}</span>
+                            <span className="block text-xs font-semibold text-slate-500">
+                              {getOriginLabel(candidate.origem)}{candidate.circulo ? ` · ${candidate.circulo}` : ''}
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="px-3 py-4 text-sm font-semibold text-slate-500">Nenhum nome encontrado.</p>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                  Digite pelo menos parte do nome e escolha uma pessoa na lista.
+                </p>
               </div>
 
               <div>
