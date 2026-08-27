@@ -222,11 +222,12 @@ async function adolescenteIdsByPessoaFiltros(
     idadeMax?: number | null;
     bairro?: string;
     sexo?: string;
+    sexoNaoInformado?: boolean;
     buscaText?: string;
     buscaDigits?: string;
   }
 ) {
-  const { idadeMin, idadeMax, bairro, sexo, buscaText, buscaDigits } = opts;
+  const { idadeMin, idadeMax, bairro, sexo, sexoNaoInformado, buscaText, buscaDigits } = opts;
 
   console.log('[pessoaFiltros] buscaText:', buscaText, 'buscaDigits:', buscaDigits);
 
@@ -245,6 +246,7 @@ async function adolescenteIdsByPessoaFiltros(
     if (typeof idadeMax === 'number') pessoasQuery = pessoasQuery.lte('idade_calculada', idadeMax);
     if (bairro) pessoasQuery = pessoasQuery.ilike('bairro', `%${bairro}%`);
     if (sexo) pessoasQuery = pessoasQuery.ilike('sexo', sexo);
+    if (sexoNaoInformado) pessoasQuery = pessoasQuery.or('sexo.is.null,sexo.eq.');
 
   if (buscaDigits) {
     console.log('[pessoaFiltros] searching telefone_normalizado with:', buscaDigits);
@@ -337,6 +339,7 @@ export async function executeInscricoesAdminList(params: {
       .filter(Boolean)
   );
   const sexo = toCleanString(query.sexo).toUpperCase();
+  const sexoNaoInformado = toCleanString(query.sexo_nao_informado).toLowerCase() === 'true';
   const origemDado = toCleanString(query.origem_dado).toUpperCase();
   const bairro = toCleanString(query.bairro);
   const dataInicio = toCleanString(query.data_inicio);
@@ -384,10 +387,12 @@ export async function executeInscricoesAdminList(params: {
     let adolescenteIdsBase: string[] | null = null;
     try {
       const hasBasePessoaFilters =
-        Boolean(idadeMinRaw)
+        applyTriagemRule
+        || Boolean(idadeMinRaw)
         || Boolean(idadeMaxRaw)
         || Boolean(bairro)
-        || Boolean(sexo);
+        || Boolean(sexo)
+        || sexoNaoInformado;
 
       adolescenteIdsBase = hasBasePessoaFilters
         ? await adolescenteIdsByPessoaFiltros(supabase, {
@@ -395,6 +400,7 @@ export async function executeInscricoesAdminList(params: {
             idadeMax: idadeMaxTriagem,
             bairro,
             sexo,
+            sexoNaoInformado,
           })
         : null;
     } catch (e: any) {
@@ -586,7 +592,7 @@ export async function executeInscricoesAdminList(params: {
     });
 
     const porStatus: Record<string, number> = {};
-    consolidatedRows.forEach((r: any) => {
+    filteredRows.forEach((r: any) => {
       const s = toCleanString(r.status).toUpperCase() || 'SEM_STATUS';
       porStatus[s] = (porStatus[s] || 0) + 1;
     });
@@ -613,4 +619,3 @@ export async function executeInscricoesAdminList(params: {
     return { status: 500, body: { success: false, error: 'INTERNAL_ERROR', message: 'Erro ao listar inscrições.' } };
   }
 }
-

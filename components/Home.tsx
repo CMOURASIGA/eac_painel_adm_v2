@@ -18,6 +18,7 @@ interface AgeRow {
   idade: number;
   masculino: number;
   feminino: number;
+  naoInformado: number;
   total: number;
 }
 
@@ -26,6 +27,7 @@ interface FaixaRow {
   total: number;
   masculino: number;
   feminino: number;
+  naoInformado: number;
 }
 
 interface HomeData {
@@ -35,6 +37,7 @@ interface HomeData {
     total: number;
     masculino: number;
     feminino: number;
+    naoInformado: number;
     distribuicaoPorIdade: AgeRow[];
     cadastrosIncompletos: number;
     criterios: string;
@@ -43,6 +46,7 @@ interface HomeData {
     total: number;
     masculino: number;
     feminino: number;
+    naoInformado: number;
     porFaixaEtaria: FaixaRow[];
     origem: { comOrigemEncontrista: number; semOrigemEncontrista: number };
     criterios: string;
@@ -69,9 +73,11 @@ interface HomeData {
     ano: string;
     eventosRealizados: number;
     presentes: number;
+    participacoesRegistradas: number;
     participantesEsperados: number;
     ausentes: number;
     percentualPresenca: number | null;
+    origem: { comOrigemEncontrista: number; semOrigemEncontrista: number };
     ranking: Array<{ nome: string; presencas: number; assiduidade: number | null }>;
   };
   atencao: Array<{ chave: string; total: number; label: string; view: View; filtros: HomeNavigateFilters }>;
@@ -129,8 +135,8 @@ const InfoCriterios: React.FC<{ texto: string }> = ({ texto }) => {
   );
 };
 
-const SyncHeader: React.FC<{ lastSync?: string; isLoading?: boolean; onRefresh?: () => void }> = ({ lastSync, isLoading, onRefresh }) => {
-  const erro = false; // reservado para quando houver detecção real de falha de sincronização
+const SyncHeader: React.FC<{ lastSync?: string; isLoading?: boolean; error?: boolean; onRefresh?: () => void }> = ({ lastSync, isLoading, error, onRefresh }) => {
+  const erro = Boolean(error);
   const dotColor = erro ? 'bg-red-500' : isLoading ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500';
   const label = erro ? 'Falha na sincronização' : isLoading ? 'Sincronizando...' : 'Sincronizado';
   const textColor = erro ? 'text-red-600' : 'text-slate-500';
@@ -163,6 +169,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate, lastSync, onRefresh, isLo
   const [error, setError] = useState('');
   const [encontroId, setEncontroId] = useState('');
   const [tipoEvento, setTipoEvento] = useState<'POS_ENCONTRO' | 'REUNIAO_CIRCULO'>('POS_ENCONTRO');
+  const [homeUpdatedAt, setHomeUpdatedAt] = useState('');
 
   const fetchHome = useCallback(async (params: { encontroId?: string; tipoEvento?: string } = {}) => {
     setLoading(true);
@@ -179,6 +186,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate, lastSync, onRefresh, isLo
       if (!r.success) throw new Error(r.error || 'Não foi possível carregar os indicadores da Home.');
       const payload = r.data as any as HomeData;
       setData(payload);
+      setHomeUpdatedAt(new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
       if (!params.encontroId) setEncontroId(payload.encontroSelecionadoId || '');
     } catch (e: any) {
       setError(e?.message || 'Não foi possível carregar os indicadores da Home.');
@@ -202,6 +210,11 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate, lastSync, onRefresh, isLo
     if (typeof window !== 'undefined') window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  const refreshAll = useCallback(async () => {
+    if (onRefresh) await Promise.resolve(onRefresh());
+    await fetchHome({ encontroId, tipoEvento });
+  }, [encontroId, fetchHome, onRefresh, tipoEvento]);
+
   const quickAccess = useMemo(() => {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     return [
@@ -220,7 +233,12 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate, lastSync, onRefresh, isLo
           <h1 className="text-2xl md:text-3xl font-black uppercase tracking-tight text-slate-900">Painel Geral do EAC</h1>
           <p className="text-xs text-slate-500 font-semibold mt-1">Acompanhamento operacional da base do EAC.</p>
         </div>
-        <SyncHeader lastSync={lastSync} isLoading={isLoading} onRefresh={onRefresh} />
+        <SyncHeader
+          lastSync={homeUpdatedAt || lastSync}
+          isLoading={Boolean(isLoading || loading)}
+          error={Boolean(error)}
+          onRefresh={refreshAll}
+        />
       </div>
 
       {error && (
@@ -247,7 +265,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate, lastSync, onRefresh, isLo
         </div>
 
         <div className="p-4 md:p-6">
-          {loading && !data ? (
+          {loading ? (
             <p className="text-sm text-slate-400 font-bold italic py-10 text-center">Carregando indicadores...</p>
           ) : !data ? null : (
             <>
@@ -330,14 +348,15 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate, lastSync, onRefresh, isLo
 // =========================================================================
 const AdolescentesTab: React.FC<{ data: HomeData['adolescentes']; onNavigate: HomeProps['onNavigate'] }> = ({ data, onNavigate }) => {
   const irParaTriagem = (filtros: HomeNavigateFilters) =>
-    onNavigate('inscricoes_review', { status_excluir: 'PRIORIZADO,CONFIRMADO', ...filtros });
+    onNavigate('inscricoes_review', { status_excluir: 'PRIORIZADO,CONFIRMADO,ENCONTREIRO', ...filtros });
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <IndicatorBlock label="Total de adolescentes" value={data.total} onClick={() => irParaTriagem({})} />
         <IndicatorBlock label="Masculino" value={data.masculino} onClick={() => irParaTriagem({ sexo: 'MASCULINO' })} />
         <IndicatorBlock label="Feminino" value={data.feminino} onClick={() => irParaTriagem({ sexo: 'FEMININO' })} />
+        <IndicatorBlock label="Sexo não informado" value={data.naoInformado} onClick={() => irParaTriagem({ sexo_nao_informado: 'true' })} />
       </div>
 
       <div>
@@ -349,18 +368,20 @@ const AdolescentesTab: React.FC<{ data: HomeData['adolescentes']; onNavigate: Ho
                 <th className="text-left pb-2">Idade</th>
                 <th className="pb-2">Masculino</th>
                 <th className="pb-2">Feminino</th>
+                <th className="pb-2">Não informado</th>
                 <th className="pb-2">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {data.distribuicaoPorIdade.length === 0 && (
-                <tr><td colSpan={4} className="py-6 text-center text-slate-400 italic">Sem dados para os critérios atuais.</td></tr>
+                <tr><td colSpan={5} className="py-6 text-center text-slate-400 italic">Sem dados para os critérios atuais.</td></tr>
               )}
               {data.distribuicaoPorIdade.map((row) => (
                 <tr key={row.idade} className="text-right">
                   <td className="text-left py-2 font-black text-slate-700">{row.idade} anos</td>
                   <td className="py-2"><Cell value={row.masculino} onClick={() => irParaTriagem({ idade_min: String(row.idade), idade_max: String(row.idade), sexo: 'MASCULINO' })} /></td>
                   <td className="py-2"><Cell value={row.feminino} onClick={() => irParaTriagem({ idade_min: String(row.idade), idade_max: String(row.idade), sexo: 'FEMININO' })} /></td>
+                  <td className="py-2"><Cell value={row.naoInformado} onClick={() => irParaTriagem({ idade_min: String(row.idade), idade_max: String(row.idade), sexo_nao_informado: 'true' })} /></td>
                   <td className="py-2 font-black"><Cell value={row.total} onClick={() => irParaTriagem({ idade_min: String(row.idade), idade_max: String(row.idade) })} /></td>
                 </tr>
               ))}
@@ -382,10 +403,11 @@ const EncontreirosTab: React.FC<{ data: HomeData['encontreiros']; onNavigate: Ho
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <IndicatorBlock label="Total de encontreiros" value={data.total} onClick={() => irParaEncontreiros({})} />
         <IndicatorBlock label="Masculino" value={data.masculino} onClick={() => irParaEncontreiros({ sexo: 'masculino' })} />
         <IndicatorBlock label="Feminino" value={data.feminino} onClick={() => irParaEncontreiros({ sexo: 'feminino' })} />
+        <IndicatorBlock label="Sexo não informado" value={data.naoInformado} onClick={() => irParaEncontreiros({ sexo: 'nao_informado' })} />
       </div>
 
       <div>
@@ -397,18 +419,20 @@ const EncontreirosTab: React.FC<{ data: HomeData['encontreiros']; onNavigate: Ho
                 <th className="text-left pb-2">Faixa etária</th>
                 <th className="pb-2">Masculino</th>
                 <th className="pb-2">Feminino</th>
+                <th className="pb-2">Não informado</th>
                 <th className="pb-2">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {data.porFaixaEtaria.length === 0 && (
-                <tr><td colSpan={4} className="py-6 text-center text-slate-400 italic">Sem encontreiros cadastrados.</td></tr>
+                <tr><td colSpan={5} className="py-6 text-center text-slate-400 italic">Sem encontreiros cadastrados.</td></tr>
               )}
               {data.porFaixaEtaria.map((row) => (
                 <tr key={row.faixa} className="text-right">
                   <td className="text-left py-2 font-black text-slate-700">{row.faixa}</td>
                   <td className="py-2"><Cell value={row.masculino} onClick={() => irParaEncontreiros({ faixaEtaria: row.faixa, sexo: 'masculino' })} /></td>
                   <td className="py-2"><Cell value={row.feminino} onClick={() => irParaEncontreiros({ faixaEtaria: row.faixa, sexo: 'feminino' })} /></td>
+                  <td className="py-2"><Cell value={row.naoInformado} onClick={() => irParaEncontreiros({ faixaEtaria: row.faixa, sexo: 'nao_informado' })} /></td>
                   <td className="py-2 font-black"><Cell value={row.total} onClick={() => irParaEncontreiros({ faixaEtaria: row.faixa })} /></td>
                 </tr>
               ))}
@@ -467,7 +491,7 @@ const PriorizadosTab: React.FC<{
         </select>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <IndicatorBlock
           label="Priorizados"
           value={`${data.total} / ${data.capacidadeTotal}`}
@@ -494,6 +518,7 @@ const PriorizadosTab: React.FC<{
                 <th className="text-left pb-2">Idade</th>
                 <th className="pb-2">Masculino</th>
                 <th className="pb-2">Feminino</th>
+                <th className="pb-2">Não informado</th>
                 <th className="pb-2">Total</th>
               </tr>
             </thead>
@@ -503,6 +528,7 @@ const PriorizadosTab: React.FC<{
                   <td className="text-left py-2 font-black text-slate-700">{row.idade} anos</td>
                   <td className="py-2"><Cell value={row.masculino} onClick={() => irParaPrioritarias({ idade: String(row.idade), sexo: 'masculino' })} /></td>
                   <td className="py-2"><Cell value={row.feminino} onClick={() => irParaPrioritarias({ idade: String(row.idade), sexo: 'feminino' })} /></td>
+                  <td className="py-2"><Cell value={row.naoInformado} onClick={() => irParaPrioritarias({ idade: String(row.idade), sexo: 'nao_informado' })} /></td>
                   <td className="py-2 font-black"><Cell value={row.total} onClick={() => irParaPrioritarias({ idade: String(row.idade) })} /></td>
                 </tr>
               ))}
@@ -510,6 +536,7 @@ const PriorizadosTab: React.FC<{
                 <td className="text-left py-2">Total</td>
                 <td className="py-2">{data.masculino}</td>
                 <td className="py-2">{data.feminino}</td>
+                <td className="py-2">{Math.max(0, data.total - data.masculino - data.feminino)}</td>
                 <td className="py-2">{data.total}</td>
               </tr>
             </tbody>
@@ -579,6 +606,25 @@ const PresencasTab: React.FC<{
           label="% de presença"
           value={data.percentualPresenca !== null ? `${data.percentualPresenca}%` : '-'}
           onClick={() => irParaPresenca({})}
+        />
+      </div>
+
+      <p className="text-xs font-semibold text-slate-500">
+        {data.participacoesRegistradas} registros de presença no período.
+      </p>
+
+      <div className="grid grid-cols-2 gap-4">
+        <IndicatorBlock
+          label="Presentes com origem encontrista"
+          value={data.origem.comOrigemEncontrista}
+          onClick={() => irParaPresenca({ origemEncontrista: 'com_origem' })}
+          small
+        />
+        <IndicatorBlock
+          label="Presentes sem origem encontrista"
+          value={data.origem.semOrigemEncontrista}
+          onClick={() => irParaPresenca({ origemEncontrista: 'sem_origem' })}
+          small
         />
       </div>
 

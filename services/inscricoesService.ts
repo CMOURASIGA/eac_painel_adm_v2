@@ -57,6 +57,7 @@ export type InscricoesAdminFilters = {
   status?: string;
   status_excluir?: string;
   sexo?: string;
+  sexo_nao_informado?: string;
   idade_min?: number | string;
   idade_max?: number | string;
   bairro?: string;
@@ -212,5 +213,4 @@ async excluirInscricao(payload: { inscricao_id: string }): Promise<EacApiResult<
     return await postJson<any>('/api/inscricoes/admin/lote', payload);
   },
 };
-
 

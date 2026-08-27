@@ -20,7 +20,7 @@ import { listVisitacoes } from '../../services/visitacaoBusinessService.js';
 // =========================================================================
 const PRIORIZADOS_CAPACIDADE_TOTAL = 72;
 const PRIORIZADOS_CAPACIDADE_POR_SEXO = 36;
-const ADOLESCENTES_STATUS_EXCLUIDOS = ['PRIORIZADO', 'CONFIRMADO'];
+const ADOLESCENTES_STATUS_EXCLUIDOS = ['PRIORIZADO', 'CONFIRMADO', 'ENCONTREIRO'];
 const VISITACAO_STATUS_VALUES = [
   'NENHUMA_ACAO',
   'CONTATO_INICIAL_FEITO',
@@ -86,13 +86,15 @@ async function buildAdolescentesIndicadores(supabase: any) {
 
   let masculino = 0;
   let feminino = 0;
+  let naoInformado = 0;
   let cadastrosIncompletos = 0;
-  const porIdadeMap = new Map<number, { idade: number; masculino: number; feminino: number; total: number }>();
+  const porIdadeMap = new Map<number, { idade: number; masculino: number; feminino: number; naoInformado: number; total: number }>();
 
   relevantes.forEach((row: any) => {
     const sexoBucket = normalizeSexoBucket(row?.sexo);
     if (sexoBucket === 'masculino') masculino += 1;
     if (sexoBucket === 'feminino') feminino += 1;
+    if (sexoBucket === null) naoInformado += 1;
 
     if (!cleanText(row?.telefone_adolescente) || !cleanText(row?.data_nascimento) || !cleanText(row?.sexo)) {
       cadastrosIncompletos += 1;
@@ -100,9 +102,10 @@ async function buildAdolescentesIndicadores(supabase: any) {
 
     const idade = anoAtualMenosNascimento(row?.data_nascimento);
     if (idade === null) return;
-    const bucket = porIdadeMap.get(idade) || { idade, masculino: 0, feminino: 0, total: 0 };
+    const bucket = porIdadeMap.get(idade) || { idade, masculino: 0, feminino: 0, naoInformado: 0, total: 0 };
     if (sexoBucket === 'masculino') bucket.masculino += 1;
     if (sexoBucket === 'feminino') bucket.feminino += 1;
+    if (sexoBucket === null) bucket.naoInformado += 1;
     bucket.total += 1;
     porIdadeMap.set(idade, bucket);
   });
@@ -113,6 +116,7 @@ async function buildAdolescentesIndicadores(supabase: any) {
     total: relevantes.length,
     masculino,
     feminino,
+    naoInformado,
     distribuicaoPorIdade,
     cadastrosIncompletos,
     criterios:
@@ -148,8 +152,9 @@ async function buildEncontreirosIndicadores(supabase: any) {
 
   let masculino = 0;
   let feminino = 0;
-  const porFaixaMap = new Map<string, { faixa: string; total: number; masculino: number; feminino: number }>();
-  FAIXAS_ETARIAS_ORDEM.forEach((faixa) => porFaixaMap.set(faixa, { faixa, total: 0, masculino: 0, feminino: 0 }));
+  let naoInformado = 0;
+  const porFaixaMap = new Map<string, { faixa: string; total: number; masculino: number; feminino: number; naoInformado: number }>();
+  FAIXAS_ETARIAS_ORDEM.forEach((faixa) => porFaixaMap.set(faixa, { faixa, total: 0, masculino: 0, feminino: 0, naoInformado: 0 }));
 
   const pessoaIds: string[] = [];
 
@@ -157,13 +162,15 @@ async function buildEncontreirosIndicadores(supabase: any) {
     const sexoBucket = normalizeSexoBucket(r.sexo);
     if (sexoBucket === 'masculino') masculino += 1;
     if (sexoBucket === 'feminino') feminino += 1;
+    if (sexoBucket === null) naoInformado += 1;
 
     const idade = anoAtualMenosNascimento(r.dataNascimento);
     const faixa = bucketFaixaEtaria(idade);
-    const bucket = porFaixaMap.get(faixa) || { faixa, total: 0, masculino: 0, feminino: 0 };
+    const bucket = porFaixaMap.get(faixa) || { faixa, total: 0, masculino: 0, feminino: 0, naoInformado: 0 };
     bucket.total += 1;
     if (sexoBucket === 'masculino') bucket.masculino += 1;
     if (sexoBucket === 'feminino') bucket.feminino += 1;
+    if (sexoBucket === null) bucket.naoInformado += 1;
     porFaixaMap.set(faixa, bucket);
 
     if (cleanText(r.pessoaId)) pessoaIds.push(cleanText(r.pessoaId));
@@ -189,6 +196,7 @@ async function buildEncontreirosIndicadores(supabase: any) {
     total: encontreiros.length,
     masculino,
     feminino,
+    naoInformado,
     porFaixaEtaria: FAIXAS_ETARIAS_ORDEM.map((f) => porFaixaMap.get(f)!).filter((b) => b.total > 0),
     origem: {
       comOrigemEncontrista,
@@ -217,13 +225,42 @@ async function loadEncontros(supabase: any) {
 // =========================================================================
 // Aba 3 - Priorizados (por encontro) + resumo operacional de Visitação
 // =========================================================================
-async function buildPriorizadosIndicadores(supabase: any, encontroId: string) {
-  const { items } = await listVisitacoes(supabase, {});
-  const escopo = encontroId ? items.filter((it: any) => cleanText(it.encontro_id) === encontroId) : items;
+async function buildPriorizadosIndicadores(
+  supabase: any,
+  encontroId: string,
+  encontros: any[],
+  encontroAtivoId: string
+) {
+  const [priorizadosRows, visitacaoResult] = await Promise.all([
+    fetchAllInscricoesAdminRows(supabase, { status: 'PRIORIZADO' }),
+    listVisitacoes(supabase, {}),
+  ]);
+
+  let escopo = encontroId
+    ? priorizadosRows.filter((it: any) => cleanText(it.encontro_id) === encontroId)
+    : priorizadosRows;
+
+  // Os 72 priorizados do ciclo atual foram cadastrados antes da criação do EAC 37
+  // e permanecem ligados ao encontro provisório "EAC - A DEFINIR". Enquanto não
+  // houver priorizados diretamente ligados ao encontro ativo, eles compõem o ciclo
+  // ativo. A compatibilidade só vale para o encontro ativo e não altera históricos.
+  if (encontroId && encontroId === encontroAtivoId && escopo.length === 0) {
+    const idsProvisorios = new Set(
+      encontros
+        .filter((e: any) => /a definir/i.test(cleanText(e?.nome)))
+        .map((e: any) => cleanText(e?.id))
+        .filter(Boolean)
+    );
+    escopo = priorizadosRows.filter((it: any) => idsProvisorios.has(cleanText(it?.encontro_id)));
+  }
+
+  const visitacaoPorInscricao = new Map(
+    visitacaoResult.items.map((item: any) => [cleanText(item?.inscricao_id), item])
+  );
 
   let masculino = 0;
   let feminino = 0;
-  const porIdadeMap = new Map<number, { idade: number; masculino: number; feminino: number; total: number }>();
+  const porIdadeMap = new Map<number, { idade: number; masculino: number; feminino: number; naoInformado: number; total: number }>();
   const statusVisitacaoCounts: Record<string, number> = Object.fromEntries(
     VISITACAO_STATUS_VALUES.map((s) => [s, 0])
   );
@@ -233,16 +270,19 @@ async function buildPriorizadosIndicadores(supabase: any, encontroId: string) {
     if (sexoBucket === 'masculino') masculino += 1;
     if (sexoBucket === 'feminino') feminino += 1;
 
-    const idade = Number(item.idade);
+    const idadeCalculada = anoAtualMenosNascimento(item.data_nascimento);
+    const idade = idadeCalculada ?? Number(item.idade_calculada);
     if (Number.isFinite(idade)) {
-      const bucket = porIdadeMap.get(idade) || { idade, masculino: 0, feminino: 0, total: 0 };
+      const bucket = porIdadeMap.get(idade) || { idade, masculino: 0, feminino: 0, naoInformado: 0, total: 0 };
       if (sexoBucket === 'masculino') bucket.masculino += 1;
       if (sexoBucket === 'feminino') bucket.feminino += 1;
+      if (sexoBucket === null) bucket.naoInformado += 1;
       bucket.total += 1;
       porIdadeMap.set(idade, bucket);
     }
 
-    const statusKey = cleanText(item.status_visitacao).toUpperCase() || 'NENHUMA_ACAO';
+    const visita = visitacaoPorInscricao.get(cleanText(item.inscricao_id));
+    const statusKey = cleanText(visita?.status_visitacao).toUpperCase() || 'NENHUMA_ACAO';
     if (statusKey in statusVisitacaoCounts) statusVisitacaoCounts[statusKey] += 1;
   });
 
@@ -275,6 +315,7 @@ async function buildPriorizadosIndicadores(supabase: any, encontroId: string) {
 async function buildPresencasIndicadores(
   supabase: any,
   encontreirosPessoaIds: Set<string>,
+  encontreirosComOrigemEncontrista: Set<string>,
   tipoEvento: 'POS_ENCONTRO' | 'REUNIAO_CIRCULO',
   ano: string
 ) {
@@ -309,8 +350,18 @@ async function buildPresencasIndicadores(
   const participantesEsperados = encontreirosPessoaIds.size;
   // Presentes distintos entre os encontreiros conhecidos (evita contar a mesma pessoa mais de uma vez).
   const presentesDistintos = Array.from(presencasPorPessoa.values()).length;
-  const ausentes = Math.max(0, participantesEsperados - presentesDistintos);
-  const percentualPresenca = participantesEsperados > 0 ? Math.round((presentesDistintos / participantesEsperados) * 100) : null;
+  const ausentes = eventosRealizados > 0 ? Math.max(0, participantesEsperados - presentesDistintos) : 0;
+  const percentualPresenca = eventosRealizados > 0 && participantesEsperados > 0
+    ? Math.round((presentesDistintos / participantesEsperados) * 100)
+    : null;
+
+  let presentesComOrigemEncontrista = 0;
+  let presentesSemOrigemEncontrista = 0;
+  presencasPorPessoa.forEach((_value, key) => {
+    if (!key || key.startsWith('nome:')) return;
+    if (encontreirosComOrigemEncontrista.has(key)) presentesComOrigemEncontrista += 1;
+    else presentesSemOrigemEncontrista += 1;
+  });
 
   const ranking = Array.from(presencasPorPessoa.values())
     .sort((a, b) => b.presencas - a.presencas)
@@ -325,10 +376,15 @@ async function buildPresencasIndicadores(
     tipoEvento,
     ano: anoFiltro,
     eventosRealizados,
-    presentes: totalPresentes,
+    presentes: presentesDistintos,
+    participacoesRegistradas: totalPresentes,
     participantesEsperados,
     ausentes,
     percentualPresenca,
+    origem: {
+      comOrigemEncontrista: presentesComOrigemEncontrista,
+      semOrigemEncontrista: presentesSemOrigemEncontrista,
+    },
     ranking,
   };
 }
@@ -354,7 +410,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const [adolescentes, encontreiros, priorizados] = await Promise.all([
       buildAdolescentesIndicadores(supabase),
       buildEncontreirosIndicadores(supabase),
-      buildPriorizadosIndicadores(supabase, encontroIdParam),
+      buildPriorizadosIndicadores(supabase, encontroIdParam, encontros, encontroAtivoId),
     ]);
 
     // Reaproveita a lista de encontreiros já carregada para o cálculo de presença.
@@ -368,7 +424,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       encontreirosPessoaIds = new Set();
     }
 
-    const presencas = await buildPresencasIndicadores(supabase, encontreirosPessoaIds, tipoEvento, ano);
+    let encontreirosComOrigemEncontrista = new Set<string>();
+    if (encontreirosPessoaIds.size > 0) {
+      const { data: adolescentesOrigem } = await supabase
+        .from('adolescentes')
+        .select('pessoa_id')
+        .in('pessoa_id', Array.from(encontreirosPessoaIds));
+      encontreirosComOrigemEncontrista = new Set(
+        (adolescentesOrigem || []).map((a: any) => cleanText(a?.pessoa_id)).filter(Boolean)
+      );
+    }
+
+    const presencas = await buildPresencasIndicadores(
+      supabase,
+      encontreirosPessoaIds,
+      encontreirosComOrigemEncontrista,
+      tipoEvento,
+      ano
+    );
 
     // Inscrições aguardando análise (status EM_ANALISE), calculado à parte para manter
     // o critério exato do indicador (independente da regra de exclusão da aba Adolescentes).

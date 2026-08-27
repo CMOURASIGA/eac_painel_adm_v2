@@ -375,6 +375,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
         const s = toClean(r.sexo).toLowerCase();
         if (alvo === 'masculino') return s === 'm' || s === 'masc' || s === 'masculino';
         if (alvo === 'feminino') return s === 'f' || s === 'fem' || s === 'feminino';
+        if (alvo === 'nao_informado') return !s;
         return s === alvo;
       });
     }
@@ -1263,5 +1264,4 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
 };
 
 export default EncontreiroPage;
-
 

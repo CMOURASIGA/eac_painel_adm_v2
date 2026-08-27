@@ -783,7 +783,11 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     return items.filter((it) => {
       if (appliedFilters.nome && !normalize(it.nome).includes(normalize(appliedFilters.nome))) return false;
       if (appliedFilters.bairro && normalize(it.bairro) !== normalize(appliedFilters.bairro)) return false;
-      if (appliedFilters.sexo && normalize(it.sexo) !== normalize(appliedFilters.sexo)) return false;
+      if (appliedFilters.sexo) {
+        const sexoAtual = normalize(it.sexo);
+        const sexoFiltro = normalize(appliedFilters.sexo);
+        if (sexoFiltro === 'nao_informado' ? Boolean(sexoAtual) : sexoAtual !== sexoFiltro) return false;
+      }
       if (!matchesAgeFilter(it.idade, appliedFilters.idade)) return false;
       if (!matchesAgeSegment(it.idade, selectedAgeSegment)) return false;
       return true;
@@ -1425,6 +1429,5 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
 };
 
 export default InscricoesPrioritariasPage;
-
 
 
