@@ -358,7 +358,6 @@ async function buildPresencasIndicadores(
   let presentesComOrigemEncontrista = 0;
   let presentesSemOrigemEncontrista = 0;
   presencasPorPessoa.forEach((_value, key) => {
-    if (!key || key.startsWith('nome:')) return;
     if (encontreirosComOrigemEncontrista.has(key)) presentesComOrigemEncontrista += 1;
     else presentesSemOrigemEncontrista += 1;
   });
