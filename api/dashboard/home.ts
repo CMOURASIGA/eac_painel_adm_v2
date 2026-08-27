@@ -1,14 +1,12 @@
-import { NextResponse } from 'next/server';
-import { getSupabaseServerClient } from '../../../../utils/supabaseServer';
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { getSupabaseServerClient } from '../../utils/supabaseServer.js';
 import {
   handleSupabaseAction,
   loadEncontreirosForScreen,
   normalizeEncontreiro,
-} from '../../../../utils/supabaseActions';
-import { executeInscricoesAdminList } from '../../../../utils/inscricoesAdmin';
-import { listVisitacoes } from '../../../../services/visitacaoBusinessService';
-
-export const dynamic = 'force-dynamic';
+} from '../../utils/supabaseActions.js';
+import { executeInscricoesAdminList } from '../../utils/inscricoesAdmin.js';
+import { listVisitacoes } from '../../services/visitacaoBusinessService.js';
 
 // =========================================================================
 // Regras de negócio fixas do Painel Geral (ver docs "Reconstrução da Home").
@@ -329,23 +327,23 @@ async function buildPresencasIndicadores(
   };
 }
 
-export async function GET(req: Request) {
+function sendError(res: NextApiResponse, status: number, error: string, message?: string) {
+  return res.status(status).json({ success: false, error, message: message || error });
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const supabase = getSupabaseServerClient();
   if (!supabase) {
-    return NextResponse.json(
-      { success: false, error: 'SUPABASE_NOT_CONFIGURED', message: 'Supabase não configurado.' },
-      { status: 500 }
-    );
+    return sendError(res, 500, 'SUPABASE_NOT_CONFIGURED', 'Supabase não configurado.');
   }
 
-  const url = new URL(req.url);
-  const tipoEventoParam = cleanText(url.searchParams.get('tipoEvento')).toUpperCase();
+  const tipoEventoParam = cleanText(req.query.tipoEvento).toUpperCase();
   const tipoEvento: 'POS_ENCONTRO' | 'REUNIAO_CIRCULO' = tipoEventoParam === 'REUNIAO_CIRCULO' ? 'REUNIAO_CIRCULO' : 'POS_ENCONTRO';
-  const ano = cleanText(url.searchParams.get('ano'));
+  const ano = cleanText(req.query.ano);
 
   try {
     const { encontros, encontroAtivoId } = await loadEncontros(supabase);
-    const encontroIdParam = cleanText(url.searchParams.get('encontroId')) || encontroAtivoId;
+    const encontroIdParam = cleanText(req.query.encontroId) || encontroAtivoId;
 
     const [adolescentes, encontreiros, priorizados] = await Promise.all([
       buildAdolescentesIndicadores(supabase),
@@ -401,7 +399,7 @@ export async function GET(req: Request) {
       },
     ].filter((item) => item.total > 0);
 
-    return NextResponse.json({
+    return res.status(200).json({
       success: true,
       source: 'supabase',
       encontros: encontros.map((e: any) => ({ id: e.id, nome: e.nome, numero: e.numero, status: e.status })),
@@ -413,10 +411,7 @@ export async function GET(req: Request) {
       atencao: atencaoItens,
     });
   } catch (e: any) {
-    console.error('[app/api/dashboard/home] falha:', e);
-    return NextResponse.json(
-      { success: false, error: 'INTERNAL_ERROR', message: e?.message || 'Erro ao montar indicadores da Home.' },
-      { status: 500 }
-    );
+    console.error('[api/dashboard/home] falha:', e);
+    return sendError(res, 500, 'INTERNAL_ERROR', e?.message || 'Erro ao montar indicadores da Home.');
   }
 }
