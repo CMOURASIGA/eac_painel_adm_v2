@@ -111,6 +111,8 @@ export async function markPresenceService(supabase: AnySupabaseClient, payload: 
   const nomeInput = cleanText(payload.nome);
   const circuloInput = cleanText(payload.circulo);
   const origemPublico = cleanText(payload.origemPublico || payload.origem_publico) || 'PUBLICO';
+  const tipoEventoInput = cleanText(payload.tipoEvento || payload.tipo_evento).toUpperCase();
+  const tipoEvento = tipoEventoInput === 'REUNIAO_CIRCULO' ? 'REUNIAO_CIRCULO' : 'POS_ENCONTRO';
 
   const digitsInput = normalizeDigits(telefoneAtualizadoInput || telefoneInput);
   const hasValidPhoneInput = Boolean(digitsInput && digitsInput.length >= 10);
@@ -250,6 +252,7 @@ export async function markPresenceService(supabase: AnySupabaseClient, payload: 
     circulo_informado: circuloInput || null,
     status_presenca: 'REGISTRADA',
     criado_via_sistema: true,
+    tipo_evento: tipoEvento,
     payload: {
       telefone: telefonePersistido || null,
       emailAtualizado: emailAtualizadoInput || null,
@@ -258,14 +261,21 @@ export async function markPresenceService(supabase: AnySupabaseClient, payload: 
       telefoneAtualizado: Boolean(telefoneAtualizadoInput && telefonePersistido),
       pessoaId: pessoaId || null,
       canal: 'PAINEL_PRESENCA',
+      tipoEvento,
     },
   };
 
-  const insertRes = await supabase
+  let insertRes = await supabase
     .from('presencas')
     .insert(insertPayload)
     .select('*')
     .limit(1);
+  if (insertRes.error && /tipo_evento/i.test(String(insertRes.error?.message || ''))) {
+    // Coluna tipo_evento ainda não aplicada nesta base (ver docs/US-121-home-reconstrucao.sql).
+    // Faz o mesmo registro sem a coluna para não bloquear o check-in.
+    const { tipo_evento, ...withoutTipoEvento } = insertPayload;
+    insertRes = await supabase.from('presencas').insert(withoutTipoEvento).select('*').limit(1);
+  }
   if (insertRes.error) throw insertRes.error;
 
   return { ok: true, data: { success: true, source: 'supabase', saved: Array.isArray(insertRes.data) ? insertRes.data[0] : null } };

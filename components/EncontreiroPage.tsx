@@ -9,9 +9,24 @@ import { encontreirosService } from '../services/encontreirosService.ts';
 interface EncontreiroPageProps {
   user: User;
   googleWebAppUrl: string;
+  initialFilters?: { sexo?: string; faixaEtaria?: string };
 }
 
 const PAGE_SIZE = 20;
+
+// Mesmas faixas etárias usadas no indicador da Home (app/api/dashboard/home).
+function bucketFaixaEtariaEncontreiro(dataNascimento: any): string {
+  const raw = toCleanString(dataNascimento);
+  const anoNascimento = Number(raw.slice(0, 4));
+  if (!raw || !Number.isFinite(anoNascimento) || anoNascimento < 1900) return 'Não informado';
+  const idade = new Date().getFullYear() - anoNascimento;
+  if (idade <= 17) return 'Até 17 anos';
+  if (idade <= 20) return '18 a 20';
+  if (idade <= 25) return '21 a 25';
+  if (idade <= 35) return '26 a 35';
+  if (idade <= 50) return '36 a 50';
+  return 'Acima de 50';
+}
 
 type IndicatorFilter = 'novosSemestre' | null;
 
@@ -227,7 +242,7 @@ const isInCurrentBusinessSemester = (value: any) => {
   return date >= start && date <= end;
 };
 
-const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl }) => {
+const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl, initialFilters }) => {
   const [records, setRecords] = useState<EncontreiroRecord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [normalizingId, setNormalizingId] = useState<string | null>(null);
@@ -239,6 +254,9 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
   const [bairroCardFilter, setBairroCardFilter] = useState<string>('');
   const [appliedIndicatorFilter, setAppliedIndicatorFilter] = useState<IndicatorFilter>(null);
   const [appliedBairroCardFilter, setAppliedBairroCardFilter] = useState<string>('');
+  // Drill-down vindo da Home (Aba Encontreiros: sexo e faixa etária).
+  const [appliedSexoFilter, setAppliedSexoFilter] = useState<string>(initialFilters?.sexo || '');
+  const [appliedFaixaEtariaFilter, setAppliedFaixaEtariaFilter] = useState<string>(initialFilters?.faixaEtaria || '');
   const [showFilters, setShowFilters] = useState(true);
 
   // Filtros (draft): editados na UI sem aplicar automaticamente.
@@ -339,6 +357,20 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
       list = list.filter(r => toClean(r.bairro).toLowerCase() === appliedBairroCardFilter.toLowerCase());
     }
 
+    if (appliedSexoFilter) {
+      const alvo = appliedSexoFilter.toLowerCase();
+      list = list.filter((r) => {
+        const s = toClean(r.sexo).toLowerCase();
+        if (alvo === 'masculino') return s === 'm' || s === 'masc' || s === 'masculino';
+        if (alvo === 'feminino') return s === 'f' || s === 'fem' || s === 'feminino';
+        return s === alvo;
+      });
+    }
+
+    if (appliedFaixaEtariaFilter) {
+      list = list.filter((r) => bucketFaixaEtariaEncontreiro(r.dataNascimento) === appliedFaixaEtariaFilter);
+    }
+
     const search = appliedFilters.searchTerm.toLowerCase().trim();
     if (search) {
       list = list.filter((r) => {
@@ -392,7 +424,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
     });
 
     return list;
-  }, [records, appliedIndicatorFilter, appliedBairroCardFilter, appliedFilters]);
+  }, [records, appliedIndicatorFilter, appliedBairroCardFilter, appliedSexoFilter, appliedFaixaEtariaFilter, appliedFilters]);
 
   const applyFilters = () => {
     setAppliedIndicatorFilter(indicatorFilter);

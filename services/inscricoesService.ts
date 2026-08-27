@@ -55,6 +55,8 @@ export type InscricaoAdminItem = {
 export type InscricoesAdminFilters = {
   encontro_id?: string;
   status?: string;
+  status_excluir?: string;
+  sexo?: string;
   idade_min?: number | string;
   idade_max?: number | string;
   bairro?: string;

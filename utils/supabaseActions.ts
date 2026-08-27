@@ -1182,7 +1182,7 @@ function isLikelyReplyMessage(row: any) {
   return ['1', 'true', 'sim', 'yes', 'y'].includes(isReply);
 }
 
-function normalizeEncontreiro(row: any, i: number) {
+export function normalizeEncontreiro(row: any, i: number) {
   const id = pickFirst(row, ['encontreiro_id', 'id', 'uuid']) || `enc-${i + 1}`;
   return {
     ...extractOriginFields(row),
@@ -1193,6 +1193,7 @@ function normalizeEncontreiro(row: any, i: number) {
     nomeCompleto: pickFirst(row, ['nomeCompleto', 'nome_completo', 'nome', 'name']),
     dataNascimento: pickFirst(row, ['dataNascimento', 'data_nascimento', 'nascimento']),
     idade: pickFirst(row, ['idade', 'idade_snapshot', 'age']),
+    sexo: pickFirst(row, ['sexo', 'sexo_snapshot']),
     email: pickFirst(row, ['email']),
     celularWhatsapp: pickFirst(row, ['celularWhatsapp', 'celular_whatsapp', 'whatsapp', 'telefone']),
     enderecoCompleto: pickFirst(row, ['enderecoCompleto', 'endereco_completo', 'endereco']),
@@ -1217,7 +1218,7 @@ function normalizeEncontreiro(row: any, i: number) {
   };
 }
 
-function normalizePresence(row: any, i: number) {
+export function normalizePresence(row: any, i: number) {
   const id = pickFirst(row, ['id', 'presenca_id', 'uuid']) || `pres-${i + 1}`;
   return {
     ...extractOriginFields(row),
@@ -1232,6 +1233,11 @@ function normalizePresence(row: any, i: number) {
     mes: pickFirst(row, ['mes', 'mês', 'month']),
     ano: pickFirst(row, ['ano', 'year']),
     telCadastrado: pickFirst(row, ['telCadastrado', 'tel_cadastrado', 'telefone_cadastrado']),
+    // Tipo de evento (POS_ENCONTRO | REUNIAO_CIRCULO). Registros anteriores a essa coluna
+    // (ver docs/US-121-home-reconstrucao.sql) não a possuem: assume-se Pós-Encontro por ser
+    // o fluxo histórico predominante de check-in.
+    tipoEvento: pickFirst(row, ['tipoEvento', 'tipo_evento']) || 'POS_ENCONTRO',
+    pessoaId: pickFirst(row, ['pessoaId', 'pessoa_id']),
     presente: Boolean(
       pickFirst(row, ['presente', 'present']) ||
       cleanText(pickFirst(row, ['status_presenca'])) === 'REGISTRADA'
@@ -1422,7 +1428,7 @@ function getEncontreirosWriteCandidates() {
   return Array.from(new Set(base.filter((name) => !String(name).toLowerCase().startsWith('vw_'))));
 }
 
-async function loadEncontreirosForScreen(supabase: SupabaseClient) {
+export async function loadEncontreirosForScreen(supabase: SupabaseClient) {
   const structuralTableCandidates = [
     'encontreiros',
     'cadastro_encontreiros',

@@ -38,6 +38,7 @@ type Prioritario = {
 interface InscricoesPrioritariasPageProps {
   googleWebAppUrl: string;
   onOpenCirculos: () => void;
+  initialFilters?: { idade?: string; sexo?: string };
 }
 
 const LAST_CIRCLE_DISTRIBUTION_STORAGE_KEY = 'eac:last-circle-distribution';
@@ -458,7 +459,7 @@ const escapeHtml = (value: any) =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({ googleWebAppUrl, onOpenCirculos }) => {
+const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({ googleWebAppUrl, onOpenCirculos, initialFilters }) => {
   const [items, setItems] = useState<Prioritario[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -473,15 +474,24 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
   const [draftFilters, setDraftFilters] = useState({
     nome: '',
     bairro: '',
-    sexo: '',
-    idade: '',
+    sexo: initialFilters?.sexo || '',
+    idade: initialFilters?.idade || '',
   });
   const [appliedFilters, setAppliedFilters] = useState({
     nome: '',
     bairro: '',
-    sexo: '',
-    idade: '',
+    sexo: initialFilters?.sexo || '',
+    idade: initialFilters?.idade || '',
   });
+
+  // Drill-down vindo da Home (indicador de idade/sexo dos priorizados).
+  useEffect(() => {
+    if (!initialFilters?.idade && !initialFilters?.sexo) return;
+    const next = { nome: '', bairro: '', sexo: initialFilters?.sexo || '', idade: initialFilters?.idade || '' };
+    setDraftFilters(next);
+    setAppliedFilters(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFilters?.idade, initialFilters?.sexo]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);

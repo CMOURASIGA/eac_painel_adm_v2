@@ -51,13 +51,29 @@ const escapeCsvCell = (value: unknown) => {
   return `"${text}"`;
 };
 
-const VisitacaoPage: React.FC<{ user: User }> = ({ user }) => {
+interface VisitacaoPageProps {
+  user: User;
+  initialFilters?: { status?: string };
+}
+
+const VisitacaoPage: React.FC<VisitacaoPageProps> = ({ user, initialFilters }) => {
   const [items, setItems] = useState<VisitacaoPriorizado[]>([]);
   const [indicadores, setIndicadores] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [selectedStatuses, setSelectedStatuses] = useState<VisitacaoStatus[]>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<VisitacaoStatus[]>(() => {
+    const raw = String(initialFilters?.status || '').trim();
+    return raw ? (raw.split(',').filter(Boolean) as VisitacaoStatus[]) : [];
+  });
+
+  // Drill-down vindo da Home: reaplica o status quando o filtro inicial mudar.
+  useEffect(() => {
+    const raw = String(initialFilters?.status || '').trim();
+    if (!raw) return;
+    setSelectedStatuses(raw.split(',').filter(Boolean) as VisitacaoStatus[]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFilters?.status]);
   const [filters, setFilters] = useState({ nome: '', telefone: '', bairro: '', sexo: '', responsavel: '' });
   const [selectedItem, setSelectedItem] = useState<VisitacaoPriorizado | null>(null);
   const [history, setHistory] = useState<VisitacaoHistoricoItem[]>([]);

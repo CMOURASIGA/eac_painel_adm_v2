@@ -171,6 +171,7 @@ export interface EncontreiroRecord {
   nomeCompleto: string;
   dataNascimento?: string;
   idade?: string | number;
+  sexo?: string;
   email?: string;
   celularWhatsapp?: string;
   enderecoCompleto?: string;
@@ -194,6 +195,8 @@ export interface EncontreiroRecord {
   whatsappLink?: string;
 }
 
+export type PresenceEventType = 'POS_ENCONTRO' | 'REUNIAO_CIRCULO';
+
 export interface PresenceRecord {
   id: string;
   rowNumber: number;
@@ -206,6 +209,8 @@ export interface PresenceRecord {
   mes?: string;
   telCadastrado?: string;
   presente?: boolean;
+  tipoEvento?: PresenceEventType | string;
+  pessoaId?: string;
 }
 
 export type VisitacaoStatus =

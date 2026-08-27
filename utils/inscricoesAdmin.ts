@@ -221,11 +221,12 @@ async function adolescenteIdsByPessoaFiltros(
     idadeMin?: number | null;
     idadeMax?: number | null;
     bairro?: string;
+    sexo?: string;
     buscaText?: string;
     buscaDigits?: string;
   }
 ) {
-  const { idadeMin, idadeMax, bairro, buscaText, buscaDigits } = opts;
+  const { idadeMin, idadeMax, bairro, sexo, buscaText, buscaDigits } = opts;
 
   console.log('[pessoaFiltros] buscaText:', buscaText, 'buscaDigits:', buscaDigits);
 
@@ -243,6 +244,7 @@ async function adolescenteIdsByPessoaFiltros(
     if (typeof idadeMin === 'number') pessoasQuery = pessoasQuery.gte('idade_calculada', idadeMin);
     if (typeof idadeMax === 'number') pessoasQuery = pessoasQuery.lte('idade_calculada', idadeMax);
     if (bairro) pessoasQuery = pessoasQuery.ilike('bairro', `%${bairro}%`);
+    if (sexo) pessoasQuery = pessoasQuery.ilike('sexo', sexo);
 
   if (buscaDigits) {
     console.log('[pessoaFiltros] searching telefone_normalizado with:', buscaDigits);
@@ -328,6 +330,13 @@ export async function executeInscricoesAdminList(params: {
 
   const encontroId = toCleanString(query.encontro_id);
   const status = normalizeTriagemStatusAlias(query.status);
+  const statusExcluir = uniq(
+    toCleanString(query.status_excluir)
+      .split(',')
+      .map((s) => normalizeTriagemStatusAlias(s))
+      .filter(Boolean)
+  );
+  const sexo = toCleanString(query.sexo).toUpperCase();
   const origemDado = toCleanString(query.origem_dado).toUpperCase();
   const bairro = toCleanString(query.bairro);
   const dataInicio = toCleanString(query.data_inicio);
@@ -377,13 +386,15 @@ export async function executeInscricoesAdminList(params: {
       const hasBasePessoaFilters =
         Boolean(idadeMinRaw)
         || Boolean(idadeMaxRaw)
-        || Boolean(bairro);
+        || Boolean(bairro)
+        || Boolean(sexo);
 
       adolescenteIdsBase = hasBasePessoaFilters
         ? await adolescenteIdsByPessoaFiltros(supabase, {
             idadeMin: Number.isFinite(idadeMin as number) ? (idadeMin as number) : null,
             idadeMax: idadeMaxTriagem,
             bairro,
+            sexo,
           })
         : null;
     } catch (e: any) {
@@ -449,9 +460,10 @@ export async function executeInscricoesAdminList(params: {
     }
 
     const consolidatedRows = consolidarInscricoesPorAdolescente(Array.isArray(baseRows) ? baseRows : []);
-    const filteredRows = status
-      ? consolidatedRows.filter((row: any) => toCleanString(row?.status).toUpperCase() === status)
-      : consolidatedRows;
+    const statusExcluirSet = new Set(statusExcluir);
+    const filteredRows = consolidatedRows
+      .filter((row: any) => (status ? toCleanString(row?.status).toUpperCase() === status : true))
+      .filter((row: any) => (statusExcluirSet.size > 0 ? !statusExcluirSet.has(toCleanString(row?.status).toUpperCase()) : true));
     const total = filteredRows.length;
     const allRows = filteredRows.slice(offset, offset + pageSize);
 
