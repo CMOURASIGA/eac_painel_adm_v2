@@ -7,6 +7,7 @@ import { presencaService } from '../services/presencaService.ts';
 interface PresencePageProps {
   user: User;
   googleWebAppUrl: string;
+  initialFilters?: { encontro?: string; circulo?: string; presenca?: string; tipoEvento?: string; nome?: string };
 }
 
 type PresenceFilterValue = 'todos' | 'presentes' | 'faltantes';
@@ -231,7 +232,7 @@ const formatDateTime = (value: any) => {
 
 
 
-const PresencePage: React.FC<PresencePageProps> = ({ googleWebAppUrl }) => {
+const PresencePage: React.FC<PresencePageProps> = ({ googleWebAppUrl, initialFilters }) => {
   const [records, setRecords] = useState<PresenceRecord[]>([]);
   const [encontreirosBase, setEncontreirosBase] = useState<any[]>([]);
   const [encontristasBase, setEncontristasBase] = useState<any[]>([]);
@@ -240,13 +241,27 @@ const PresencePage: React.FC<PresencePageProps> = ({ googleWebAppUrl }) => {
   const [isMarking, setIsMarking] = useState<string | null>(null);
   const [quickPhone, setQuickPhone] = useState('');
   const [quickStatus, setQuickStatus] = useState('');
-  const [eventType, setEventType] = useState<PresenceEventType>('POS_ENCONTRO');
+  const [eventType, setEventType] = useState<PresenceEventType>(
+    (initialFilters?.tipoEvento as PresenceEventType) || 'POS_ENCONTRO'
+  );
   const [selectedCandidateKey, setSelectedCandidateKey] = useState('');
   const [manualCircle, setManualCircle] = useState('');
 
   const [showFilters, setShowFilters] = useState(true);
-  const [draftFilters, setDraftFilters] = useState<PresenceFilters>({ ...DEFAULT_FILTERS });
-  const [appliedFilters, setAppliedFilters] = useState<PresenceFilters>({ ...DEFAULT_FILTERS });
+  const [draftFilters, setDraftFilters] = useState<PresenceFilters>({
+    ...DEFAULT_FILTERS,
+    nome: initialFilters?.nome || DEFAULT_FILTERS.nome,
+    encontro: initialFilters?.encontro || DEFAULT_FILTERS.encontro,
+    circulo: initialFilters?.circulo || DEFAULT_FILTERS.circulo,
+    presenca: (initialFilters?.presenca as PresenceFilterValue) || DEFAULT_FILTERS.presenca,
+  });
+  const [appliedFilters, setAppliedFilters] = useState<PresenceFilters>({
+    ...DEFAULT_FILTERS,
+    nome: initialFilters?.nome || DEFAULT_FILTERS.nome,
+    encontro: initialFilters?.encontro || DEFAULT_FILTERS.encontro,
+    circulo: initialFilters?.circulo || DEFAULT_FILTERS.circulo,
+    presenca: (initialFilters?.presenca as PresenceFilterValue) || DEFAULT_FILTERS.presenca,
+  });
 
   const [page, setPage] = useState(1);
 

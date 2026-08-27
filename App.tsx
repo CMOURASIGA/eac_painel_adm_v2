@@ -3,7 +3,7 @@ import { View, User, Dispatch, Log, Comunicado, LogStatus, SystemSettings, Calen
 import { INITIAL_DISPATCHES } from './constants.tsx';
 import LoginPage from './components/LoginPage.tsx';
 import Header from './components/Header.tsx';
-import Dashboard from './components/Dashboard.tsx';
+import Home from './components/Home.tsx';
 import LogsPage from './components/LogsPage.tsx';
 import HelpPage from './components/HelpPage.tsx';
 import DispatchesPage from './components/DispatchesPage.tsx';
@@ -27,7 +27,7 @@ import Toast from './components/Toast.tsx';
 import AppDialog from './components/AppDialog.tsx';
 import { AppDialogRequest, installWindowAlertBridge, registerAppDialogHandler } from './utils/appDialog.ts';
 import { sanitizeTextDeep } from './utils/textEncoding.ts';
-import { getJson, postComunicadosAction } from './services/eacApiClient.ts';
+import { postComunicadosAction } from './services/eacApiClient.ts';
 import GroupHubPage from './components/GroupHubPage.tsx';
 import { NAVIGATION_ROADMAP, NAVIGATION_GROUPS, isViewEnabledInRoadmap, groupHasAccess, visibleGroupItems } from './utils/navigationRoadmap.ts';
 
@@ -80,21 +80,9 @@ const App: React.FC = () => {
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
   const [comunicados, setComunicados] = useState<Comunicado[]>([]);
-  const [membersCount, setMembersCount] = useState<number>(0);
-  const [nonEnrolledCount, setNonEnrolledCount] = useState<number>(0);
-  const [nonEnrolledIndicators, setNonEnrolledIndicators] = useState({
-    preConfirmadasCount: 0,
-    interesseCount: 0,
-    interesseNoCount: 0,
-  });
-  const [dashboardInsights, setDashboardInsights] = useState({
-    encontreirosCount: 0,
-    triagemStatusCounts: { inscrito: 0, priorizado: 0, confirmado: 0 },
-    ageDistributionByStatus: { INSCRITO: {}, PRIORIZADO: {}, CONFIRMADO: {} } as Record<string, Record<string, number>>,
-    monthlyInscricoesCurrentYear: [] as Array<{ mes: string; mesIndex: number; total: number }>,
-  });
   const [lastSync, setLastSync] = useState<string>('');
-  
+  const [pendingFilters, setPendingFilters] = useState<Record<string, string>>({});
+
   const syncInProgress = useRef(false);
 
   const envWebAppUrl = (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_GOOGLE_WEBAPP_URL) || (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GOOGLE_WEBAPP_URL) || '';
@@ -233,12 +221,15 @@ const App: React.FC = () => {
     return { ...(r.data as any), success: true };
   }, [effectiveGoogleWebAppUrl]);
 
-  const handleNavigate = useCallback((view: View) => {
+  const handleNavigate = useCallback((view: View, filters?: Record<string, string>) => {
     if (!isViewEnabledInRoadmap(view) && view !== 'inscricoes_prioritarias_circulos') {
       showToast('Este módulo ainda não foi liberado no menu desta fase.', 'info');
       return;
     }
 
+    // Drill-down vindo de um indicador da Home: a tela de destino deve abrir
+    // já com os filtros correspondentes aplicados (ver docs "Reconstrução da Home").
+    setPendingFilters(filters || {});
     setCurrentView(view);
     if (typeof window === 'undefined') return;
 
@@ -252,6 +243,12 @@ const App: React.FC = () => {
       if (view === 'dashboard') url.searchParams.delete('view');
       else url.searchParams.set('view', view);
     }
+    Array.from(url.searchParams.keys()).forEach((key) => {
+      if (key !== 'view') url.searchParams.delete(key);
+    });
+    Object.entries(filters || {}).forEach(([key, value]) => {
+      if (value) url.searchParams.set(key, value);
+    });
     window.history.replaceState({}, '', url.toString());
   }, []);
 
@@ -260,94 +257,17 @@ const App: React.FC = () => {
     syncInProgress.current = true;
     setIsLoadingSheet(true);
     try {
-      const [syncRes, comRes, calRes, logRes, memRes, nonRes, dashboardSummaryRes] = await Promise.all([
+      const [syncRes, comRes, calRes, logRes] = await Promise.all([
         callApiProxy('GET_SYNC_STATUS', {}),
         callApiProxy('GET_COMUNICADOS', {}),
         callApiProxy('GET_EVENTS', {}),
         callApiProxy('GET_OPERATIONAL_LOGS', {}),
-        callApiProxy('GET_MEMBERS', {}),
-        callApiProxy('GET_NON_ENROLLED', {}),
-        getJson<any>('/api/dashboard/resumo')
       ]);
-      
+
       if (comRes.success) setComunicados(comRes.comunicados || []);
       if (calRes.success) setCalendarEvents(calRes.events || []);
       if (logRes.success) setLogs(logRes.logs || []);
-      if (dashboardSummaryRes.success) {
-        const summary = (dashboardSummaryRes.data as any)?.summary || {};
-        setMembersCount(Number(summary.membersCount) || 0);
-        setNonEnrolledCount(Number(summary.nonEnrolledCount) || 0);
-        setNonEnrolledIndicators({
-          preConfirmadasCount: Number(summary?.nonEnrolledIndicators?.preConfirmadasCount) || 0,
-          interesseCount: Number(summary?.nonEnrolledIndicators?.interesseCount) || 0,
-          interesseNoCount: Number(summary?.nonEnrolledIndicators?.interesseNoCount) || 0,
-        });
-        setDashboardInsights({
-          encontreirosCount: Number(summary?.encontreirosCount) || 0,
-          triagemStatusCounts: {
-            inscrito: Number(summary?.triagemStatusCounts?.inscrito) || 0,
-            priorizado: Number(summary?.triagemStatusCounts?.priorizado) || 0,
-            confirmado: Number(summary?.triagemStatusCounts?.confirmado) || 0,
-          },
-          ageDistributionByStatus: (summary?.ageDistributionByStatus && typeof summary.ageDistributionByStatus === 'object')
-            ? summary.ageDistributionByStatus
-            : { INSCRITO: {}, PRIORIZADO: {}, CONFIRMADO: {} },
-          monthlyInscricoesCurrentYear: Array.isArray(summary?.monthlyInscricoesCurrentYear) ? summary.monthlyInscricoesCurrentYear : [],
-        });
-      } else {
-        if (memRes.success) setMembersCount(memRes.members?.length || 0);
-      }
 
-      if (nonRes.success && !dashboardSummaryRes.success) {
-        const list = Array.isArray(nonRes.nonEnrolled) ? nonRes.nonEnrolled : [];
-        setNonEnrolledCount(list.length);
-
-        const toClean = (v: any) => String(v ?? '').trim().toLowerCase();
-        const readField = (row: any, aliases: string[]) => {
-          if (!row || typeof row !== 'object') return '';
-          for (const key of aliases) {
-            const value = row[key];
-            if (value !== undefined && value !== null && String(value).trim() !== '') return value;
-          }
-          return '';
-        };
-        const isYes = (v: any) => ['sim', 's', 'yes', 'y', '1', 'true', 'verdadeiro', 'x'].includes(toClean(v));
-        const isNo = (v: any) => ['nÃ£o', 'nao', 'n', 'no', '0', 'false', 'falso'].includes(toClean(v));
-        const isSimStrict = (v: any) => toClean(v) === 'sim';
-
-        const computedInteresseCount = list.filter((ne: any) =>
-          isYes(readField(ne, ['Interesse Confirmado', 'interesse', 'interesseConfirmado', 'confirmouInteresse', 'Interesse', 'I']))
-        ).length;
-
-        const computedInteresseNoCount = list.filter((ne: any) =>
-          isNo(readField(ne, ['Interesse Confirmado', 'interesse', 'interesseConfirmado', 'confirmouInteresse', 'Interesse', 'I']))
-        ).length;
-
-        const computedPreConfirmadasCount = list.filter((ne: any) => {
-          const interesse = readField(ne, ['Interesse Confirmado', 'interesse', 'interesseConfirmado', 'confirmouInteresse', 'Interesse', 'I']);
-          const preConfirmacao = readField(ne, ['statusPreConfirmacao', 'preConfirmacaoStatus', 'preConfirmacao', 'Status Pre Confirmacao', 'P']);
-          return isSimStrict(interesse) && String(preConfirmacao ?? '').trim() !== '';
-        }).length;
-
-        const interestStats = nonRes?.interestStats;
-        const hasInterestStats =
-          interestStats &&
-          typeof interestStats === 'object' &&
-          (Number(interestStats.sim) + Number(interestStats.nao) + Number(interestStats.vazio) > 0);
-        const preConfirmadasFromApi =
-          typeof nonRes?.preConfirmadasCount === 'number'
-            ? Number(nonRes.preConfirmadasCount) || 0
-            : null;
-
-        setNonEnrolledIndicators({
-          interesseCount: hasInterestStats ? Number(interestStats.sim) || 0 : computedInteresseCount,
-          interesseNoCount: hasInterestStats ? Number(interestStats.nao) || 0 : computedInteresseNoCount,
-          // Regra fixa do indicador:
-          // I = SIM e P preenchida (mesma regra do COUNTIFS da planilha).
-          preConfirmadasCount: preConfirmadasFromApi !== null ? preConfirmadasFromApi : computedPreConfirmadasCount,
-        });
-      }
-      
       const rawLastUpdate = (syncRes && syncRes.success) ? (syncRes.lastUpdate || syncRes.last_update || '') : '';
       if (rawLastUpdate) {
         const dt = new Date(String(rawLastUpdate));
@@ -652,7 +572,9 @@ const App: React.FC = () => {
     <div className="min-h-screen flex flex-col text-slate-900 overflow-x-hidden">
       <Header user={user} onLogout={() => { setUser(null); localStorage.removeItem('eac_user'); }} onNavigate={handleNavigate} currentView={currentView} />
       <main className="flex-grow pt-[72px] bg-slate-50 relative">
-        {currentView === 'dashboard' && <Dashboard user={user} logs={logs} calendarEvents={calendarEvents} comunicados={comunicados} membersCount={membersCount} nonEnrolledCount={nonEnrolledCount} nonEnrolledPreConfirmadasCount={nonEnrolledIndicators.preConfirmadasCount} nonEnrolledInteresseCount={nonEnrolledIndicators.interesseCount} nonEnrolledInteresseNoCount={nonEnrolledIndicators.interesseNoCount} dashboardInsights={dashboardInsights} onNavigate={handleNavigate} lastSync={lastSync} onRefresh={fetchSpreadsheetData} isLoading={isLoadingSheet} />}
+        {currentView === 'dashboard' && (
+          <Home user={user} onNavigate={handleNavigate} lastSync={lastSync} onRefresh={fetchSpreadsheetData} isLoading={isLoadingSheet} />
+        )}
         {(() => {
           const hubGroup = NAVIGATION_GROUPS.find((g) => g.hubView === currentView);
           if (!hubGroup) return null;
@@ -670,20 +592,21 @@ const App: React.FC = () => {
           <InscricoesPrioritariasPage
             googleWebAppUrl={effectiveGoogleWebAppUrl}
             onOpenCirculos={() => handleNavigate('inscricoes_prioritarias_circulos')}
+            initialFilters={pendingFilters}
           />
         )}
-        {currentView === 'visitacao' && <VisitacaoPage user={user} />}
-        {currentView === 'inscricoes_review' && <InscricoesReviewPage />}
+        {currentView === 'visitacao' && <VisitacaoPage user={user} initialFilters={pendingFilters} />}
+        {currentView === 'inscricoes_review' && <InscricoesReviewPage initialFilters={pendingFilters} />}
         {currentView === 'inscricoes_prioritarias_circulos' && (
           <CirculosDistribuidosPage
             googleWebAppUrl={effectiveGoogleWebAppUrl}
             onBack={() => handleNavigate('inscricoes_prioritarias')}
           />
         )}
-        {currentView === 'encontreiros' && <EncontreiroPage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} />}
+        {currentView === 'encontreiros' && <EncontreiroPage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialFilters={pendingFilters} />}
         {currentView === 'encontros' && <SettingsPage settings={settings} onSave={(next) => { setSettings(next); localStorage.setItem('eac_settings', JSON.stringify(next)); }} focusEncontros />}
         {currentView === 'equipes' && <EncontreiroPage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialView="equipes" />}
-        {currentView === 'presence' && <PresencePage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} />}
+        {currentView === 'presence' && <PresencePage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialFilters={pendingFilters} />}
         {currentView === 'dispatches' && <DispatchesPage dispatches={dispatches} onExecute={handleExecuteDispatch} onClearStatus={async (d) => { await callApiProxy('CLEAR_DISPATCH_STATUS', { type: d.type }); fetchSpreadsheetData(); }} operator={user.name} />}
         {currentView === 'calendar' && <CalendarPage googleWebAppUrl={effectiveGoogleWebAppUrl} user={user} />}
         {currentView === 'comunicados' && <ComunicadosPage comunicados={comunicados} onSave={async (c) => { await callApiProxy('SAVE_COMUNICADO', c); fetchSpreadsheetData(); }} onDelete={async (id) => { await callApiProxy('DELETE_COMUNICADO', { id }); fetchSpreadsheetData(); }} onSync={fetchSpreadsheetData} isLoading={isLoadingSheet} user={user} />}

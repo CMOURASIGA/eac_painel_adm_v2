@@ -272,7 +272,11 @@ function formatTriagemExportValue(key: string, value: any) {
   return value ?? '';
 }
 
-const InscricoesReviewPage: React.FC = () => {
+interface InscricoesReviewPageProps {
+  initialFilters?: Partial<InscricoesAdminFilters>;
+}
+
+const InscricoesReviewPage: React.FC<InscricoesReviewPageProps> = ({ initialFilters }) => {
   const [items, setItems] = useState<InscricaoAdminItem[]>([]);
   const [encontros, setEncontros] = useState<EncontroItem[]>([]);
   const [summary, setSummary] = useState<Summary>({ total: 0, por_status: {} });
@@ -301,8 +305,18 @@ const InscricoesReviewPage: React.FC = () => {
     telefone_responsavel: '',
   });
 
-  const [draft, setDraft] = useState<InscricoesAdminFilters>({ page: 1, page_size: 25 });
-  const [applied, setApplied] = useState<InscricoesAdminFilters>({ page: 1, page_size: 25 });
+  const [draft, setDraft] = useState<InscricoesAdminFilters>({ page: 1, page_size: 25, ...initialFilters });
+  const [applied, setApplied] = useState<InscricoesAdminFilters>({ page: 1, page_size: 25, ...initialFilters });
+
+  // Drill-down vindo da Home: quando o filtro inicial mudar (nova navegação a partir
+  // de um indicador), reaplica sem exigir que o usuário clique em "Filtrar".
+  useEffect(() => {
+    if (!initialFilters || Object.keys(initialFilters).length === 0) return;
+    const next = { page: 1, page_size: 25, ...initialFilters };
+    setDraft(next);
+    setApplied(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(initialFilters)]);
 
   const fetchEncontros = useCallback(async () => {
     const r = await inscricoesService.listarEncontrosAbertos();
