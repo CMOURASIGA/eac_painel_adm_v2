@@ -172,7 +172,10 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate, lastSync, onRefresh, isLo
       if (params.encontroId) search.set('encontroId', params.encontroId);
       if (params.tipoEvento) search.set('tipoEvento', params.tipoEvento);
       const suffix = search.toString();
-      const r = await getJson<HomeData>(`/api/dashboard/home${suffix ? `?${suffix}` : ''}`);
+      // Nota: reaproveita o endpoint /api/dashboard/resumo (antigo resumo do
+      // Dashboard) para não ultrapassar o limite de 12 Serverless Functions do
+      // plano Hobby da Vercel — ver comentário em api/dashboard/resumo.ts.
+      const r = await getJson<HomeData>(`/api/dashboard/resumo${suffix ? `?${suffix}` : ''}`);
       if (!r.success) throw new Error(r.error || 'Não foi possível carregar os indicadores da Home.');
       const payload = r.data as any as HomeData;
       setData(payload);
