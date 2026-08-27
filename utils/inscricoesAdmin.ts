@@ -242,8 +242,16 @@ async function adolescenteIdsByPessoaFiltros(
       .order('id', { ascending: true })
       .range(from, from + pageSize - 1);
 
-    if (typeof idadeMin === 'number') pessoasQuery = pessoasQuery.gte('idade_calculada', idadeMin);
-    if (typeof idadeMax === 'number') pessoasQuery = pessoasQuery.lte('idade_calculada', idadeMax);
+    // A Home e a triagem usam o critério funcional "ano atual - ano de nascimento".
+    // Filtrar pela idade_calculada (idade exata) criava divergência perto do aniversário:
+    // a Home exibia 18 anos, mas o drill-down não conseguia reproduzir o registro.
+    const anoAtual = new Date().getFullYear();
+    if (typeof idadeMax === 'number') {
+      pessoasQuery = pessoasQuery.gte('data_nascimento', `${anoAtual - idadeMax}-01-01`);
+    }
+    if (typeof idadeMin === 'number') {
+      pessoasQuery = pessoasQuery.lte('data_nascimento', `${anoAtual - idadeMin}-12-31`);
+    }
     if (bairro) pessoasQuery = pessoasQuery.ilike('bairro', `%${bairro}%`);
     if (sexo) pessoasQuery = pessoasQuery.ilike('sexo', sexo);
     if (sexoNaoInformado) pessoasQuery = pessoasQuery.or('sexo.is.null,sexo.eq.');
