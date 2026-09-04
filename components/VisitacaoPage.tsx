@@ -51,6 +51,9 @@ const escapeCsvCell = (value: unknown) => {
   return `"${text}"`;
 };
 
+// Mantém telefones, datas e números como texto ao abrir no Excel ou em planilhas.
+const csvTextCell = (value: unknown) => `="${String(value ?? '').replace(/"/g, '""')}"`;
+
 interface VisitacaoPageProps {
   user: User;
   initialFilters?: { status?: string };
@@ -80,6 +83,7 @@ const VisitacaoPage: React.FC<VisitacaoPageProps> = ({ user, initialFilters }) =
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [questionario, setQuestionario] = useState<VisitacaoQuestionarioResposta>(createEmptyVisitacaoQuestionario());
   const [form, setForm] = useState({
@@ -121,85 +125,55 @@ const VisitacaoPage: React.FC<VisitacaoPageProps> = ({ user, initialFilters }) =
 
   const handleExportCsv = () => {
     const headers = [
-      'inscricao_id',
-      'adolescente_id',
-      'visitacao_id',
-      'nome',
-      'email',
-      'telefone',
-      'telefone_normalizado',
-      'bairro',
-      'sexo',
-      'idade',
-      'data_nascimento',
-      'responsavel_nome',
-      'responsavel_telefone',
-      'responsavel_email',
-      'encontro_id',
-      'encontro_nome',
-      'encontro_numero',
-      'status_inscricao',
-      'origem_inscricao',
-      'status_visitacao',
-      'status_visitacao_label',
-      'contato_inicial_realizado',
-      'data_contato_inicial',
-      'visitacao_realizada',
-      'data_visitacao',
-      'responsavel_acao',
-      'observacao',
-      'origem_registro',
-      'atualizado_em',
-      'data_cadastro',
-      'ja_participou_encontro',
-      'batizado',
-      'crismado',
-      'respostas_questionario_resumo',
+      'Nome do adolescente',
+      'Idade',
+      'Sexo',
+      'Bairro',
+      'Telefone do adolescente',
+      'E-mail do adolescente',
+      'Responsável',
+      'Telefone do responsável',
+      'E-mail do responsável',
+      'Encontro',
+      'Situação da visitação',
+      'Data do contato inicial',
+      'Data da visita',
+      'Responsável pela última ação',
+      'Observação registrada',
+      'Já participou de encontro?',
+      'É batizado?',
+      'É crismado?',
+      'Última atualização',
     ];
 
     const rows = filteredItems.map((item) => {
       const respostas = item.respostas_questionario || createEmptyVisitacaoQuestionario();
       return [
-        item.inscricao_id,
-        item.adolescente_id,
-        item.visitacao_id,
         item.nome,
-        item.email,
-        item.telefone,
-        item.telefone_normalizado,
-        item.bairro,
-        item.sexo,
         item.idade,
-        item.data_nascimento,
+        item.sexo,
+        item.bairro,
+        item.telefone,
+        item.email,
         item.responsavel_nome,
         item.responsavel_telefone,
         item.responsavel_email,
-        item.encontro_id,
         item.encontro_nome,
-        item.encontro_numero,
-        item.status_inscricao,
-        item.origem_inscricao,
-        item.status_visitacao,
         STATUS_VISITACAO_UI[item.status_visitacao]?.label || item.status_visitacao,
-        item.contato_inicial_realizado ? 'SIM' : 'NAO',
-        item.data_contato_inicial,
-        item.visitacao_realizada ? 'SIM' : 'NAO',
-        item.data_visitacao,
+        formatDateTime(item.data_contato_inicial),
+        formatDateTime(item.data_visitacao),
         item.responsavel_acao,
         item.observacao,
-        item.origem_registro,
-        item.atualizado_em,
-        item.data_cadastro,
         respostas.ja_participou_encontro,
         respostas.batizado,
         respostas.crismado,
-        summarizeVisitacaoQuestionario(item.respostas_questionario),
+        formatDateTime(item.atualizado_em),
       ];
     });
 
     const csv = '\ufeff' + [
       headers.map(escapeCsvCell).join(';'),
-      ...rows.map((row) => row.map(escapeCsvCell).join(';')),
+      ...rows.map((row) => row.map((value) => escapeCsvCell(csvTextCell(value))).join(';')),
     ].join('\n');
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -238,6 +212,11 @@ const VisitacaoPage: React.FC<VisitacaoPageProps> = ({ user, initialFilters }) =
     if (result.success) setHistory(result.data.items || []);
     else setError(result.error);
     setHistoryLoading(false);
+  };
+
+  const openReadOnlyView = (item: VisitacaoPriorizado) => {
+    setSelectedItem(item);
+    setViewOpen(true);
   };
 
   const handleSave = async (event: React.FormEvent) => {
@@ -392,17 +371,25 @@ const VisitacaoPage: React.FC<VisitacaoPageProps> = ({ user, initialFilters }) =
                     variant: 'view' as const,
                     icon: <span className="text-base font-black">H</span>,
                   },
-                  {
+                  ...(item.status_visitacao === 'VISITACAO_REALIZADA' ? [{
+                    key: 'view-visitacao',
+                    title: 'Visualizar informações da visitação',
+                    onClick: () => openReadOnlyView(item),
+                    variant: 'view' as const,
+                    icon: <span className="text-base font-black">V</span>,
+                  }] : [{
                     key: 'observation',
                     title: 'Adicionar observação',
                     onClick: () => openAction(item, item.status_visitacao),
                     variant: 'edit' as const,
                     icon: <span className="text-base font-black">+</span>,
-                  },
+                  }]),
                 ]}
                 primaryAction={{
-                  label: item.status_visitacao === 'VISITACAO_REALIZADA' ? 'Atualizar visitação' : 'Registrar visitação realizada',
-                  onClick: () => openAction(item, 'VISITACAO_REALIZADA'),
+                  label: item.status_visitacao === 'VISITACAO_REALIZADA' ? 'Visualizar visitação' : 'Registrar visitação realizada',
+                  onClick: () => item.status_visitacao === 'VISITACAO_REALIZADA'
+                    ? openReadOnlyView(item)
+                    : openAction(item, 'VISITACAO_REALIZADA'),
                 }}
               />
             );
@@ -465,6 +452,38 @@ const VisitacaoPage: React.FC<VisitacaoPageProps> = ({ user, initialFilters }) =
               <button type="submit" disabled={saving} className="rounded-2xl bg-blue-600 text-white px-5 py-3 text-xs font-black uppercase tracking-widest disabled:opacity-60">{saving ? 'Salvando...' : 'Salvar atualização'}</button>
             </div>
           </form>
+        </div>
+      ) : null}
+
+      {viewOpen && selectedItem ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/50" onClick={() => setViewOpen(false)} />
+          <section role="dialog" aria-modal="true" aria-labelledby="visitacao-view-title" className="relative w-full max-w-2xl overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl">
+            <div className="max-h-[calc(100vh-2rem)] overflow-y-auto p-6 space-y-5">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.25em] text-emerald-600">Consulta da visitação</p>
+                <h3 id="visitacao-view-title" className="mt-2 text-2xl font-black text-slate-900">{selectedItem.nome}</h3>
+                <p className="mt-1 text-sm text-slate-500">Informações registradas em modo somente leitura.</p>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3 text-sm">
+                <div className="rounded-2xl border border-slate-200 p-4"><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Situação</p><p className="mt-1 font-bold text-slate-800">{STATUS_VISITACAO_UI[selectedItem.status_visitacao]?.label || selectedItem.status_visitacao}</p></div>
+                <div className="rounded-2xl border border-slate-200 p-4"><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Data da visita</p><p className="mt-1 font-bold text-slate-800">{formatDateTime(selectedItem.data_visitacao)}</p></div>
+                <div className="rounded-2xl border border-slate-200 p-4"><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Responsável pela ação</p><p className="mt-1 font-bold text-slate-800">{selectedItem.responsavel_acao || '-'}</p></div>
+                <div className="rounded-2xl border border-slate-200 p-4"><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Contato inicial</p><p className="mt-1 font-bold text-slate-800">{formatDateTime(selectedItem.data_contato_inicial)}</p></div>
+              </div>
+              <div className="rounded-[1.5rem] border border-blue-100 bg-blue-50/60 p-5">
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">Respostas da visitação</p>
+                <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">{summarizeVisitacaoQuestionario(selectedItem.respostas_questionario)}</p>
+              </div>
+              <div className="rounded-[1.5rem] border border-slate-200 p-5">
+                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Observação registrada</p>
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{selectedItem.observacao || 'Nenhuma observação registrada.'}</p>
+              </div>
+            </div>
+            <div className="border-t border-slate-200 bg-white p-4 flex justify-end">
+              <button type="button" onClick={() => setViewOpen(false)} className="rounded-2xl bg-slate-900 px-5 py-3 text-xs font-black uppercase tracking-widest text-white">Fechar</button>
+            </div>
+          </section>
         </div>
       ) : null}
 
