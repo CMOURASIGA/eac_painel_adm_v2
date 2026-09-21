@@ -1,4 +1,5 @@
-﻿import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { View, User, Dispatch, Log, Comunicado, LogStatus, SystemSettings, CalendarEvent } from './types.ts';
 import { INITIAL_DISPATCHES } from './constants.tsx';
 import LoginPage from './components/LoginPage.tsx';
@@ -617,6 +618,7 @@ const App: React.FC = () => {
       </main>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {dialogNode}
+      <Analytics />
     </div>
   );
 };
