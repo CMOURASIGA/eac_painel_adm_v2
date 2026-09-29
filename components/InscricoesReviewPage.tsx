@@ -877,6 +877,8 @@ const InscricoesReviewPage: React.FC<InscricoesReviewPageProps> = ({ initialFilt
               <p className="text-sm">Data inscrição: {formatDateTime(selected.data_inscricao)}</p>
               <p className="text-sm">Origem: {selected.origem_inscricao || '-'}</p>
               <p className="text-sm">Criado via sistema: {selected.criado_via_sistema ? 'Sim' : 'Não'}</p>
+              <p className="text-sm">Colégio: {selected.escola_nome || '-'}</p>
+              <p className="text-sm">Tamanho da camisa: {selected.tamanho_camisa || '-'}</p>
             </div>
 
             <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
