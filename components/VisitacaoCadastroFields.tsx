@@ -110,6 +110,14 @@ const VisitacaoCadastroFields: React.FC<{
       {section('Família e contato', (
         <div className="grid md:grid-cols-2 gap-3">
           <label className="space-y-2">
+            <span className={labelClass}>Nome do pai</span>
+            <input value={value.pai_nome || ''} onChange={(e) => set('pai_nome', e.target.value)} className={fieldClass} disabled={disabled} />
+          </label>
+          <label className="space-y-2">
+            <span className={labelClass}>Nome da mãe</span>
+            <input value={value.mae_nome || ''} onChange={(e) => set('mae_nome', e.target.value)} className={fieldClass} disabled={disabled} />
+          </label>
+          <label className="space-y-2">
             <span className={labelClass}>Responsável principal</span>
             <input value={value.responsavel_nome || ''} onChange={(e) => set('responsavel_nome', e.target.value)} className={fieldClass} disabled={disabled} />
           </label>
