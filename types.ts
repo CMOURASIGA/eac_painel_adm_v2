@@ -251,6 +251,8 @@ export interface VisitacaoCadastro {
   bairro?: string | null;
   cidade?: string | null;
   estado?: string | null;
+  pai_nome?: string | null;
+  mae_nome?: string | null;
   responsavel_nome?: string | null;
   responsavel_telefone?: string | null;
   responsavel_email?: string | null;
