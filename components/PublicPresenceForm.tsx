@@ -119,6 +119,24 @@ const PublicPresenceForm: React.FC = () => {
     return 'Ambos';
   };
 
+  const maskPhone = (value?: string) => {
+    const digits = digitsOnly(value);
+    if (!digits) return 'Não informado';
+    const local = digits.startsWith('55') ? digits.slice(2) : digits;
+    if (local.length < 4) return '••••';
+    const ddd = local.length >= 10 ? local.slice(0, 2) : '';
+    const last4 = local.slice(-4);
+    return ddd ? `(${ddd}) •••••-${last4}` : `••••-${last4}`;
+  };
+
+  const maskEmail = (value?: string) => {
+    const email = toCleanString(value);
+    if (!email || !email.includes('@')) return 'Não informado';
+    const [local, domain] = email.split('@');
+    const visible = local.slice(0, Math.min(2, local.length));
+    return `${visible}${local.length > 2 ? '•••' : ''}@${domain}`;
+  };
+
   const isLockedEncontreiroCircle = useMemo(
     () =>
       eventType === 'POS_ENCONTRO' &&
@@ -341,6 +359,28 @@ const PublicPresenceForm: React.FC = () => {
                 </p>
               </div>
 
+              {selectedCandidate ? (
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                  <p className="text-xs font-black uppercase tracking-widest text-[#044372]">Dados atuais do cadastro</p>
+                  <p className="mt-1 text-xs font-semibold text-slate-600">
+                    Confira estes dados antes de indicar que estão ausentes ou desatualizados.
+                  </p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-blue-100 bg-white p-3">
+                      <span className="block text-[11px] font-black uppercase tracking-wider text-slate-500">Telefone cadastrado</span>
+                      <span className="mt-1 block font-extrabold text-slate-900">{maskPhone(selectedCandidate.telefone)}</span>
+                    </div>
+                    <div className="rounded-xl border border-blue-100 bg-white p-3">
+                      <span className="block text-[11px] font-black uppercase tracking-wider text-slate-500">E-mail cadastrado</span>
+                      <span className="mt-1 block break-all font-extrabold text-slate-900">{maskEmail(selectedCandidate.email)}</span>
+                    </div>
+                  </div>
+                  <p className="mt-3 text-[11px] font-semibold text-slate-500">
+                    Por segurança, os dados são exibidos parcialmente. Se estiverem corretos, não marque as opções de atualização abaixo.
+                  </p>
+                </div>
+              ) : null}
+
               <div>
                 <label className="block text-sm font-extrabold text-slate-800 mb-1">Circulo *</label>
                 <input
@@ -366,7 +406,7 @@ const PublicPresenceForm: React.FC = () => {
                     disabled={!selectedCandidate}
                     className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
                   />
-                  <span>Meu telefone esta ausente ou desatualizado neste cadastro.</span>
+                  <span>O telefone exibido acima está ausente ou desatualizado.</span>
                 </label>
                 {!toCleanString(selectedCandidate?.telefone) ? (
                   <p className="mt-2 text-xs font-semibold text-amber-700">
@@ -397,7 +437,7 @@ const PublicPresenceForm: React.FC = () => {
                     disabled={!selectedCandidate}
                     className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
                   />
-                  <span>Meu e-mail esta ausente ou desatualizado neste cadastro.</span>
+                  <span>O e-mail exibido acima está ausente ou desatualizado.</span>
                 </label>
                 {!toCleanString(selectedCandidate?.email) ? (
                   <p className="mt-2 text-xs font-semibold text-amber-700">
