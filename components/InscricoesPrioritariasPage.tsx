@@ -1244,6 +1244,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
               const linhaOrigem = String(item.linhaOrigem || '').trim();
               const isDeprioritizing = Boolean(updatingDeprioritizeId && updatingDeprioritizeId === linhaOrigem);
               const ageNum = parseAgeNumber(item.idade);
+              const nascimento = formatDate(item.dataNascimento);
               const statusUi = getStatusUi(item.status);
               const isVisitado = hasVisitado(item);
               return (
@@ -1251,6 +1252,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
                   key={cardId}
                   ageLabel={getAgeLabel(item.idade)}
                   ageClassName={getAgeBadgeClass(ageNum)}
+                  birthLabel={nascimento === '-' ? undefined : `Nascimento: ${nascimento}`}
                   statusLabel={statusUi.label}
                   statusTextClassName={statusUi.text}
                   statusDotClassName={statusUi.dot}
@@ -1437,4 +1439,3 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
 };
 
 export default InscricoesPrioritariasPage;
-
