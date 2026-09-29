@@ -17,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const { data, error } = await supabase
         .from('escolas')
-        .select('id,nome,rede,bairro')
+        .select('id,codigo_inep,nome,rede,bairro')
         .eq('ativo', true)
         .eq('municipio', 'Niterói')
         .eq('uf', 'RJ')
@@ -29,15 +29,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.error('[api/inscricoes/create] falha ao pesquisar escolas:', error);
         return res.status(502).json({ success: false, error: 'SCHOOLS_LOOKUP_FAILED', message: 'Não foi possível pesquisar as escolas agora.' });
       }
-      // O Censo Escolar pode registrar unidades distintas com o mesmo nome
-      // comercial. Para o formulário, uma opção por nome é mais clara.
-      const escolasUnicas = Array.from(
-        new Map(
-          (data ?? []).map((escola: any) => [clean(escola.nome).toLocaleUpperCase('pt-BR'), escola]),
-        ).values(),
-      ).slice(0, 20);
+      // Unidades distintas podem ter o mesmo nome comercial.
+      // Mantemos cada unidade para que o usuário escolha pelo bairro.
+      // Quando o bairro não estiver disponível, o código INEP serve como
+      // identificador complementar da unidade.
+      const escolasOrdenadas = [...(data ?? [])]
+        .sort((a: any, b: any) => {
+          const nomeCmp = clean(a?.nome).localeCompare(clean(b?.nome), 'pt-BR');
+          if (nomeCmp !== 0) return nomeCmp;
+          return clean(a?.bairro).localeCompare(clean(b?.bairro), 'pt-BR');
+        })
+        .slice(0, 30);
 
-      return res.status(200).json({ success: true, data: escolasUnicas });
+      return res.status(200).json({ success: true, data: escolasOrdenadas });
     } catch (e: any) {
       console.error('[api/inscricoes/create] falha ao pesquisar escolas:', e);
       return res.status(500).json({ success: false, error: 'INTERNAL_ERROR', message: 'Erro interno.' });
