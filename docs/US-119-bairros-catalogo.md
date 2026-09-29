@@ -10,7 +10,7 @@ O [Catálogo de Escolas do INEP](https://www.gov.br/inep/pt-br/acesso-a-informac
 
 O CSV tem 377 linhas, sendo 11 escolas paralisadas. Entre as 366 restantes, 362 têm bairro identificável no endereço; quatro têm duas localidades e foram deixadas de fora. Do cruzamento por código INEP com as 361 unidades ativas carregadas do Censo 2025, **342 têm bairro identificável** e **19 permanecem sem bairro**. Existem diferenças de composição entre o catálogo atual e o Censo 2025; não inserir escolas novas nesta manutenção.
 
-Pensi no arquivo: `33057451` Icaraí, `33150931` Icaraí, `33161429` Itaipu, `33165920` Icaraí. O bairro distingue Itaipu das demais; o INEP na lista distingue as três unidades de Icaraí.
+Pensi no arquivo: `33057451` Icaraí, `33150931` Icaraí, `33161429` Itaipu, `33165920` Icaraí. O formulário exibe somente nome e bairro. As três unidades de Icaraí ficam visualmente idênticas na lista, mas cada opção mantém seu próprio `escola_id`. Uma identificação adicional será necessária se o usuário precisar escolher uma dessas três com precisão.
 
 Execute localmente:
 
@@ -21,4 +21,4 @@ python3 scripts/us119_backfill_escolas_bairro.py catalogo-escolas-niteroi.csv \
 
 O SQL gerado para o arquivo recebido está em `docs/migrations/20260929_us119_bairros_catalogo_inep.sql`. Confira a contagem e os códigos retornados. Execute o SQL **inteiro** no SQL Editor do projeto EAC. Ele aborta se o total de escolas ativas não for 361 ou se a correspondência de códigos não for 342. A atualização encontra a unidade **somente pelo `codigo_inep`**, modifica apenas `bairro` e `atualizado_em`, e conserva `escolas.id` e todos os vínculos de inscrições por `escola_id`. Duplicatas de nome são unidades independentes. Códigos INEP repetidos com bairros conflitantes impedem a geração. Bairro ausente ou ambíguo no catálogo permanece sem preenchimento e o formulário usa `Bairro não informado`.
 
-Após executar, valide as contagens e os quatro Pensi retornados pelo SQL. Consulte o formulário no Preview pesquisando `Pensi`; cada unidade deve manter seu código INEP e mostrar seu bairro quando ele vier do catálogo.
+Após executar, valide as contagens e os quatro Pensi retornados pelo SQL. Consulte o formulário no Preview pesquisando `Pensi`; cada unidade permanece um registro separado e exibe apenas nome e bairro.

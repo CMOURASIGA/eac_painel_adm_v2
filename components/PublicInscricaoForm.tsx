@@ -338,9 +338,6 @@ const PublicInscricaoForm: React.FC = () => {
                           <span className="mt-0.5 block text-xs font-semibold text-slate-600">
                             {escola.bairro ? `Bairro: ${escola.bairro}` : 'Bairro não informado'}
                           </span>
-                          <span className="block text-[11px] text-slate-500">
-                            {[escola.rede, escola.codigo_inep ? `INEP ${escola.codigo_inep}` : null].filter(Boolean).join(' · ')}
-                          </span>
                         </button>
                       ))}
                       <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => {
