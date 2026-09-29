@@ -1,6 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeVisitacaoQuestionario, summarizeVisitacaoQuestionario } from '../utils/visitacaoQuestionario.js';
-import { calculateAgeFromBirthDate } from '../components/memberAge.js';
 
 type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
 
@@ -19,6 +18,39 @@ const STATUS_SET = new Set<string>(VISITACAO_STATUS_VALUES);
 
 function toCleanString(value: any) {
   return String(value ?? '').trim();
+}
+
+function calculateAgeFromBirthDate(value: any): number | null {
+  const raw = toCleanString(value);
+  if (!raw) return null;
+
+  let year = 0;
+  let month = 0;
+  let day = 0;
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const br = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+
+  if (iso) {
+    year = Number(iso[1]);
+    month = Number(iso[2]);
+    day = Number(iso[3]);
+  } else if (br) {
+    day = Number(br[1]);
+    month = Number(br[2]);
+    year = Number(br[3]);
+  } else {
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return null;
+    year = parsed.getFullYear();
+    month = parsed.getMonth() + 1;
+    day = parsed.getDate();
+  }
+
+  const now = new Date();
+  let age = now.getFullYear() - year;
+  const currentMonth = now.getMonth() + 1;
+  if (currentMonth < month || (currentMonth === month && now.getDate() < day)) age -= 1;
+  return age >= 0 && age <= 120 ? age : null;
 }
 
 function normalizeStatusList(rawValue: string) {
