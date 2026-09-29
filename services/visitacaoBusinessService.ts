@@ -413,6 +413,91 @@ async function updateCadastroOficialFromVisitacao(
     }
   }
 
+  const syncParent = async (role: 'Pai' | 'Mãe', rawName: any) => {
+    const nome = toCleanString(rawName);
+    if (!nome) return;
+
+    const linksRes = await supabase
+      .from('adolescente_responsaveis')
+      .select('*')
+      .eq('adolescente_id', adolescenteId);
+    if (linksRes.error) throw linksRes.error;
+    const links = Array.isArray(linksRes.data) ? linksRes.data : [];
+
+    const respIds = Array.from(new Set(links.map((link: any) => toCleanString(link?.responsavel_id)).filter(Boolean)));
+    const respRes = respIds.length
+      ? await supabase.from('responsaveis').select('*').in('id', respIds)
+      : ({ data: [], error: null } as any);
+    if (respRes.error) throw respRes.error;
+    const respMap = new Map((Array.isArray(respRes.data) ? respRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
+
+    const roleKey = role.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    let targetLink = links.find((link: any) => {
+      const grau = toCleanString(link?.grau_parentesco).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      return grau === roleKey;
+    });
+
+    if (!targetLink) {
+      targetLink = links.find((link: any) => {
+        const resp = respMap.get(toCleanString(link?.responsavel_id));
+        return toCleanString(resp?.nome).localeCompare(nome, 'pt-BR', { sensitivity: 'base' }) === 0;
+      });
+      if (targetLink) {
+        const linkPayload = await pickPayloadByExistingColumns(supabase, 'adolescente_responsaveis', { grau_parentesco: role });
+        if (Object.keys(linkPayload).length) {
+          const linkUpdate = await supabase.from('adolescente_responsaveis').update(linkPayload).eq('id', targetLink.id);
+          if (linkUpdate.error) throw linkUpdate.error;
+        }
+      }
+    }
+
+    if (targetLink?.responsavel_id) {
+      const responsavel = respMap.get(toCleanString(targetLink.responsavel_id)) || {};
+      if (toCleanString(responsavel?.nome) !== nome) {
+        const payload = await pickPayloadByExistingColumns(supabase, 'responsaveis', { nome });
+        recordChanges(responsavel, payload, `responsaveis.${roleKey}`);
+        if (Object.keys(payload).length) {
+          const update = await supabase.from('responsaveis').update(payload).eq('id', targetLink.responsavel_id);
+          if (update.error) throw update.error;
+        }
+      }
+      return;
+    }
+
+    const pessoaPayload = await pickPayloadByExistingColumns(supabase, 'pessoas', {
+      nome_completo: nome,
+      nome_normalizado: nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(),
+      origem_dado: 'VISITACAO',
+      criado_via_sistema: true,
+    });
+    const pessoaInsert = await supabase.from('pessoas').insert(pessoaPayload).select('id').single();
+    if (pessoaInsert.error) throw pessoaInsert.error;
+
+    const responsavelPayload = await pickPayloadByExistingColumns(supabase, 'responsaveis', {
+      pessoa_id: pessoaInsert.data.id,
+      nome,
+      origem_dado: 'VISITACAO',
+      criado_via_sistema: true,
+    });
+    const responsavelInsert = await supabase.from('responsaveis').insert(responsavelPayload).select('id').single();
+    if (responsavelInsert.error) throw responsavelInsert.error;
+
+    const vinculoPayload = await pickPayloadByExistingColumns(supabase, 'adolescente_responsaveis', {
+      adolescente_id: adolescenteId,
+      responsavel_id: responsavelInsert.data.id,
+      principal: false,
+      grau_parentesco: role,
+      origem_dado: 'VISITACAO',
+      criado_via_sistema: true,
+    });
+    const vinculoInsert = await supabase.from('adolescente_responsaveis').insert(vinculoPayload);
+    if (vinculoInsert.error) throw vinculoInsert.error;
+    changes.push({ campo: `familia.${roleKey}`, anterior: null, novo: nome });
+  };
+
+  await syncParent('Pai', cadastro.pai_nome);
+  await syncParent('Mãe', cadastro.mae_nome);
+
   return changes;
 }
 
