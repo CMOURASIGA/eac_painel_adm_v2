@@ -188,6 +188,27 @@ async function enrichVisitacaoItems(supabase: AnySupabaseClient, rows: any[]) {
   const adolescentes = new Map((Array.isArray(adolescentesRes.data) ? adolescentesRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
   const inscricoes = new Map((Array.isArray(inscricoesRes.data) ? inscricoesRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
 
+  const vinculosRes = adolescenteIds.length
+    ? await supabase.from('adolescente_responsaveis').select('*').in('adolescente_id', adolescenteIds)
+    : ({ data: [], error: null } as any);
+  const vinculos = Array.isArray(vinculosRes.data) ? vinculosRes.data : [];
+  const responsavelIds = Array.from(new Set(vinculos.map((row: any) => toCleanString(row?.responsavel_id)).filter(Boolean)));
+  const responsaveisRes = responsavelIds.length
+    ? await supabase.from('responsaveis').select('*').in('id', responsavelIds)
+    : ({ data: [], error: null } as any);
+  const responsaveis = new Map((Array.isArray(responsaveisRes.data) ? responsaveisRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
+
+  const familiaPorAdolescente = new Map<string, { pai_nome?: string | null; mae_nome?: string | null }>();
+  for (const vinculo of vinculos) {
+    const adolescenteId = toCleanString(vinculo?.adolescente_id);
+    const responsavel = responsaveis.get(toCleanString(vinculo?.responsavel_id)) || {};
+    const grau = toCleanString(vinculo?.grau_parentesco).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const familia = familiaPorAdolescente.get(adolescenteId) || {};
+    if (grau === 'pai' || grau.includes('pai/paterno')) familia.pai_nome = responsavel?.nome || null;
+    if (grau === 'mae' || grau.includes('mae/materno')) familia.mae_nome = responsavel?.nome || null;
+    familiaPorAdolescente.set(adolescenteId, familia);
+  }
+
   const escolaIds = Array.from(new Set(
     Array.from(inscricoes.values()).map((row: any) => toCleanString(row?.escola_id)).filter(Boolean)
   ));
@@ -201,6 +222,7 @@ async function enrichVisitacaoItems(supabase: AnySupabaseClient, rows: any[]) {
     const adolescente = adolescentes.get(toCleanString(item?.adolescente_id)) || {};
     const inscricao = inscricoes.get(toCleanString(item?.inscricao_id)) || {};
     const escola = escolas.get(toCleanString(inscricao?.escola_id)) || {};
+    const familia = familiaPorAdolescente.get(toCleanString(item?.adolescente_id)) || {};
 
     const dataNascimento = pessoa?.data_nascimento || item?.data_nascimento || null;
     const idade = calculateAgeFromBirthDate(dataNascimento) ?? item?.idade ?? null;
@@ -220,6 +242,8 @@ async function enrichVisitacaoItems(supabase: AnySupabaseClient, rows: any[]) {
         bairro: pessoa?.bairro || item?.bairro || null,
         cidade: pessoa?.cidade || null,
         estado: pessoa?.estado || pessoa?.uf || 'RJ',
+        pai_nome: familia.pai_nome || null,
+        mae_nome: familia.mae_nome || null,
         responsavel_nome: item?.responsavel_nome || null,
         responsavel_telefone: item?.responsavel_telefone || null,
         responsavel_email: item?.responsavel_email || null,
