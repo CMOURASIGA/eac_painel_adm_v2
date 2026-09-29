@@ -26,6 +26,10 @@ export type InscricaoAdminItem = {
   criado_via_sistema?: boolean | null;
   data_inscricao?: string | null;
   criado_em?: string | null;
+  tamanho_camisa?: 'PP' | 'P' | 'M' | 'G' | 'GG' | 'XG' | 'XXG' | null;
+  escola_id?: string | null;
+  escola_nome?: string | null;
+  escola_nome_outro?: string | null;
   encontro_id?: string | null;
   encontro_nome?: string | null;
   encontro_numero?: string | number | null;
@@ -108,8 +112,8 @@ export const inscricoesService = {
     return emptyOk({ data: (r.data as any)?.data ?? (r.data as any), message: (r.data as any)?.message, duplicate: (r.data as any)?.duplicate }, r.raw);
   },
 
-  async listarPrioritarias(opts: { googleWebAppUrl?: string } = {}): Promise<EacApiResult<{ items: any[]; total: number }>> {
-    const r = await postComunicadosAction<InscricoesPrioritariasResponse>('GET_INSCRICOES_PRIORITARIAS', {}, opts);
+  async listarPrioritarias(opts: { googleWebAppUrl?: string; encontroId?: string } = {}): Promise<EacApiResult<{ items: any[]; total: number }>> {
+    const r = await postComunicadosAction<InscricoesPrioritariasResponse>('GET_INSCRICOES_PRIORITARIAS', { encontroId: opts.encontroId }, opts);
     if (!r.success) return r as any;
     const payload = r.data as any;
     const list = Array.isArray(payload?.inscricoesPrioritarias)
@@ -127,9 +131,9 @@ export const inscricoesService = {
   },
 
   async obterCirculoAtualMapa(
-    opts: { googleWebAppUrl?: string } = {}
+    opts: { googleWebAppUrl?: string; encontroId?: string } = {}
   ): Promise<EacApiResult<{ porPessoa: Record<string, string>; porInscricao: Record<string, string> }>> {
-    const r = await postComunicadosAction<any>('GET_CIRCULO_ATUAL_MAPA', {}, opts);
+    const r = await postComunicadosAction<any>('GET_CIRCULO_ATUAL_MAPA', { encontroId: opts.encontroId }, opts);
     if (!r.success) return r as any;
     const data = r.data as any;
     return emptyOk(
@@ -142,7 +146,7 @@ export const inscricoesService = {
   },
 
   async executarDistribuicaoCirculos(
-    payload: { minAge?: number | null; maxAge?: number | null; items?: any[] } = {},
+    payload: { minAge?: number | null; maxAge?: number | null; items?: any[]; encontroId?: string } = {},
     opts: { googleWebAppUrl?: string } = {}
   ): Promise<EacApiResult<any>> {
     // Endpoint dedicado (hoje proxy do /api/comunicados), para permitir evoluir a implementação sem mudar o frontend.
@@ -159,6 +163,7 @@ export const inscricoesService = {
       sexo?: string;
       bairro?: string;
       operator?: string;
+      encontroId?: string;
     },
   ): Promise<EacApiResult<{ circulo: string; execucaoId?: string }>> {
     const r = await postComunicadosAction<any>('SET_INSCRICAO_CIRCULO', payload);
@@ -213,4 +218,3 @@ async excluirInscricao(payload: { inscricao_id: string }): Promise<EacApiResult<
     return await postJson<any>('/api/inscricoes/admin/lote', payload);
   },
 };
-

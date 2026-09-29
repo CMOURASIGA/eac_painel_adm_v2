@@ -4636,6 +4636,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
     }
 
     if (ctx.action === 'GET_CIRCULOS_DISTRIBUIDOS') {
+      const encontroId = cleanText(ctx.payload?.encontroId);
       // Fonte principal: circulos_execucao_itens, pegando o item mais recente por pessoa/inscricao.
       // Isso inclui tanto o resultado da ultima distribuicao automatica quanto qualquer ajuste manual
       // feito depois (SET_INSCRICAO_CIRCULO), ja que o ajuste manual grava um item com created_at mais
@@ -4643,12 +4644,32 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       try {
         const itensTableExists = await hasColumn(supabase, 'circulos_execucao_itens', 'id');
         if (itensTableExists) {
-          const { data: allItens, error: itensError } = await supabase
-            .from('circulos_execucao_itens')
+          const { data: execucoes, error: execucoesError } = encontroId
+            ? await supabase.from('circulos_execucoes').select('id').eq('encontro_id', encontroId).limit(20000)
+            : { data: null, error: null };
+          if (execucoesError) throw execucoesError;
+          const execucaoIds = (execucoes || []).map((row: any) => row.id);
+          if (encontroId && execucaoIds.length === 0) {
+            return { ok: true, data: { success: true, circulos: createEmptyCircleGroups(), source: 'supabase' } };
+          }
+          let itensQuery = supabase.from('circulos_execucao_itens')
             .select('inscricao_id,pessoa_id,circulo_nome,payload,created_at')
             .order('created_at', { ascending: false })
             .limit(20000);
+          if (encontroId) itensQuery = itensQuery.in('execucao_id', execucaoIds);
+          const { data: allItens, error: itensError } = await itensQuery;
+          if (itensError) throw itensError;
           if (!itensError && Array.isArray(allItens) && allItens.length > 0) {
+            const pessoasById = new Map<string, any>();
+            if (encontroId) {
+              const pessoaIds = Array.from(new Set(allItens.map((it: any) => cleanText(it?.pessoa_id)).filter(Boolean)));
+              for (let i = 0; i < pessoaIds.length; i += 200) {
+                const { data: pessoas, error: pessoasError } = await supabase.from('pessoas')
+                  .select('id,nome_completo,data_nascimento,sexo,bairro').in('id', pessoaIds.slice(i, i + 200));
+                if (pessoasError) throw pessoasError;
+                (pessoas || []).forEach((pessoa: any) => pessoasById.set(cleanText(pessoa.id), pessoa));
+              }
+            }
             const seen = new Set<string>();
             const grouped = createEmptyCircleGroups();
             allItens.forEach((it: any) => {
@@ -4662,14 +4683,16 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
               const circuloRaw = cleanText(it?.circulo_nome) || 'Circulo Excedente';
               const circulo = grouped[circuloRaw] ? circuloRaw : 'Circulo Excedente';
               const payload = it?.payload && typeof it.payload === 'object' ? it.payload : {};
+              const pessoa = pessoasById.get(pid);
+              const nascimento = parseMemberBirthDate(pessoa?.data_nascimento);
               grouped[circulo].push({
                 id: pid || iid || undefined,
                 pessoaId: pid || null,
                 inscricaoId: iid || null,
-                nome: pickFirst(payload, ['nome', 'nome_completo', 'name']),
-                idade: pickFirst(payload, ['idade']),
-                bairro: pickFirst(payload, ['bairro']),
-                sexo: pickFirst(payload, ['sexo']),
+                nome: pickFirst(pessoa, ['nome_completo']) || pickFirst(payload, ['nome', 'nome_completo', 'name']),
+                idade: calcCurrentAgeFromBirthDate(nascimento) ?? pickFirst(payload, ['idade']),
+                bairro: pickFirst(pessoa, ['bairro']) || pickFirst(payload, ['bairro']),
+                sexo: pickFirst(pessoa, ['sexo']) || pickFirst(payload, ['sexo']),
                 grupoSugerido: circulo,
               });
             });
@@ -4680,7 +4703,10 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         }
       } catch (readError) {
         console.error('Falha ao ler circulos_execucao_itens para GET_CIRCULOS_DISTRIBUIDOS:', readError);
+        if (encontroId) throw readError;
       }
+
+      if (encontroId) return { ok: true, data: { success: true, circulos: createEmptyCircleGroups(), source: 'supabase' } };
 
       // Fallback: tabelas legadas (mantido por compatibilidade; nenhum fluxo atual grava nelas).
       const rows = await fetchAllRows(
@@ -4698,6 +4724,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
     }
 
     if (ctx.action === 'GET_CIRCULO_ATUAL_MAPA') {
+      const encontroId = cleanText(ctx.payload?.encontroId);
       // Mapa enxuto pessoa/inscricao -> circulo mais recente, pensado para o frontend casar por conta
       // propria (usando o pessoaId/inscricaoId que ele ja resolve de forma confiavel, por exemplo via
       // pessoa_adolescente_id do /api/inscricoes/admin), sem depender de colunas de identidade que a
@@ -4707,11 +4734,21 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       try {
         const itensTableExists = await hasColumn(supabase, 'circulos_execucao_itens', 'id');
         if (itensTableExists) {
-          const { data: allItens, error: itensError } = await supabase
-            .from('circulos_execucao_itens')
+          const { data: execucoes, error: execucoesError } = encontroId
+            ? await supabase.from('circulos_execucoes').select('id').eq('encontro_id', encontroId).limit(20000)
+            : { data: null, error: null };
+          if (execucoesError) throw execucoesError;
+          const execucaoIds = (execucoes || []).map((row: any) => row.id);
+          let itensQuery = supabase.from('circulos_execucao_itens')
             .select('inscricao_id,pessoa_id,circulo_nome,created_at')
             .order('created_at', { ascending: false })
             .limit(20000);
+          if (encontroId && execucaoIds.length === 0) {
+            return { ok: true, data: { success: true, porPessoa, porInscricao, source: 'supabase' } };
+          }
+          if (encontroId) itensQuery = itensQuery.in('execucao_id', execucaoIds);
+          const { data: allItens, error: itensError } = await itensQuery;
+          if (itensError) throw itensError;
           if (!itensError && Array.isArray(allItens)) {
             allItens.forEach((it: any) => {
               const circulo = cleanText(it?.circulo_nome);
@@ -4725,11 +4762,13 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         }
       } catch (readError) {
         console.error('Falha ao ler circulos_execucao_itens para GET_CIRCULO_ATUAL_MAPA:', readError);
+        if (encontroId) throw readError;
       }
       return { ok: true, data: { success: true, porPessoa, porInscricao, source: 'supabase' } };
     }
 
     if (ctx.action === 'GET_INSCRICOES_PRIORITARIAS') {
+      const encontroId = cleanText(ctx.payload?.encontroId);
       const rows = await fetchAllRows(
         supabase,
         [
@@ -4740,7 +4779,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         ].filter(Boolean),
         { maxRows: 20000 }
       );
-      const items = (Array.isArray(rows) ? rows : []).map((r, i) => ({
+      const items = (Array.isArray(rows) ? rows : []).filter((r: any) => !encontroId || cleanText(r?.encontro_id) === encontroId).map((r, i) => ({
         ...r,
         id: pickFirst(r, ['id', 'uuid']) || `pri-${i + 1}`,
         linhaOrigem: pickFirst(r, ['linhaOrigem', 'linha_origem', 'linha_origem_nao_inscritos', 'linha_origem_origem']),
@@ -4977,6 +5016,17 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
     }
 
     if (ctx.action === 'EXECUTE_DISTRIBUICAO_CIRCULOS') {
+      const encontroId = cleanText(ctx.payload?.encontroId);
+      if (!isUuidLike(encontroId)) {
+        return { ok: true, data: { success: false, error: 'Selecione um encontro válido para distribuir círculos.' } };
+      }
+      // Uma execução já existente pode conter a distribuição manual homologada.
+      const { data: existingExecution, error: existingError } = await supabase
+        .from('circulos_execucoes').select('id').eq('encontro_id', encontroId).limit(1);
+      if (existingError) throw existingError;
+      if (existingExecution?.length) {
+        return { ok: true, data: { success: false, error: 'Este encontro já possui distribuição. A redistribuição automática foi bloqueada para preservar os círculos manuais.' } };
+      }
       const minAge = Number(ctx.payload.minAge ?? 13);
       const maxAge = Number(ctx.payload.maxAge ?? 17);
       if (!Number.isFinite(minAge) || !Number.isFinite(maxAge) || maxAge < minAge) {
@@ -4984,6 +5034,9 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       }
 
       const payloadItems = Array.isArray(ctx.payload.items) ? ctx.payload.items : [];
+      if (payloadItems.length) {
+        return { ok: true, data: { success: false, error: 'A distribuição deve utilizar as inscrições priorizadas do encontro no banco.' } };
+      }
       const normalizedPayloadItems = payloadItems
         .map((row: any, index: number) => ({
           id: cleanText(pickFirst(row, ['id', 'uuid', 'inscricao_id'])) || `payload-${index + 1}`,
@@ -5001,6 +5054,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           .from('inscricoes')
           .select('id,status,adolescente_id,data_inscricao')
           .eq('status', 'PRIORIZADO')
+          .eq('encontro_id', encontroId)
           .limit(5000);
 
         if (prioritizedError || !Array.isArray(prioritizedInscriptions) || prioritizedInscriptions.length === 0) {
@@ -5075,7 +5129,8 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           'inscricoes_prioritarias_view',
         ].filter(Boolean);
 
-        rows = await fetchAllRows(supabase, priTables, { maxRows: 30000 });
+        rows = (await fetchAllRows(supabase, priTables, { maxRows: 30000 }))
+          .filter((row: any) => cleanText(row?.encontro_id) === encontroId);
         if (Array.isArray(rows) && rows.length > 0) rowsSource = 'prioritarios';
       }
 
@@ -5426,6 +5481,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           const { data: execRows, error: execError } = await supabase
             .from('circulos_execucoes')
             .insert({
+              encontro_id: encontroId,
               criterios: { minAge, maxAge, maxPerCircle, origemDadosDistribuicao: rowsSource },
               total_entradas: allRows.length,
               total_distribuidas: totalDistribuidoCalc,
@@ -5493,6 +5549,10 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
     }
 
     if (ctx.action === 'SET_INSCRICAO_CIRCULO') {
+      const encontroId = cleanText(ctx.payload?.encontroId);
+      if (!isUuidLike(encontroId)) {
+        return { ok: true, data: { success: false, error: 'Encontro é obrigatório para ajustar o círculo.' } };
+      }
       // Ajuste manual do círculo de uma pessoa na tela de Prioridades: registra um novo item
       // de execução (marcado como AJUSTE_MANUAL) para que essa passe a ser a atribuição mais
       // recente dela em GET_INSCRICOES_PRIORITARIAS, sobrepondo o que veio de uma distribuição
@@ -5512,6 +5572,22 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       if (!pessoaId && !inscricaoId) {
         return { ok: true, data: { success: false, error: 'Não foi possível identificar a pessoa/inscrição para ajustar o círculo.' } };
       }
+      if (!isUuidLike(inscricaoId)) {
+        return { ok: true, data: { success: false, error: 'Inscrição válida é obrigatória para ajustar o círculo deste encontro.' } };
+      }
+      const { data: inscricaoAlvo, error: inscricaoError } = await supabase
+        .from('inscricoes').select('id,adolescente_id').eq('id', inscricaoId).eq('encontro_id', encontroId).maybeSingle();
+      if (inscricaoError) throw inscricaoError;
+      if (!inscricaoAlvo) {
+        return { ok: true, data: { success: false, error: 'Inscrição não pertence ao encontro selecionado.' } };
+      }
+      const { data: adolescenteAlvo, error: adolescenteError } = await supabase
+        .from('adolescentes').select('pessoa_id').eq('id', inscricaoAlvo.adolescente_id).maybeSingle();
+      if (adolescenteError) throw adolescenteError;
+      const pessoaAlvo = cleanText(adolescenteAlvo?.pessoa_id);
+      if (!pessoaAlvo || (pessoaId && pessoaId !== pessoaAlvo)) {
+        return { ok: true, data: { success: false, error: 'Pessoa e inscrição não correspondem.' } };
+      }
 
       const execucoesTableExists = await hasColumn(supabase, 'circulos_execucoes', 'id');
       const itensTableExists = execucoesTableExists && (await hasColumn(supabase, 'circulos_execucao_itens', 'id'));
@@ -5528,6 +5604,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       const { data: execRows, error: execError } = await supabase
         .from('circulos_execucoes')
         .insert({
+          encontro_id: encontroId,
           criterios: { tipo: 'AJUSTE_MANUAL' },
           total_entradas: 1,
           total_distribuidas: 1,
@@ -5546,7 +5623,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       const { error: itemError } = await supabase.from('circulos_execucao_itens').insert({
         execucao_id: execucaoId,
         inscricao_id: isUuidLike(inscricaoId) ? inscricaoId : null,
-        pessoa_id: isUuidLike(pessoaId) ? pessoaId : null,
+        pessoa_id: pessoaAlvo,
         circulo_nome: circulo,
         payload: { nome, idade, sexo, bairro, ajusteManual: true, operator },
       } as any);
@@ -5738,6 +5815,3 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
     return { ok: false, error: message, details: e };
   }
 }
-
-
-

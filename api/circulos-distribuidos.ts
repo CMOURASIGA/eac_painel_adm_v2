@@ -11,6 +11,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const googleWebAppUrl = String(req.query?.googleWebAppUrl || '').trim();
+    const encontroId = String(req.query?.encontroId || '').trim();
     const protocol = (req.headers['x-forwarded-proto'] as string) || 'http';
     const host = req.headers.host || 'localhost:3000';
     const proxyUrl = `${protocol}://${host}/api/comunicados`;
@@ -20,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'GET_CIRCULOS_DISTRIBUIDOS',
-        data: {},
+        data: { encontroId },
         ...(googleWebAppUrl ? { googleWebAppUrl } : {}),
       }),
     });

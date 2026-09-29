@@ -12,12 +12,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (req.method === 'GET') {
       const googleWebAppUrl = String(req.query?.googleWebAppUrl || '').trim();
+      const encontroId = String(req.query?.encontroId || '').trim();
       const proxyResponse = await fetch(proxyUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'GET_INSCRICOES_PRIORITARIAS',
-          data: {},
+          data: { encontroId },
           ...(googleWebAppUrl ? { googleWebAppUrl } : {}),
         }),
       });
@@ -36,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (req.method === 'POST') {
       const googleWebAppUrl = String(req.body?.googleWebAppUrl || '').trim();
-      const data: Record<string, unknown> = {};
+      const data: Record<string, unknown> = { encontroId: String(req.body?.encontroId || '').trim() };
       const minAgeRaw = req.body?.minAge;
       const maxAgeRaw = req.body?.maxAge;
       const items = Array.isArray(req.body?.items) ? req.body.items : [];

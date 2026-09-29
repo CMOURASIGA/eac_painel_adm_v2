@@ -5,6 +5,8 @@ import { showAppAlert, showAppConfirm } from '../utils/appDialog.ts';
 import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
 import DataOriginAudit from './DataOriginAudit.tsx';
 import { inscricoesService } from '../services/inscricoesService.ts';
+import { calculateAgeFromBirthDate } from './memberAge.ts';
+import { US118_ENCONTRO_ID } from '../utils/us118Encontro.ts';
 
 type Prioritario = {
   id?: string;
@@ -529,9 +531,14 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     setError('');
     try {
       const [rPrior, rAdmin, rCirculoMapa] = await Promise.all([
+        // A listagem geral de prioritários não pode ficar presa ao encontro homologado
+        // da US-118. Assim, inscrições PRIORIZADO vinculadas a "EAC - A DEFINIR"
+        // ou a outro encontro válido continuam visíveis na operação.
         inscricoesService.listarPrioritarias({ googleWebAppUrl }),
         inscricoesService.listarInscricoesAdmin({ status: 'PRIORIZADO', page: 1, page_size: 1000 }),
-        inscricoesService.obterCirculoAtualMapa({ googleWebAppUrl }),
+        // O mapa de círculos continua restrito ao encontro da distribuição,
+        // pois círculo é contexto operacional de um encontro específico.
+        inscricoesService.obterCirculoAtualMapa({ googleWebAppUrl, encontroId: US118_ENCONTRO_ID }),
       ]);
 
       if (!rPrior.success && !rAdmin.success) {
@@ -607,7 +614,8 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
 
       const normalizedPriorizados = Array.from(mergedByKey.values())
         .filter(hasIdentity)
-        .filter((item: any) => normalize(item?.status) === 'priorizado');
+        .filter((item: any) => normalize(item?.status) === 'priorizado')
+        .map((item: any) => ({ ...item, idade: calculateAgeFromBirthDate(item.dataNascimento) ?? item.idade }));
 
       // Casa o circulo mais recente aqui no cliente, usando o pessoaId/inscricaoId ja resolvidos acima
       // (via pessoa_adolescente_id do /api/inscricoes/admin, que e confiavel). Isso evita depender das
@@ -669,6 +677,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
         idade: selectedItem.idade,
         sexo: selectedItem.sexo,
         bairro: selectedItem.bairro,
+        encontroId: US118_ENCONTRO_ID,
       });
       if (!r.success) {
         throw new Error(r.error || 'Não foi possível salvar o círculo.');
@@ -711,7 +720,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     setError('');
     try {
       const r = await inscricoesService.executarDistribuicaoCirculos(
-        { minAge, maxAge },
+        { minAge, maxAge, encontroId: US118_ENCONTRO_ID },
         { googleWebAppUrl }
       );
 
@@ -1240,6 +1249,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
               const linhaOrigem = String(item.linhaOrigem || '').trim();
               const isDeprioritizing = Boolean(updatingDeprioritizeId && updatingDeprioritizeId === linhaOrigem);
               const ageNum = parseAgeNumber(item.idade);
+              const nascimento = formatDate(item.dataNascimento);
               const statusUi = getStatusUi(item.status);
               const isVisitado = hasVisitado(item);
               return (
@@ -1247,6 +1257,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
                   key={cardId}
                   ageLabel={getAgeLabel(item.idade)}
                   ageClassName={getAgeBadgeClass(ageNum)}
+                  birthLabel={nascimento === '-' ? undefined : `Nascimento: ${nascimento}`}
                   statusLabel={statusUi.label}
                   statusTextClassName={statusUi.text}
                   statusDotClassName={statusUi.dot}
@@ -1429,5 +1440,3 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
 };
 
 export default InscricoesPrioritariasPage;
-
-

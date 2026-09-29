@@ -27,6 +27,8 @@ const REQUIRED_MESSAGES = {
   nome_adolescente: 'Informe o nome completo do adolescente.',
   data_nascimento: 'Informe uma data de nascimento válida.',
   sexo: 'Informe o sexo do adolescente.',
+  tamanho_camisa: 'Selecione o tamanho da camisa.',
+  escola: 'Informe onde você estuda.',
   telefone_adolescente: 'Informe um telefone válido do adolescente.',
   nome_responsavel: 'Informe o nome do responsável.',
   telefone_responsavel: 'Informe um telefone válido do responsável.',
@@ -138,6 +140,9 @@ export function validarPayloadInscricao(payload: AnyObject): ValidationResult {
     nome_social: normalizarTexto(payload.nome_social) || null,
     data_nascimento: normalizarTexto(payload.data_nascimento),
     sexo: normalizarSexo(payload.sexo),
+    tamanho_camisa: normalizarTexto(payload.tamanho_camisa).toUpperCase(),
+    escola_id: normalizarTexto(payload.escola_id) || null,
+    escola_nome_outro: normalizarTexto(payload.escola_nome_outro) || null,
     telefone_adolescente: normalizarTelefoneBR(payload.telefone_adolescente),
     nome_responsavel: normalizarTexto(payload.nome_responsavel),
     telefone_responsavel: normalizarTelefoneBR(payload.telefone_responsavel),
@@ -166,6 +171,16 @@ export function validarPayloadInscricao(payload: AnyObject): ValidationResult {
   }
   if (!normalized.sexo) {
     fields.sexo = REQUIRED_MESSAGES.sexo;
+  }
+  if (!['PP', 'P', 'M', 'G', 'GG', 'XG', 'XXG'].includes(normalized.tamanho_camisa)) {
+    fields.tamanho_camisa = REQUIRED_MESSAGES.tamanho_camisa;
+  }
+  if (normalized.escola_id && normalized.escola_nome_outro) {
+    fields.escola = 'Selecione uma escola da lista ou informe outro colégio.';
+  } else if (normalized.escola_id && !validarUuid(normalized.escola_id)) {
+    fields.escola = 'A escola selecionada é inválida. Pesquise e selecione novamente.';
+  } else if (!normalized.escola_id && !normalized.escola_nome_outro) {
+    fields.escola = REQUIRED_MESSAGES.escola;
   }
   if (!validarTelefoneBR(normalized.telefone_adolescente)) {
     fields.telefone_adolescente = REQUIRED_MESSAGES.telefone_adolescente;
@@ -444,6 +459,29 @@ export async function executeInscricaoCreate(params: { supabase: AnySupabaseClie
     };
   }
 
+  if (normalized.escola_id) {
+    const { data: escola, error: escolaError } = await supabase
+      .from('escolas')
+      .select('id')
+      .eq('id', normalized.escola_id)
+      .eq('ativo', true)
+      .eq('municipio', 'Niterói')
+      .eq('uf', 'RJ')
+      .maybeSingle();
+
+    if (escolaError || !escola) {
+      return {
+        status: 400,
+        body: {
+          success: false,
+          error: 'VALIDATION_ERROR',
+          message: 'A escola selecionada não está disponível. Pesquise e selecione novamente.',
+          fields: { escola: 'A escola selecionada não está disponível. Pesquise e selecione novamente.' },
+        },
+      };
+    }
+  }
+
   const nowIso = new Date().toISOString();
 
   const pessoaAdolescentePayload = await pickPayloadByExistingColumns(supabase, 'pessoas', {
@@ -564,6 +602,9 @@ export async function executeInscricaoCreate(params: { supabase: AnySupabaseClie
       data_inscricao: nowIso,
       criado_em: nowIso,
       atualizado_em: nowIso,
+      tamanho_camisa: normalized.tamanho_camisa,
+      escola_id: normalized.escola_id,
+      escola_nome_outro: normalized.escola_id ? null : normalized.escola_nome_outro,
     })
     .select('*')
     .single();
