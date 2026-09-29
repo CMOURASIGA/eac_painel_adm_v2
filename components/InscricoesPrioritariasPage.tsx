@@ -1277,10 +1277,6 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
                       label: `Sexo: ${item.sexo}`,
                       className: 'bg-violet-50 text-violet-700 border border-violet-200'
                     }] : []),
-                    ...(item.dataNascimento ? [{
-                      label: `Nascimento: ${formatDate(item.dataNascimento)} · ${item.idade ?? '-'} anos`,
-                      className: 'bg-slate-50 text-slate-700 border border-slate-200'
-                    }] : []),
                     ...(item.circuloDistribuido ? [{
                       label: `Círculo: ${getCirculoColorLabel(item.circuloDistribuido)}`,
                       className: 'bg-amber-50 text-amber-700 border border-amber-200'
