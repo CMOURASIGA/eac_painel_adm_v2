@@ -26,6 +26,10 @@ export type InscricaoAdminItem = {
   criado_via_sistema?: boolean | null;
   data_inscricao?: string | null;
   criado_em?: string | null;
+  tamanho_camisa?: 'PP' | 'P' | 'M' | 'G' | 'GG' | 'XG' | 'XXG' | null;
+  escola_id?: string | null;
+  escola_nome?: string | null;
+  escola_nome_outro?: string | null;
   encontro_id?: string | null;
   encontro_nome?: string | null;
   encontro_numero?: string | number | null;
