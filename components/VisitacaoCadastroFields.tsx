@@ -12,6 +12,37 @@ const VisitacaoCadastroFields: React.FC<{
 }> = ({ value, onChange, disabled = false }) => {
   const completeness = summarizeVisitacaoCadastro(value);
   const set = (key: keyof VisitacaoCadastro, next: any) => onChange({ ...value, [key]: next });
+  const [schoolQuery, setSchoolQuery] = React.useState(value.escola_nome || value.escola_nome_outro || '');
+  const [schoolResults, setSchoolResults] = React.useState<Array<{ id: string; nome: string; bairro?: string | null; rede?: string | null; codigo_inep?: string | null }>>([]);
+  const [schoolLoading, setSchoolLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    setSchoolQuery(value.escola_nome || value.escola_nome_outro || '');
+  }, [value.escola_id, value.escola_nome, value.escola_nome_outro]);
+
+  React.useEffect(() => {
+    if (disabled || value.escola_id || schoolQuery.trim().length < 2) {
+      setSchoolResults([]);
+      return;
+    }
+    let active = true;
+    setSchoolLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/inscricoes/create?resource=escolas&busca=${encodeURIComponent(schoolQuery.trim())}`);
+        const body = await response.json();
+        if (active) setSchoolResults(response.ok && Array.isArray(body?.data) ? body.data : []);
+      } catch {
+        if (active) setSchoolResults([]);
+      } finally {
+        if (active) setSchoolLoading(false);
+      }
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [disabled, schoolQuery, value.escola_id]);
 
   const yesNo = (key: keyof VisitacaoCadastro, label: string) => (
     <label className="space-y-2">
@@ -120,10 +151,45 @@ const VisitacaoCadastroFields: React.FC<{
 
       {section('Escola e camisa', (
         <div className="grid md:grid-cols-2 gap-3">
-          <label className="space-y-2">
+          <div className="space-y-2 relative">
             <span className={labelClass}>Escola atual</span>
-            <input value={value.escola_nome || value.escola_nome_outro || ''} onChange={(e) => set('escola_nome_outro', e.target.value)} className={fieldClass} disabled={disabled || Boolean(value.escola_id)} />
-          </label>
+            <input
+              value={schoolQuery}
+              onChange={(e) => {
+                const next = e.target.value;
+                setSchoolQuery(next);
+                onChange({ ...value, escola_id: null, escola_nome: null, escola_nome_outro: next });
+              }}
+              className={fieldClass}
+              disabled={disabled}
+              placeholder="Digite para pesquisar a escola"
+            />
+            {!disabled && value.escola_id ? (
+              <button type="button" onClick={() => onChange({ ...value, escola_id: null, escola_nome: null, escola_nome_outro: schoolQuery })} className="text-xs font-black text-blue-700">
+                Alterar escola
+              </button>
+            ) : null}
+            {!disabled && !value.escola_id && (schoolLoading || schoolResults.length > 0) ? (
+              <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                {schoolLoading ? <div className="p-3 text-sm font-semibold text-slate-500">Pesquisando...</div> : null}
+                {schoolResults.map((school) => (
+                  <button
+                    type="button"
+                    key={school.id}
+                    onClick={() => {
+                      setSchoolQuery(school.nome);
+                      setSchoolResults([]);
+                      onChange({ ...value, escola_id: school.id, escola_nome: school.nome, escola_nome_outro: null });
+                    }}
+                    className="block w-full border-b border-slate-100 px-3 py-3 text-left last:border-b-0 hover:bg-slate-50"
+                  >
+                    <div className="font-bold text-slate-800">{school.nome}</div>
+                    <div className="text-xs text-slate-500">{school.bairro ? `Bairro: ${school.bairro}` : 'Bairro não informado'}{school.rede ? ` · ${school.rede}` : ''}{school.codigo_inep ? ` · INEP ${school.codigo_inep}` : ''}</div>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
           <label className="space-y-2">
             <span className={labelClass}>Tamanho da camisa</span>
             <select value={value.tamanho_camisa || ''} onChange={(e) => set('tamanho_camisa', e.target.value)} className={fieldClass} disabled={disabled}>
