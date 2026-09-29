@@ -68,7 +68,7 @@ async function pickPayloadByExistingColumns(
     const probe = await supabase.from(table).select(key).limit(1);
     if (!probe.error) filtered[key] = value;
   }
-  return Object.keys(filtered).length > 0 ? filtered : payload;
+  return filtered;
 }
 
 function toSortableTime(value: any) {
