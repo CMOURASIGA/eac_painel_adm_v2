@@ -30,9 +30,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(502).json({ success: false, error: 'SCHOOLS_LOOKUP_FAILED', message: 'Não foi possível pesquisar as escolas agora.' });
       }
       // Unidades distintas podem ter o mesmo nome comercial.
-      // Mantemos cada unidade para que o usuário escolha pelo bairro.
-      // Quando o bairro não estiver disponível, o código INEP serve como
-      // identificador complementar da unidade.
+      // Mantemos cada id separado mesmo quando nome e bairro coincidirem.
       const escolasOrdenadas = [...(data ?? [])]
         .sort((a: any, b: any) => {
           const nomeCmp = clean(a?.nome).localeCompare(clean(b?.nome), 'pt-BR');
