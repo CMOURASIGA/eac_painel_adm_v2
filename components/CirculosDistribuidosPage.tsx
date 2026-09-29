@@ -2,6 +2,7 @@
 import html2canvas from 'html2canvas';
 import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
 import { inscricoesService } from '../services/inscricoesService.ts';
+import { US118_ENCONTRO_ID } from '../utils/us118Encontro.ts';
 
 type PessoaCirculo = {
   id?: string;
@@ -42,42 +43,42 @@ const DISTRIBUTION_RULES = [
 ];
 
 function getCircleTheme(name: string) {
-  const map: Record<string, { card: string; title: string; badge: string; colorLabel: string }> = {
+  const map: Record<string, { card: string; title: string; badge: string; colorLabel: string; responsavel?: string }> = {
     'Circulo 1': {
       card: 'bg-sky-50/80 border-sky-100',
       title: 'text-sky-900',
       badge: 'bg-sky-100 text-sky-700 border-sky-200',
-      colorLabel: 'Azul'
+      colorLabel: 'Azul', responsavel: 'Leonardo'
     },
     'Circulo 2': {
       card: 'bg-purple-50/80 border-purple-100',
       title: 'text-purple-900',
       badge: 'bg-purple-100 text-purple-700 border-purple-200',
-      colorLabel: 'Roxo'
+      colorLabel: 'Roxo', responsavel: 'Patrícia'
     },
     'Circulo 3': {
       card: 'bg-red-50/80 border-red-100',
       title: 'text-red-900',
       badge: 'bg-red-100 text-red-700 border-red-200',
-      colorLabel: 'Vermelho'
+      colorLabel: 'Vermelho', responsavel: 'Renata'
     },
     'Circulo 4': {
       card: 'bg-emerald-50/80 border-emerald-100',
       title: 'text-emerald-900',
       badge: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-      colorLabel: 'Verde'
+      colorLabel: 'Verde', responsavel: 'Cristiano'
     },
     'Circulo 5': {
       card: 'bg-orange-50/80 border-orange-100',
       title: 'text-orange-900',
       badge: 'bg-orange-100 text-orange-700 border-orange-200',
-      colorLabel: 'Laranja'
+      colorLabel: 'Laranja', responsavel: 'Joana'
     },
     'Circulo 6': {
       card: 'bg-yellow-50/80 border-yellow-100',
       title: 'text-yellow-900',
       badge: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-      colorLabel: 'Amarelo'
+      colorLabel: 'Amarelo', responsavel: 'Simplício'
     },
     'Circulo Excedente': {
       card: 'bg-slate-100/80 border-slate-200',
@@ -249,8 +250,9 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
     setLoading(true);
     setError('');
     try {
-      const qs = googleWebAppUrl ? `?googleWebAppUrl=${encodeURIComponent(googleWebAppUrl)}` : '';
-      const response = await fetch(`/api/circulos-distribuidos${qs}`, { method: 'GET' });
+      const qs = new URLSearchParams({ encontroId: US118_ENCONTRO_ID });
+      if (googleWebAppUrl) qs.set('googleWebAppUrl', googleWebAppUrl);
+      const response = await fetch(`/api/circulos-distribuidos?${qs}`, { method: 'GET' });
       const raw = await response.text();
       if (!raw) throw new Error(`Resposta vazia (HTTP ${response.status}).`);
 
@@ -272,32 +274,10 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
       setPendentesDetalhados(pendingList);
       setPendentesMontagem(pendingSummary);
       setTotalPendentesMontagem(pendingTotal);
-      if (hasAnyCircleEntries(normalized)) {
-        setCirculos(normalized);
-        saveStoredCircleDistribution({
-          circulos: normalized,
-          pendentesDetalhados: pendingList,
-          pendentesMontagem: pendingSummary,
-          totalPendentesMontagem: pendingTotal,
-        });
-      } else {
-        const stored = getStoredCircleDistribution();
-        setCirculos(stored.circulos);
-        setPendentesDetalhados(stored.pendentesDetalhados);
-        setPendentesMontagem(stored.pendentesMontagem);
-        setTotalPendentesMontagem(stored.totalPendentesMontagem);
-      }
+      setCirculos(normalized);
     } catch (err: any) {
-      const stored = getStoredCircleDistribution();
-      setCirculos(stored.circulos);
-      setPendentesDetalhados(stored.pendentesDetalhados);
-      setPendentesMontagem(stored.pendentesMontagem);
-      setTotalPendentesMontagem(stored.totalPendentesMontagem);
-      setError(
-        hasAnyCircleEntries(stored.circulos)
-          ? 'Exibindo a última distribuição gerada neste navegador porque o backend ainda está vazio.'
-          : (err?.message || 'Erro ao carregar distribuição de círculos.')
-      );
+      setCirculos(createEmptyGroups());
+      setError(err?.message || 'Erro ao carregar distribuição de círculos.');
     } finally {
       setLoading(false);
     }
@@ -433,7 +413,7 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
       const response = await fetch('/api/inscricoes-prioritarias', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ googleWebAppUrl })
+        body: JSON.stringify({ googleWebAppUrl, encontroId: US118_ENCONTRO_ID })
       });
 
       const raw = await response.text();
@@ -508,28 +488,8 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
     setMovingParticipantId(participantId);
     setError('');
     try {
-      const applyLocalMove = () => {
-        setCirculos((prev) => {
-          const next = createEmptyGroups();
-          CIRCLE_NAMES.forEach((name) => {
-            next[name] = Array.isArray(prev[name]) ? prev[name].map((entry) => ({ ...entry })) : [];
-          });
-          next[fromCirculo] = (next[fromCirculo] || []).filter((entry) => toCleanString(entry?.id) !== participantId);
-          next[toCirculo] = [...(next[toCirculo] || []), { ...item, grupoSugerido: toCirculo }];
-          saveStoredCircleDistribution({
-            circulos: next,
-            pendentesDetalhados,
-            pendentesMontagem,
-            totalPendentesMontagem,
-          });
-          return next;
-        });
-      };
-
-      if (!pessoaId && !inscricaoId) {
-        // Registro antigo (sem pessoaId/inscricaoId resolvido) - so da pra mover localmente.
-        applyLocalMove();
-        setError('Movimento salvo apenas neste navegador: este registro não tem pessoa/inscrição identificada para persistir.');
+      if (!inscricaoId) {
+        setError('Esta pessoa não possui inscrição identificada para persistir o ajuste.');
         return;
       }
 
@@ -544,11 +504,11 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
         sexo: item?.sexo,
         bairro: item?.bairro,
         operator: 'PAINEL_CIRCULOS',
+        encontroId: US118_ENCONTRO_ID,
       });
 
       if (!r.success) {
-        applyLocalMove();
-        setError(r.error || 'Movimento salvo apenas neste navegador porque a persistência do backend falhou.');
+        setError(r.error || 'Não foi possível persistir o ajuste.');
         return;
       }
 
@@ -579,14 +539,6 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
               className="px-4 py-3 rounded-2xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 disabled:opacity-60"
             >
               Atualizar
-            </button>
-            <button
-              type="button"
-              onClick={() => { void atualizarDistribuicao(); }}
-              disabled={loading || isUpdatingDistribution || isGeneratingImage}
-              className="px-4 py-3 rounded-2xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-60"
-            >
-              {isUpdatingDistribution ? 'Atualizando distribuição...' : 'Atualizar distribuição'}
             </button>
             <button
               type="button"
@@ -693,7 +645,7 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
                     <div className="mb-3 pb-2 border-b border-black/5">
                       <h3 className={`text-sm md:text-base font-black ${theme.title}`}>{groupName}</h3>
                       <p className={`text-[11px] md:text-xs font-black uppercase tracking-widest mt-1 ${theme.title}`}>
-                        {theme.colorLabel}
+                        {theme.colorLabel}{theme.responsavel ? ` · ${theme.responsavel}` : ''}
                       </p>
                       {totalCirculo > 0 && (
                         <>
@@ -876,6 +828,3 @@ const CirculosDistribuidosPage: React.FC<CirculosDistribuidosPageProps> = ({ goo
 };
 
 export default CirculosDistribuidosPage;
-
-
-

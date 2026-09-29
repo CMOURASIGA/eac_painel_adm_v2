@@ -5,6 +5,8 @@ import { showAppAlert, showAppConfirm } from '../utils/appDialog.ts';
 import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
 import DataOriginAudit from './DataOriginAudit.tsx';
 import { inscricoesService } from '../services/inscricoesService.ts';
+import { calculateAgeFromBirthDate } from './memberAge.ts';
+import { US118_ENCONTRO_ID } from '../utils/us118Encontro.ts';
 
 type Prioritario = {
   id?: string;
@@ -529,9 +531,9 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     setError('');
     try {
       const [rPrior, rAdmin, rCirculoMapa] = await Promise.all([
-        inscricoesService.listarPrioritarias({ googleWebAppUrl }),
-        inscricoesService.listarInscricoesAdmin({ status: 'PRIORIZADO', page: 1, page_size: 1000 }),
-        inscricoesService.obterCirculoAtualMapa({ googleWebAppUrl }),
+        inscricoesService.listarPrioritarias({ googleWebAppUrl, encontroId: US118_ENCONTRO_ID }),
+        inscricoesService.listarInscricoesAdmin({ encontro_id: US118_ENCONTRO_ID, status: 'PRIORIZADO', page: 1, page_size: 1000 }),
+        inscricoesService.obterCirculoAtualMapa({ googleWebAppUrl, encontroId: US118_ENCONTRO_ID }),
       ]);
 
       if (!rPrior.success && !rAdmin.success) {
@@ -607,7 +609,8 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
 
       const normalizedPriorizados = Array.from(mergedByKey.values())
         .filter(hasIdentity)
-        .filter((item: any) => normalize(item?.status) === 'priorizado');
+        .filter((item: any) => normalize(item?.status) === 'priorizado')
+        .map((item: any) => ({ ...item, idade: calculateAgeFromBirthDate(item.dataNascimento) ?? item.idade }));
 
       // Casa o circulo mais recente aqui no cliente, usando o pessoaId/inscricaoId ja resolvidos acima
       // (via pessoa_adolescente_id do /api/inscricoes/admin, que e confiavel). Isso evita depender das
@@ -669,6 +672,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
         idade: selectedItem.idade,
         sexo: selectedItem.sexo,
         bairro: selectedItem.bairro,
+        encontroId: US118_ENCONTRO_ID,
       });
       if (!r.success) {
         throw new Error(r.error || 'Não foi possível salvar o círculo.');
@@ -711,7 +715,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     setError('');
     try {
       const r = await inscricoesService.executarDistribuicaoCirculos(
-        { minAge, maxAge },
+        { minAge, maxAge, encontroId: US118_ENCONTRO_ID },
         { googleWebAppUrl }
       );
 
@@ -1266,6 +1270,10 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
                       label: `Sexo: ${item.sexo}`,
                       className: 'bg-violet-50 text-violet-700 border border-violet-200'
                     }] : []),
+                    ...(item.dataNascimento ? [{
+                      label: `Nascimento: ${formatDate(item.dataNascimento)} · ${item.idade ?? '-'} anos`,
+                      className: 'bg-slate-50 text-slate-700 border border-slate-200'
+                    }] : []),
                     ...(item.circuloDistribuido ? [{
                       label: `Círculo: ${getCirculoColorLabel(item.circuloDistribuido)}`,
                       className: 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -1429,5 +1437,4 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
 };
 
 export default InscricoesPrioritariasPage;
-
 
