@@ -87,7 +87,7 @@ const PublicInscricaoForm: React.FC = () => {
     setSchoolLoading(true);
     const timer = window.setTimeout(async () => {
       try {
-        const response = await fetch(`/api/escolas?busca=${encodeURIComponent(busca)}`);
+        const response = await fetch(`/api/inscricoes/create?resource=escolas&busca=${encodeURIComponent(busca)}`);
         const body = await response.json();
         if (active) setSchoolResults(response.ok && Array.isArray(body?.data) ? body.data : []);
       } catch {
