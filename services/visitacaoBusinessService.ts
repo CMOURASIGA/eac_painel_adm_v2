@@ -391,7 +391,7 @@ export async function listVisitacoes(
   const { data, error } = await request;
   if (error) throw error;
 
-  const items = consolidateVisitacaoItems(Array.isArray(data) ? data : []);
+  const items = await enrichVisitacaoItems(supabase, Array.isArray(data) ? data : []);
   return { items, indicadores: buildIndicadores(items) };
 }
 
@@ -461,6 +461,17 @@ export async function registerVisitacao(
   }
 
   const currentStatus = toCleanString(current?.status_visitacao || 'NENHUMA_ACAO').toUpperCase();
+  let alteracoesCadastrais: Array<{ campo: string; anterior: string | null; novo: string | null }> = [];
+  try {
+    alteracoesCadastrais = await updateCadastroOficialFromVisitacao(
+      supabase,
+      prioritized,
+      body?.cadastro && typeof body.cadastro === 'object' ? body.cadastro : {},
+    );
+  } catch (cadastroError: any) {
+    return { status: 500, body: { success: false, error: cadastroError?.message || 'Falha ao atualizar cadastro oficial.' } };
+  }
+
   const payload: Record<string, any> = {
     inscricao_id: id,
     status_visitacao: status,
@@ -522,15 +533,19 @@ export async function registerVisitacao(
     }
   }
 
+  const auditSummary = alteracoesCadastrais.length
+    ? `Cadastro atualizado: ${alteracoesCadastrais.map((item) => `${item.campo}: ${item.anterior || 'não informado'} -> ${item.novo || 'não informado'}`).join(' | ')}`
+    : '';
   const historyPayload = {
     visitacao_id: saved.id,
     inscricao_id: id,
     tipo_acao: resolveActionType(status as VisitacaoStatus, observacao, currentStatus),
     status_anterior: currentStatus,
     status_novo: status,
-    descricao: [observacao, summarizeVisitacaoQuestionario(respostasQuestionario)].filter(Boolean).join(' | ') || null,
+    descricao: [observacao, summarizeVisitacaoQuestionario(respostasQuestionario), auditSummary].filter(Boolean).join(' | ') || null,
     responsavel_acao: responsavel,
     respostas_questionario: respostasQuestionario,
+    alteracoes_cadastrais: alteracoesCadastrais,
     origem_registro: origem || 'PAINEL',
   };
 
@@ -553,5 +568,13 @@ export async function registerVisitacao(
     return { status: 500, body: { success: false, error: updatedItemError.message } };
   }
 
-  return { status: 200, body: { success: true, item: updatedItem || saved } };
+  const enriched = updatedItem ? await enrichVisitacaoItems(supabase, [updatedItem]) : [];
+  return {
+    status: 200,
+    body: {
+      success: true,
+      item: enriched[0] || updatedItem || saved,
+      alteracoes_cadastrais: alteracoesCadastrais,
+    },
+  };
 }
