@@ -531,8 +531,13 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     setError('');
     try {
       const [rPrior, rAdmin, rCirculoMapa] = await Promise.all([
-        inscricoesService.listarPrioritarias({ googleWebAppUrl, encontroId: US118_ENCONTRO_ID }),
-        inscricoesService.listarInscricoesAdmin({ encontro_id: US118_ENCONTRO_ID, status: 'PRIORIZADO', page: 1, page_size: 1000 }),
+        // A listagem geral de prioritários não pode ficar presa ao encontro homologado
+        // da US-118. Assim, inscrições PRIORIZADO vinculadas a "EAC - A DEFINIR"
+        // ou a outro encontro válido continuam visíveis na operação.
+        inscricoesService.listarPrioritarias({ googleWebAppUrl }),
+        inscricoesService.listarInscricoesAdmin({ status: 'PRIORIZADO', page: 1, page_size: 1000 }),
+        // O mapa de círculos continua restrito ao encontro da distribuição,
+        // pois círculo é contexto operacional de um encontro específico.
         inscricoesService.obterCirculoAtualMapa({ googleWebAppUrl, encontroId: US118_ENCONTRO_ID }),
       ]);
 
