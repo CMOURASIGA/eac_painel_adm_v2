@@ -1,4 +1,500 @@
-YªçŠx-®éÜj×¢ëiºÚ+Š§j[h‘éÜ¢éíó7N‹Z–‹­¦ëeŠw¬×¾îı¥µÁ½ÉĞI•…Ğ°ìÕÍ•5•µ¼°ÕÍ•MÑ…Ñ”ô™É½´€É•…Ğœì)¥µÁ½ÉĞQ½…ÍĞ™É½´€œ¸½Q½…ÍĞœì)¥µÁ½ÉĞì¥¹ÍÉ¥½•ÍM•ÉÙ¥”ô™É½´€œ¸¸½Í•ÉÙ¥•Ì½¥¹ÍÉ¥½•ÍM•ÉÙ¥”¹ÑÌœì)¥µÁ½ÉĞìÁ½ÍÑ½µÕ¹¥…‘½ÍÑ¥½¸ô™É½´€œ¸¸½Í•ÉÙ¥•Ì½•…Á¥±¥•¹Ğ¹ÑÌœì)¥µÁ½ÉĞìÑ½±•…¹MÑÉ¥¹œô™É½´€œ¸¸½ÕÑ¥±Ì½Ñ•áÑ¹½‘¥¹œ¹ÑÌœì()ÑåÁ”Q½…ÍÑMÑ…Ñ”€ôìµ•ÍÍ…”èÍÑÉ¥¹œìÑåÁ”è€ÍÕ•ÍÌœğ€•ÉÉ½Èœğ€¥¹™¼œôğ¹Õ±°ì)ÑåÁ”¥•±‘ÉÉ½ÉÌ€ôI•½ÉñÍÑÉ¥¹œ°ÍÑÉ¥¹œøì()™Õ¹Ñ¥½¸Á…ÉÍ•…Ñ•=¹±ä¡Ù…±Õ”èÍÑÉ¥¹œ¤è…Ñ”ğ¹Õ±°ì(€½¹ÍĞÉ…Ü€ôMÑÉ¥¹œ¡Ù…±Õ”ñğ€œœ¤¹ÑÉ¥´ ¤ì(€¥˜€ …É…Ü¤É•ÑÕÉ¸¹Õ±°ì(€½¹ÍĞ´€ôÉ…Ü¹µ…Ñ  ½x¡q‘ìÑô¤´¡q‘ìÉô¤´¡q‘ìÉô¤¼¤ì(€¥˜€¡´¤ì(€€€½¹ÍĞä€ô9Õµ‰•È¡µlÅt¤ì(€€€½¹ÍĞµ¼€ô9Õµ‰•È¡µlÉt¤€´€Äì(€€€½¹ÍĞ€ô9Õµ‰•È¡µlÍt¤ì(€€€½¹ÍĞ‘Ğ€ô¹•Ü…Ñ”¡ä°µ¼°°€ÄÈ°€À°€À°€À¤ì(€€€É•ÑÕÉ¸¥Í9…8¡‘Ğ¹•ÑQ¥µ” ¤¤€ü¹Õ±°€è‘Ğì(€ô(€½¹ÍĞ‘Ğ€ô¹•Ü…Ñ”¡É…Ü¤ì(€É•ÑÕÉ¸¥Í9…8¡‘Ğ¹•ÑQ¥µ” ¤¤€ü¹Õ±°€è‘Ğì)ô()™Õ¹Ñ¥½¸…±•=¹…Ñ”¡‰¥ÉÑ è…Ñ”°½¸è…Ñ”¤ì(€±•Ğ…”€ô½¸¹•ÑÕ±±e•…È ¤€´‰¥ÉÑ ¹•ÑÕ±±e•…È ¤ì(€½¹ÍĞ´€ô½¸¹•Ñ5½¹Ñ  ¤€´‰¥ÉÑ ¹•Ñ5½¹Ñ  ¤ì(€¥˜€¡´€ğ€Àñğ€¡´€ôôô€À€˜˜½¸¹•Ñ…Ñ” ¤€ğ‰¥ÉÑ ¹•Ñ…Ñ” ¤¤¤…”€´ô€Äì(€É•ÑÕÉ¸…”ì)ô()½¹ÍĞU1Q}MUMM}5MM€ô(€€%¹ÍÉ§Ÿ¼É••‰¥‘„½´ÍÕ•ÍÍ¼„•ÅÕ¥Á”É•ÍÁ½¹Ï…Ù•°¥Ë„É•Ù¥Í…È…Ì¥¹™½Éµ‡ŸÕ•Ì”°Í”¹••ÍÏ…É¥¼°•¹ÑÉ…Ë„•´½¹Ñ…Ñ¼Á•±½ÌÑ•±•™½¹•Ì¥¹™½Éµ…‘½Ì¸œì)½¹ÍĞQ59!=M}5%M€ôlA@œ°€@œ°€4œ°€œ°€œ°€aœ°€aat…Ì½¹ÍĞì)ÑåÁ”Í½±…%Ñ•´€ôì¥èÍÑÉ¥¹œì½‘¥½}¥¹•ÀüèÍÑÉ¥¹œğ¹Õ±°ì¹½µ”èÍÑÉ¥¹œìÉ•‘”üèÍÑÉ¥¹œğ¹Õ±°ì‰…¥ÉÉ¼üèÍÑÉ¥¹œğ¹Õ±°ôì()½¹ÍĞAÕ‰±¥%¹ÍÉ¥…½½É´èI•…¾8ŞÚ$z{-®éÜj×
+ï»¿import React, { useMemo, useState } from 'react';
+import Toast from './Toast';
+import { inscricoesService } from '../services/inscricoesService.ts';
+import { postComunicadosAction } from '../services/eacApiClient.ts';
+import { toCleanString } from '../utils/textEncoding.ts';
+
+type ToastState = { message: string; type: 'success' | 'error' | 'info' } | null;
+type FieldErrors = Record<string, string>;
+type EscolaItem = { id: string; codigo_inep?: string | null; nome: string; rede?: string | null; bairro?: string | null };
+
+function parseDateOnly(value: string): Date | null {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const y = Number(m[1]);
+    const mo = Number(m[2]) - 1;
+    const d = Number(m[3]);
+    const dt = new Date(y, mo, d, 12, 0, 0, 0);
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+  const dt = new Date(raw);
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
+function calcAgeOnDate(birth: Date, on: Date) {
+  let age = on.getFullYear() - birth.getFullYear();
+  const m = on.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && on.getDate() < birth.getDate())) age -= 1;
+  return age;
+}
+
+const DEFAULT_SUCCESS_MESSAGE =
+  'InscriÃ§Ã£o recebida com sucesso! A equipe responsÃ¡vel irÃ¡ revisar as informaÃ§Ãµes e, se necessÃ¡rio, entrarÃ¡ em contato pelos telefones informados.';
+
+const PublicInscricaoForm: React.FC = () => {
+  const [toast, setToast] = useState<ToastState>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [formConfig, setFormConfig] = useState<any>(null);
+  const [escolaBusca, setEscolaBusca] = useState('');
+  const [escolas, setEscolas] = useState<EscolaItem[]>([]);
+  const [escolaLoading, setEscolaLoading] = useState(false);
+  const [escolaOutro, setEscolaOutro] = useState(false);
+
+  React.useEffect(() => {
+    void (async () => {
+      const r = await postComunicadosAction<any>('GET_FORMULARIOS_CONFIG', {});
+      if (r.success) setFormConfig((r.data as any)?.config || null);
+    })();
+  }, []);
+
+  const [form, setForm] = useState({
+    nome_adolescente: '',
+    nome_social: '',
+    data_nascimento: '',
+    sexo: '',
+    tamanho_camisa: '',
+    escola_id: '',
+    escola_nome_outro: '',
+    telefone_adolescente: '',
+    email_adolescente: '',
+    nome_responsavel: '',
+    telefone_responsavel: '',
+    email_responsavel: '',
+    endereco: '',
+    bairro: '',
+    paroquia: '',
+    participou_antes: 'Nao',
+    observacoes: '',
+    aceite_termos: false,
+  });
+
+  React.useEffect(() => {
+    const busca = toCleanString(escolaBusca);
+    if (escolaOutro || form.escola_id || busca.length < 2) {
+      setEscolas([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setEscolaLoading(true);
+      try {
+        const response = await fetch(`/api/inscricoes/create?resource=escolas&busca=${encodeURIComponent(busca)}`, {
+          signal: controller.signal,
+        });
+        const body = await response.json().catch(() => null);
+        if (!response.ok || !body?.success) throw new Error(body?.message || 'NÃ£o foi possÃ­vel pesquisar as escolas.');
+        setEscolas(Array.isArray(body?.data) ? body.data : []);
+      } catch (e: any) {
+        if (e?.name !== 'AbortError') setEscolas([]);
+      } finally {
+        setEscolaLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [escolaBusca, escolaOutro, form.escola_id]);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  const computedAge = useMemo(() => {
+    const birth = parseDateOnly(form.data_nascimento);
+    if (!birth) return '';
+    const age = calcAgeOnDate(birth, new Date());
+    return Number.isFinite(age) && age >= 0 ? String(age) : '';
+  }, [form.data_nascimento]);
+
+  const validate = (): FieldErrors => {
+    const errors: FieldErrors = {};
+    const nomeAdolescente = toCleanString(form.nome_adolescente).replace(/\s+/g, ' ');
+    const nomeResponsavel = toCleanString(form.nome_responsavel).replace(/\s+/g, ' ');
+
+    if (nomeAdolescente.replace(/\s/g, '').length < 5) errors.nome_adolescente = 'Informe o nome completo do adolescente.';
+
+    const nascimento = parseDateOnly(form.data_nascimento);
+    if (!nascimento || nascimento.getTime() > Date.now()) errors.data_nascimento = 'Informe uma data de nascimento vÃ¡lida.';
+    if (!toCleanString(form.sexo)) errors.sexo = 'Informe o sexo do adolescente.';
+    if (!['PP', 'P', 'M', 'G', 'GG', 'XG', 'XXG'].includes(toCleanString(form.tamanho_camisa).toUpperCase())) errors.tamanho_camisa = 'Selecione o tamanho da camisa.';
+    if (escolaOutro) {
+      if (!toCleanString(form.escola_nome_outro)) errors.escola = 'Informe onde vocÃª estuda.';
+    } else if (!toCleanString(form.escola_id)) {
+      errors.escola = 'Pesquise e selecione o colÃ©gio onde vocÃª estuda.';
+    }
+
+    const telA = toCleanString(form.telefone_adolescente).replace(/\D/g, '');
+    if (telA.length < 10 || /^0+$/.test(telA)) errors.telefone_adolescente = 'Informe um telefone vÃ¡lido do adolescente.';
+
+    if (nomeResponsavel.replace(/\s/g, '').length < 5) errors.nome_responsavel = 'Informe o nome do responsÃ¡vel.';
+
+    const telR = toCleanString(form.telefone_responsavel).replace(/\D/g, '');
+    if (telR.length < 10 || /^0+$/.test(telR)) errors.telefone_responsavel = 'Informe um telefone vÃ¡lido do responsÃ¡vel.';
+
+    if (!toCleanString(form.endereco)) errors.endereco = 'Informe o endereÃ§o completo.';
+
+    if (!form.aceite_termos) errors.aceite_termos = 'Ã‰ necessÃ¡rio aceitar os termos para enviar a inscriÃ§Ã£o.';
+
+    return errors;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isLoading) return;
+
+    setError(null);
+    const errors = validate();
+    setFieldErrors(errors);
+
+    if (Object.keys(errors).length > 0) {
+      const first = Object.values(errors)[0];
+      setError(first);
+      showToast(first, 'info');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const payload = {
+        nome_adolescente: toCleanString(form.nome_adolescente),
+        nome_social: toCleanString(form.nome_social),
+        data_nascimento: toCleanString(form.data_nascimento),
+        sexo: toCleanString(form.sexo),
+        tamanho_camisa: toCleanString(form.tamanho_camisa).toUpperCase(),
+        escola_id: escolaOutro ? null : (toCleanString(form.escola_id) || null),
+        escola_nome_outro: escolaOutro ? toCleanString(form.escola_nome_outro) : null,
+        idade: computedAge ? Number(computedAge) : undefined,
+        telefone_adolescente: toCleanString(form.telefone_adolescente),
+        email_adolescente: toCleanString(form.email_adolescente),
+        nome_responsavel: toCleanString(form.nome_responsavel),
+        telefone_responsavel: toCleanString(form.telefone_responsavel),
+        email_responsavel: toCleanString(form.email_responsavel),
+        endereco: toCleanString(form.endereco),
+        bairro: toCleanString(form.bairro),
+        paroquia: toCleanString(form.paroquia),
+        participou_antes: form.participou_antes === 'Sim',
+        observacoes: toCleanString(form.observacoes),
+        aceite_termos: form.aceite_termos,
+      };
+
+      const r = await inscricoesService.createInscricao(payload);
+      if (!r.success) {
+        const backendFields = ((r as any)?.raw?.fields && typeof (r as any).raw.fields === 'object') ? (r as any).raw.fields : {};
+        if (Object.keys(backendFields).length > 0) setFieldErrors(backendFields);
+        throw new Error((r as any)?.raw?.message || r.error || 'NÃ£o foi possÃ­vel enviar sua inscriÃ§Ã£o agora.');
+      }
+
+      setIsSubmitted(true);
+      const msg = r.data.message || DEFAULT_SUCCESS_MESSAGE;
+      showToast(msg, 'success');
+    } catch (e: any) {
+      console.error('[PublicInscricaoForm] falha submit:', e);
+      const msg = e?.message || 'NÃ£o foi possÃ­vel enviar sua inscriÃ§Ã£o agora. Confira os dados informados e tente novamente.';
+      setError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (isSubmitted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-[#eef4ff] via-[#f8fafc] to-[#eef2f7] py-10 px-4 flex items-center justify-center">
+        <div className="w-full max-w-xl rounded-[28px] border border-slate-200 bg-white shadow-[0_12px_34px_-20px_rgba(15,23,42,0.45)] overflow-hidden">
+          <div className="bg-[#044372] px-8 py-7 text-center">
+            <img src="https://i.imgur.com/c5XQ7TW.png" alt="Logo EAC" className="h-16 mx-auto drop-shadow" />
+          </div>
+          <div className="p-8 text-center">
+            <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl font-black">âœ“</div>
+            <h1 className="text-3xl font-black text-emerald-600 mb-4">InscriÃ§Ã£o enviada!</h1>
+            <p className="text-slate-700 text-lg">{DEFAULT_SUCCESS_MESSAGE}</p>
+            <p className="mt-5 text-sm text-slate-500">Obrigado por confiar no EAC.</p>
+          </div>
+        </div>
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      </div>
+    );
+  }
+
+  if (formConfig && formConfig.encontrista_ativo === false) {
+    return <div className="min-h-screen bg-slate-50 grid place-items-center p-4"><div className="max-w-md rounded-[28px] bg-white p-8 text-center shadow"><img src="https://i.imgur.com/c5XQ7TW.png" alt="Logo EAC" className="mx-auto mb-6 h-16" /><h1 className="text-2xl font-black text-slate-900">FormulÃ¡rio indisponÃ­vel</h1><p className="mt-3 text-slate-600">Em breve retornarÃ¡.</p></div></div>;
+  }
+
+  const inputClass = (field: string) =>
+    `w-full h-12 px-4 border rounded-xl bg-white transition focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500 ${
+      fieldErrors[field] ? 'border-red-500' : 'border-slate-300'
+    }`;
+  const labelClass = 'block text-sm font-extrabold text-slate-800 mb-1';
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-[#eef4ff] via-[#f8fafc] to-[#eef2f7] py-10 px-4">
+      <div className="mx-auto w-full max-w-2xl">
+        <div className="rounded-[28px] border border-slate-200 bg-white shadow-[0_12px_34px_-20px_rgba(15,23,42,0.45)] overflow-hidden">
+          <div className="bg-[#044372] px-8 py-7 text-center">
+            <img src="https://i.imgur.com/c5XQ7TW.png" alt="Logo EAC" className="h-16 mx-auto drop-shadow" />
+          </div>
+
+          <div className="p-7 md:p-8">
+            <h1 className="text-3xl font-black text-slate-900 text-center mb-2">InscriÃ§Ã£o de Adolescente</h1>
+            <p className="text-center text-slate-600 mb-7">Preencha os dados abaixo para registrar sua inscriÃ§Ã£o.</p>
+
+            <div className="mb-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-[13px] text-blue-900">
+              O encontro serÃ¡ definido pela coordenaÃ§Ã£o durante a triagem.
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Nome do adolescente *</label>
+                  <input
+                    value={form.nome_adolescente}
+                    onChange={(e) => setForm((prev) => ({ ...prev, nome_adolescente: e.target.value }))}
+                    className={inputClass('nome_adolescente')}
+                    placeholder="Nome completo"
+                  />
+                  {fieldErrors.nome_adolescente ? <p className="mt-1 text-xs text-red-600">{fieldErrors.nome_adolescente}</p> : null}
+                </div>
+
+                <div>
+                  <label className={labelClass}>Nome social</label>
+                  <input
+                    value={form.nome_social}
+                    onChange={(e) => setForm((prev) => ({ ...prev, nome_social: e.target.value }))}
+                    className={inputClass('nome_social')}
+                    placeholder="Como prefere ser chamado(a)"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Data de nascimento *</label>
+                  <input
+                    type="date"
+                    value={form.data_nascimento}
+                    onChange={(e) => setForm((prev) => ({ ...prev, data_nascimento: e.target.value }))}
+                    className={inputClass('data_nascimento')}
+                  />
+                  {fieldErrors.data_nascimento ? <p className="mt-1 text-xs text-red-600">{fieldErrors.data_nascimento}</p> : null}
+                </div>
+                <div>
+                  <label className={labelClass}>Sexo *</label>
+                  <select
+                    value={form.sexo}
+                    onChange={(e) => setForm((prev) => ({ ...prev, sexo: e.target.value }))}
+                    className={inputClass('sexo')}
+                  >
+                    <option value="">Selecione</option>
+                    <option value="Masculino">Masculino</option>
+                    <option value="Feminino">Feminino</option>
+                  </select>
+                  {fieldErrors.sexo ? <p className="mt-1 text-xs text-red-600">{fieldErrors.sexo}</p> : null}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                  <label className={labelClass}>Telefone do adolescente *</label>
+                  <input
+                    value={form.telefone_adolescente}
+                    onChange={(e) => setForm((prev) => ({ ...prev, telefone_adolescente: e.target.value }))}
+                    className={inputClass('telefone_adolescente')}
+                    placeholder="(DD) 9xxxx-xxxx"
+                  />
+                  {fieldErrors.telefone_adolescente ? <p className="mt-1 text-xs text-red-600">{fieldErrors.telefone_adolescente}</p> : null}
+                </div>
+
+                <div>
+                  <label className={labelClass}>Idade atual</label>
+                  <input value={computedAge} readOnly className="w-full h-12 px-4 border border-slate-200 rounded-xl bg-slate-50 text-slate-700 font-bold" placeholder="-" />
+                  <p className="mt-1 text-[11px] text-slate-500">{computedAge ? `${computedAge} anos` : 'Informe a data de nascimento.'}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>E-mail do adolescente</label>
+                  <input
+                    value={form.email_adolescente}
+                    onChange={(e) => setForm((prev) => ({ ...prev, email_adolescente: e.target.value }))}
+                    className={inputClass('email_adolescente')}
+                    placeholder="email@exemplo.com"
+                  />
+                </div>
+                <div>
+                  <label className={labelClass}>E-mail do responsÃ¡vel</label>
+                  <input
+                    value={form.email_responsavel}
+                    onChange={(e) => setForm((prev) => ({ ...prev, email_responsavel: e.target.value }))}
+                    className={inputClass('email_responsavel')}
+                    placeholder="email@exemplo.com"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Nome do responsÃ¡vel *</label>
+                  <input
+                    value={form.nome_responsavel}
+                    onChange={(e) => setForm((prev) => ({ ...prev, nome_responsavel: e.target.value }))}
+                    className={inputClass('nome_responsavel')}
+                    placeholder="Nome completo"
+                  />
+                  {fieldErrors.nome_responsavel ? <p className="mt-1 text-xs text-red-600">{fieldErrors.nome_responsavel}</p> : null}
+                </div>
+
+                <div>
+                  <label className={labelClass}>Telefone do responsÃ¡vel *</label>
+                  <input
+                    value={form.telefone_responsavel}
+                    onChange={(e) => setForm((prev) => ({ ...prev, telefone_responsavel: e.target.value }))}
+                    className={inputClass('telefone_responsavel')}
+                    placeholder="(DD) 9xxxx-xxxx"
+                  />
+                  {fieldErrors.telefone_responsavel ? <p className="mt-1 text-xs text-red-600">{fieldErrors.telefone_responsavel}</p> : null}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className={labelClass}>EndereÃ§o completo *</label>
+                  <input
+                    value={form.endereco}
+                    onChange={(e) => setForm((prev) => ({ ...prev, endereco: e.target.value }))}
+                    className={inputClass('endereco')}
+                    placeholder="Rua, nÃºmero, complemento"
+                  />
+                  {fieldErrors.endereco ? <p className="mt-1 text-xs text-red-600">{fieldErrors.endereco}</p> : null}
+                </div>
+                <div>
+                  <label className={labelClass}>Bairro</label>
+                  <input
+                    value={form.bairro}
+                    onChange={(e) => setForm((prev) => ({ ...prev, bairro: e.target.value }))}
+                    className={inputClass('bairro')}
+                  />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className={labelClass}>Onde vocÃª estuda? *</label>
+                  {!escolaOutro ? (
+                    <>
+                      <input
+                        value={escolaBusca}
+                        onChange={(e) => {
+                          setEscolaBusca(e.target.value);
+                          setForm((prev) => ({ ...prev, escola_id: '' }));
+                        }}
+                        className={inputClass('escola')}
+                        placeholder="Digite pelo menos 2 letras do nome do colÃ©gio"
+                        autoComplete="off"
+                      />
+                      {escolaLoading ? <p className="mt-1 text-xs text-slate-500">Pesquisando escolas...</p> : null}
+                      {!form.escola_id && escolas.length > 0 ? (
+                        <div className="mt-2 max-h-56 overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+                          {escolas.map((escola) => (
+                            <button
+                              key={escola.id}
+                              type="button"
+                              onClick={() => {
+                                setForm((prev) => ({ ...prev, escola_id: escola.id, escola_nome_outro: '' }));
+                                setEscolaBusca(escola.nome);
+                                setEscolas([]);
+                                setFieldErrors((prev) => ({ ...prev, escola: '' }));
+                              }}
+                              className="w-full border-b border-slate-100 px-4 py-3 text-left last:border-b-0 hover:bg-blue-50"
+                            >
+                              <div className="font-bold text-slate-800">{escola.nome}</div>
+                              <div className="text-xs text-slate-500">
+                                {[escola.rede, escola.bairro].filter(Boolean).join(' â€¢ ')}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <input
+                      value={form.escola_nome_outro}
+                      onChange={(e) => setForm((prev) => ({ ...prev, escola_nome_outro: e.target.value }))}
+                      className={inputClass('escola')}
+                      placeholder="Informe o nome do colÃ©gio"
+                    />
+                  )}
+                  <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={escolaOutro}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setEscolaOutro(checked);
+                        setEscolas([]);
+                        setEscolaBusca('');
+                        setForm((prev) => ({ ...prev, escola_id: '', escola_nome_outro: checked ? prev.escola_nome_outro : '' }));
+                        setFieldErrors((prev) => ({ ...prev, escola: '' }));
+                      }}
+                    />
+                    Outro / NÃ£o encontrei meu colÃ©gio
+                  </label>
+                  {fieldErrors.escola ? <p className="mt-1 text-xs text-red-600">{fieldErrors.escola}</p> : null}
+                </div>
+
+                <div>
+                  <label className={labelClass}>Tamanho de camisa *</label>
+                  <select
+                    value={form.tamanho_camisa}
+                    onChange={(e) => setForm((prev) => ({ ...prev, tamanho_camisa: e.target.value }))}
+                    className={inputClass('tamanho_camisa')}
+                  >
+                    <option value="">Selecione</option>
+                    {['PP', 'P', 'M', 'G', 'GG', 'XG', 'XXG'].map((tam) => (
+                      <option key={tam} value={tam}>{tam}</option>
+                    ))}
+                  </select>
+                  {fieldErrors.tamanho_camisa ? <p className="mt-1 text-xs text-red-600">{fieldErrors.tamanho_camisa}</p> : null}
+                </div>
+
+                <div>
+                  <label className={labelClass}>ParÃ³quia</label>
+                  <input
+                    value={form.paroquia}
+                    onChange={(e) => setForm((prev) => ({ ...prev, paroquia: e.target.value }))}
+                    className={inputClass('paroquia')}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>JÃ¡ participou antes?</label>
+                  <select
+                    value={form.participou_antes}
+                    onChange={(e) => setForm((prev) => ({ ...prev, participou_antes: e.target.value }))}
+                    className={inputClass('participou_antes')}
+                  >
+                    <option value="Nao">NÃ£o</option>
+                    <option value="Sim">Sim</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className={labelClass}>ObservaÃ§Ãµes</label>
+                <textarea
+                  rows={3}
+                  value={form.observacoes}
+                  onChange={(e) => setForm((prev) => ({ ...prev, observacoes: e.target.value }))}
+                  className="w-full px-4 py-3 border border-slate-300 rounded-xl bg-white transition focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
                   placeholder="Opcional"
                 />
               </div>
