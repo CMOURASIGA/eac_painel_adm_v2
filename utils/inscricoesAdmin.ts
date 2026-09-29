@@ -303,7 +303,7 @@ function buildInscricoesQuery(
     .select(
       onlyStatus
         ? 'status'
-        : 'id,status,origem_dado,criado_via_sistema,data_inscricao,criado_em,encontro_id,adolescente_id',
+        : 'id,status,origem_dado,criado_via_sistema,data_inscricao,criado_em,encontro_id,adolescente_id,tamanho_camisa,escola_id,escola_nome_outro',
       withCount ? { count: 'exact' } : undefined
     );
 
@@ -483,18 +483,22 @@ export async function executeInscricoesAdminList(params: {
 
     const adolescenteIds = uniq(allRows.map((r: any) => String(r.adolescente_id || '')));
     const encontroIds = uniq(allRows.map((r: any) => String(r.encontro_id || '')));
+    const escolaIds = uniq(allRows.map((r: any) => String(r.escola_id || '')).filter(Boolean));
 
-    const [encontrosRes, adolescentesRes] = await Promise.all([
+    const [encontrosRes, adolescentesRes, escolasRes] = await Promise.all([
       encontroIds.length
         ? supabase.from('encontros').select('id,nome,numero,status,data_inicio,data_fim').in('id', encontroIds)
         : Promise.resolve({ data: [], error: null } as any),
       adolescenteIds.length
         ? supabase.from('adolescentes').select('id,pessoa_id,aceite_normas,ja_fez_eac').in('id', adolescenteIds)
         : Promise.resolve({ data: [], error: null } as any),
+      escolaIds.length
+        ? supabase.from('escolas').select('id,nome').in('id', escolaIds)
+        : Promise.resolve({ data: [], error: null } as any),
     ]);
 
-    if (encontrosRes.error || adolescentesRes.error) {
-      console.error('[inscricoes/admin] erro relacionados etapa 1:', encontrosRes.error || adolescentesRes.error);
+    if (encontrosRes.error || adolescentesRes.error || escolasRes.error) {
+      console.error('[inscricoes/admin] erro relacionados etapa 1:', encontrosRes.error || adolescentesRes.error || escolasRes.error);
       return { status: 502, body: { success: false, error: 'ERRO_LISTAR_INSCRICOES', message: 'Não foi possível carregar as inscrições.' } };
     }
 
@@ -534,6 +538,7 @@ export async function executeInscricoesAdminList(params: {
     }
 
     const encontrosMap = new Map<string, any>(((encontrosRes.data ?? []) as any[]).map((e: any) => [String(e.id), e]));
+    const escolasMap = new Map<string, any>(((escolasRes.data ?? []) as any[]).map((e: any) => [String(e.id), e]));
     const adolescentesMap = new Map<string, any>(adolescentes.map((a: any) => [String(a.id), a]));
     const pessoasMap = new Map<string, any>(((pessoasRes.data ?? []) as any[]).map((p: any) => [String(p.id), p]));
     const responsaveisMap = new Map<string, any>(((responsaveisRes.data ?? []) as any[]).map((r: any) => [String(r.id), r]));
@@ -562,6 +567,10 @@ export async function executeInscricoesAdminList(params: {
         criado_via_sistema: i.criado_via_sistema,
         data_inscricao: i.data_inscricao,
         criado_em: i.criado_em,
+        tamanho_camisa: i.tamanho_camisa ?? null,
+        escola_id: i.escola_id ?? null,
+        escola_nome_outro: i.escola_nome_outro ?? null,
+        escola_nome: i.escola_id ? (escolasMap.get(String(i.escola_id))?.nome ?? null) : (i.escola_nome_outro ?? null),
 
         encontro_id: encontro?.id ?? i.encontro_id,
         encontro_nome: encontro?.nome ?? null,

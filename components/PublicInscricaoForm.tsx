@@ -31,6 +31,8 @@ function calcAgeOnDate(birth: Date, on: Date) {
 
 const DEFAULT_SUCCESS_MESSAGE =
   'Inscrição recebida com sucesso! A equipe responsável irá revisar as informações e, se necessário, entrará em contato pelos telefones informados.';
+const TAMANHOS_CAMISA = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XXG'] as const;
+type EscolaItem = { id: string; codigo_inep?: string | null; nome: string; rede?: string | null; bairro?: string | null };
 
 const PublicInscricaoForm: React.FC = () => {
   const [toast, setToast] = useState<ToastState>(null);
@@ -52,6 +54,9 @@ const PublicInscricaoForm: React.FC = () => {
     nome_social: '',
     data_nascimento: '',
     sexo: '',
+    tamanho_camisa: '',
+    escola_id: '',
+    escola_nome_outro: '',
     telefone_adolescente: '',
     email_adolescente: '',
     nome_responsavel: '',
@@ -64,6 +69,39 @@ const PublicInscricaoForm: React.FC = () => {
     observacoes: '',
     aceite_termos: false,
   });
+  const [schoolQuery, setSchoolQuery] = useState('');
+  const [schoolResults, setSchoolResults] = useState<EscolaItem[]>([]);
+  const [schoolLoading, setSchoolLoading] = useState(false);
+  const [showSchoolResults, setShowSchoolResults] = useState(false);
+  const [escolaOutroSelecionado, setEscolaOutroSelecionado] = useState(false);
+
+  React.useEffect(() => {
+    const busca = toCleanString(schoolQuery);
+    if (form.escola_id || escolaOutroSelecionado || busca.length < 2) {
+      setSchoolResults([]);
+      setSchoolLoading(false);
+      return;
+    }
+
+    let active = true;
+    setSchoolLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/inscricoes/create?resource=escolas&busca=${encodeURIComponent(busca)}`);
+        const body = await response.json();
+        if (active) setSchoolResults(response.ok && Array.isArray(body?.data) ? body.data : []);
+      } catch {
+        if (active) setSchoolResults([]);
+      } finally {
+        if (active) setSchoolLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [schoolQuery, form.escola_id, escolaOutroSelecionado]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info') => {
     setToast({ message, type });
@@ -87,6 +125,8 @@ const PublicInscricaoForm: React.FC = () => {
     const nascimento = parseDateOnly(form.data_nascimento);
     if (!nascimento || nascimento.getTime() > Date.now()) errors.data_nascimento = 'Informe uma data de nascimento válida.';
     if (!toCleanString(form.sexo)) errors.sexo = 'Informe o sexo do adolescente.';
+    if (!TAMANHOS_CAMISA.includes(form.tamanho_camisa as (typeof TAMANHOS_CAMISA)[number])) errors.tamanho_camisa = 'Selecione o tamanho da camisa.';
+    if (!form.escola_id && (!escolaOutroSelecionado || !toCleanString(form.escola_nome_outro))) errors.escola = 'Informe onde você estuda.';
 
     const telA = toCleanString(form.telefone_adolescente).replace(/\D/g, '');
     if (telA.length < 10 || /^0+$/.test(telA)) errors.telefone_adolescente = 'Informe um telefone válido do adolescente.';
@@ -125,6 +165,9 @@ const PublicInscricaoForm: React.FC = () => {
         nome_social: toCleanString(form.nome_social),
         data_nascimento: toCleanString(form.data_nascimento),
         sexo: toCleanString(form.sexo),
+        tamanho_camisa: form.tamanho_camisa,
+        escola_id: form.escola_id || undefined,
+        escola_nome_outro: escolaOutroSelecionado ? toCleanString(form.escola_nome_outro) : undefined,
         idade: computedAge ? Number(computedAge) : undefined,
         telefone_adolescente: toCleanString(form.telefone_adolescente),
         email_adolescente: toCleanString(form.email_adolescente),
@@ -253,6 +296,73 @@ const PublicInscricaoForm: React.FC = () => {
                   {fieldErrors.sexo ? <p className="mt-1 text-xs text-red-600">{fieldErrors.sexo}</p> : null}
                 </div>
               </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>Tamanho de camisa *</label>
+                  <select value={form.tamanho_camisa} onChange={(e) => setForm((prev) => ({ ...prev, tamanho_camisa: e.target.value }))} className={inputClass('tamanho_camisa')}>
+                    <option value="">Selecione</option>
+                    {TAMANHOS_CAMISA.map((tamanho) => <option key={tamanho} value={tamanho}>{tamanho}</option>)}
+                  </select>
+                  {fieldErrors.tamanho_camisa ? <p className="mt-1 text-xs text-red-600">{fieldErrors.tamanho_camisa}</p> : null}
+                </div>
+                <div className="relative">
+                  <label className={labelClass}>Onde você estuda? *</label>
+                  <input
+                    value={schoolQuery}
+                    onFocus={() => setShowSchoolResults(true)}
+                    onChange={(e) => {
+                      setSchoolQuery(e.target.value);
+                      setEscolaOutroSelecionado(false);
+                      setForm((prev) => ({ ...prev, escola_id: '', escola_nome_outro: '' }));
+                      setShowSchoolResults(true);
+                    }}
+                    className={inputClass('escola')}
+                    placeholder="Digite o nome do colégio"
+                    autoComplete="off"
+                  />
+                  {showSchoolResults && !form.escola_id && !escolaOutroSelecionado ? (
+                    <div className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                      {schoolLoading ? <p className="px-3 py-2 text-sm text-slate-500">Pesquisando colégios...</p> : null}
+                      {!schoolLoading && schoolQuery.trim().length < 2 ? <p className="px-3 py-2 text-sm text-slate-500">Digite pelo menos 2 letras para pesquisar.</p> : null}
+                      {!schoolLoading && schoolQuery.trim().length >= 2 && schoolResults.length === 0 ? <p className="px-3 py-2 text-sm text-slate-500">Nenhum colégio encontrado.</p> : null}
+                      {schoolResults.map((escola) => (
+                        <button key={escola.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => {
+                          setForm((prev) => ({ ...prev, escola_id: escola.id, escola_nome_outro: '' }));
+                          const local = toCleanString(escola.bairro);
+                          setSchoolQuery(local ? `${escola.nome} - ${local}` : escola.nome);
+                          setEscolaOutroSelecionado(false);
+                          setShowSchoolResults(false);
+                        }} className="block w-full border-b border-slate-100 px-3 py-2 text-left hover:bg-blue-50">
+                          <span className="block text-sm font-bold text-slate-800">{escola.nome}</span>
+                          <span className="mt-0.5 block text-xs font-semibold text-slate-600">
+                            {escola.bairro ? `Bairro: ${escola.bairro}` : 'Bairro não informado'}
+                          </span>
+                          <span className="block text-[11px] text-slate-500">
+                            {[escola.rede, escola.codigo_inep ? `INEP ${escola.codigo_inep}` : null].filter(Boolean).join(' · ')}
+                          </span>
+                        </button>
+                      ))}
+                      <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => {
+                        setForm((prev) => ({ ...prev, escola_id: '', escola_nome_outro: '' }));
+                        setSchoolQuery('Outro / Não encontrei meu colégio');
+                        setEscolaOutroSelecionado(true);
+                        setShowSchoolResults(false);
+                      }} className="block w-full px-3 py-2 text-left text-sm font-bold text-blue-700 hover:bg-blue-50">
+                        Outro / Não encontrei meu colégio
+                      </button>
+                    </div>
+                  ) : null}
+                  {fieldErrors.escola ? <p className="mt-1 text-xs text-red-600">{fieldErrors.escola}</p> : null}
+                </div>
+              </div>
+
+              {escolaOutroSelecionado ? (
+                <div>
+                  <label className={labelClass}>Nome do colégio *</label>
+                  <input value={form.escola_nome_outro} onChange={(e) => setForm((prev) => ({ ...prev, escola_nome_outro: e.target.value }))} className={inputClass('escola')} placeholder="Informe o nome do colégio" />
+                </div>
+              ) : null}
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="md:col-span-2">
