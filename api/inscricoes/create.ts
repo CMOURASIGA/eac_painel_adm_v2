@@ -17,27 +17,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const { data, error } = await supabase
         .from('escolas')
-        .select('id,nome,rede,bairro')
+        .select('id,codigo_inep,nome,rede,bairro')
         .eq('ativo', true)
         .eq('municipio', 'Niterói')
         .eq('uf', 'RJ')
         .ilike('nome', `%${busca}%`)
         .order('nome', { ascending: true })
-        .limit(100);
+        .limit(20);
 
       if (error) {
         console.error('[api/inscricoes/create] falha ao pesquisar escolas:', error);
         return res.status(502).json({ success: false, error: 'SCHOOLS_LOOKUP_FAILED', message: 'Não foi possível pesquisar as escolas agora.' });
       }
-      // O Censo Escolar pode registrar unidades distintas com o mesmo nome
-      // comercial. Para o formulário, uma opção por nome é mais clara.
-      const escolasUnicas = Array.from(
-        new Map(
-          (data ?? []).map((escola: any) => [clean(escola.nome).toLocaleUpperCase('pt-BR'), escola]),
-        ).values(),
-      ).slice(0, 20);
-
-      return res.status(200).json({ success: true, data: escolasUnicas });
+      return res.status(200).json({ success: true, data: data ?? [] });
     } catch (e: any) {
       console.error('[api/inscricoes/create] falha ao pesquisar escolas:', e);
       return res.status(500).json({ success: false, error: 'INTERNAL_ERROR', message: 'Erro interno.' });
