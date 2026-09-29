@@ -32,7 +32,7 @@ function calcAgeOnDate(birth: Date, on: Date) {
 const DEFAULT_SUCCESS_MESSAGE =
   'Inscrição recebida com sucesso! A equipe responsável irá revisar as informações e, se necessário, entrará em contato pelos telefones informados.';
 const TAMANHOS_CAMISA = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XXG'] as const;
-type EscolaItem = { id: string; nome: string; rede?: string | null; bairro?: string | null };
+type EscolaItem = { id: string; codigo_inep?: string | null; nome: string; rede?: string | null; bairro?: string | null };
 
 const PublicInscricaoForm: React.FC = () => {
   const [toast, setToast] = useState<ToastState>(null);
@@ -329,12 +329,18 @@ const PublicInscricaoForm: React.FC = () => {
                       {schoolResults.map((escola) => (
                         <button key={escola.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => {
                           setForm((prev) => ({ ...prev, escola_id: escola.id, escola_nome_outro: '' }));
-                          setSchoolQuery(escola.nome);
+                          const local = toCleanString(escola.bairro);
+                          setSchoolQuery(local ? `${escola.nome} - ${local}` : escola.nome);
                           setEscolaOutroSelecionado(false);
                           setShowSchoolResults(false);
                         }} className="block w-full border-b border-slate-100 px-3 py-2 text-left hover:bg-blue-50">
                           <span className="block text-sm font-bold text-slate-800">{escola.nome}</span>
-                          <span className="block text-xs text-slate-500">{[escola.rede, escola.bairro].filter(Boolean).join(' · ')}</span>
+                          <span className="mt-0.5 block text-xs font-semibold text-slate-600">
+                            {escola.bairro ? `Bairro: ${escola.bairro}` : 'Bairro não informado'}
+                          </span>
+                          <span className="block text-[11px] text-slate-500">
+                            {[escola.rede, escola.codigo_inep ? `INEP ${escola.codigo_inep}` : null].filter(Boolean).join(' · ')}
+                          </span>
                         </button>
                       ))}
                       <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => {
