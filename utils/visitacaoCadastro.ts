@@ -24,6 +24,8 @@ export function createVisitacaoCadastroFromItem(item?: VisitacaoPriorizado | nul
     bairro: cadastro.bairro ?? item?.bairro ?? '',
     cidade: cadastro.cidade ?? '',
     estado: cadastro.estado ?? 'RJ',
+    pai_nome: cadastro.pai_nome ?? '',
+    mae_nome: cadastro.mae_nome ?? '',
     responsavel_nome: cadastro.responsavel_nome ?? item?.responsavel_nome ?? '',
     responsavel_telefone: cadastro.responsavel_telefone ?? item?.responsavel_telefone ?? '',
     responsavel_email: cadastro.responsavel_email ?? item?.responsavel_email ?? '',
