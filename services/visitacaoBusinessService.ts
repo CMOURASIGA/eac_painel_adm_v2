@@ -346,6 +346,9 @@ async function updateCadastroOficialFromVisitacao(
     return undefined;
   };
   const adolescentePayloadRaw = cleanNonEmptyPayload({
+    ja_fez_eac: toNullableBool(cadastro.ja_participou_encontro),
+    batizado: toNullableBool(cadastro.batizado),
+    crismado: toNullableBool(cadastro.crismado),
     turno_escolar: cadastro.turno_escolar,
     serie_escolar: cadastro.serie_escolar,
     grau_escolar: cadastro.grau_escolar,
@@ -607,7 +610,12 @@ export async function registerVisitacao(
     alteracoesCadastrais = await updateCadastroOficialFromVisitacao(
       supabase,
       prioritized,
-      body?.cadastro && typeof body.cadastro === 'object' ? body.cadastro : {},
+      {
+        ...(body?.cadastro && typeof body.cadastro === 'object' ? body.cadastro : {}),
+        ja_participou_encontro: respostasQuestionario.ja_participou_encontro,
+        batizado: respostasQuestionario.batizado,
+        crismado: respostasQuestionario.crismado,
+      },
     );
   } catch (cadastroError: any) {
     return { status: 500, body: { success: false, error: cadastroError?.message || 'Falha ao atualizar cadastro oficial.' } };
