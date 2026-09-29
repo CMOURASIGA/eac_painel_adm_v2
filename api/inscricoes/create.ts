@@ -7,6 +7,24 @@ function clean(value: unknown) {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === 'GET' && clean(req.query.resource).toLowerCase() === 'escolas_diagnostico') {
+    const supabase = getSupabaseServerClient();
+    if (!supabase) return res.status(500).json({ success: false, error: 'SUPABASE_NOT_CONFIGURED' });
+    const base = () => supabase.from('escolas').select('id', { count: 'exact', head: true })
+      .eq('ativo', true).eq('municipio', 'Niterói').eq('uf', 'RJ');
+    const [total, comBairro, semBairro, exemplosCom, exemplosSem, pensi] = await Promise.all([
+      base(), base().not('bairro', 'is', null).neq('bairro', ''),
+      base().or('bairro.is.null,bairro.eq.'),
+      supabase.from('escolas').select('codigo_inep,nome,bairro,rede,fonte').eq('ativo', true).eq('municipio', 'Niterói').eq('uf', 'RJ').not('bairro','is',null).neq('bairro','').order('codigo_inep').limit(5),
+      supabase.from('escolas').select('codigo_inep,nome,bairro,rede,fonte').eq('ativo', true).eq('municipio', 'Niterói').eq('uf', 'RJ').or('bairro.is.null,bairro.eq.').order('codigo_inep').limit(5),
+      supabase.from('escolas').select('codigo_inep,nome,bairro,rede,fonte').in('codigo_inep', ['33150931','33161429','33165920']),
+    ]);
+    const results = [total, comBairro, semBairro, exemplosCom, exemplosSem, pensi];
+    const failed = results.find((result) => result.error);
+    if (failed) return res.status(502).json({ success: false, error: failed.error?.message });
+    return res.status(200).json({ success: true, total: total.count, comBairro: comBairro.count,
+      semBairro: semBairro.count, exemplosCom: exemplosCom.data, exemplosSem: exemplosSem.data, pensi: pensi.data });
+  }
   if (req.method === 'GET' && clean(req.query.resource).toLowerCase() === 'escolas') {
     const busca = clean(req.query.busca).slice(0, 100);
     if (busca.length < 2) return res.status(200).json({ success: true, data: [] });
