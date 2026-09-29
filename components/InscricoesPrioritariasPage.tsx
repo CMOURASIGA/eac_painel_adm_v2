@@ -531,8 +531,13 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
     setError('');
     try {
       const [rPrior, rAdmin, rCirculoMapa] = await Promise.all([
-        inscricoesService.listarPrioritarias({ googleWebAppUrl, encontroId: US118_ENCONTRO_ID }),
-        inscricoesService.listarInscricoesAdmin({ encontro_id: US118_ENCONTRO_ID, status: 'PRIORIZADO', page: 1, page_size: 1000 }),
+        // A listagem geral de prioritários não pode ficar presa ao encontro homologado
+        // da US-118. Assim, inscrições PRIORIZADO vinculadas a "EAC - A DEFINIR"
+        // ou a outro encontro válido continuam visíveis na operação.
+        inscricoesService.listarPrioritarias({ googleWebAppUrl }),
+        inscricoesService.listarInscricoesAdmin({ status: 'PRIORIZADO', page: 1, page_size: 1000 }),
+        // O mapa de círculos continua restrito ao encontro da distribuição,
+        // pois círculo é contexto operacional de um encontro específico.
         inscricoesService.obterCirculoAtualMapa({ googleWebAppUrl, encontroId: US118_ENCONTRO_ID }),
       ]);
 
@@ -1244,6 +1249,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
               const linhaOrigem = String(item.linhaOrigem || '').trim();
               const isDeprioritizing = Boolean(updatingDeprioritizeId && updatingDeprioritizeId === linhaOrigem);
               const ageNum = parseAgeNumber(item.idade);
+              const nascimento = formatDate(item.dataNascimento);
               const statusUi = getStatusUi(item.status);
               const isVisitado = hasVisitado(item);
               return (
@@ -1251,6 +1257,7 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
                   key={cardId}
                   ageLabel={getAgeLabel(item.idade)}
                   ageClassName={getAgeBadgeClass(ageNum)}
+                  birthLabel={nascimento === '-' ? undefined : `Nascimento: ${nascimento}`}
                   statusLabel={statusUi.label}
                   statusTextClassName={statusUi.text}
                   statusDotClassName={statusUi.dot}
@@ -1269,10 +1276,6 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
                     ...(item.sexo ? [{
                       label: `Sexo: ${item.sexo}`,
                       className: 'bg-violet-50 text-violet-700 border border-violet-200'
-                    }] : []),
-                    ...(item.dataNascimento ? [{
-                      label: `Nascimento: ${formatDate(item.dataNascimento)} · ${item.idade ?? '-'} anos`,
-                      className: 'bg-slate-50 text-slate-700 border border-slate-200'
                     }] : []),
                     ...(item.circuloDistribuido ? [{
                       label: `Círculo: ${getCirculoColorLabel(item.circuloDistribuido)}`,
@@ -1437,4 +1440,3 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
 };
 
 export default InscricoesPrioritariasPage;
-

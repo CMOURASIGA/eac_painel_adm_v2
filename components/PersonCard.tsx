@@ -26,6 +26,7 @@ export interface PersonCardPrimaryAction {
 interface PersonCardProps {
   ageLabel: string;
   ageClassName?: string;
+  birthLabel?: string;
   statusLabel?: string;
   statusTextClassName?: string;
   statusDotClassName?: string;
@@ -61,6 +62,7 @@ function actionVariantClass(variant: PersonCardActionVariant) {
 const PersonCard: React.FC<PersonCardProps> = ({
   ageLabel,
   ageClassName = 'bg-slate-100 border-slate-200 text-slate-700',
+  birthLabel,
   statusLabel,
   statusTextClassName = 'text-slate-600',
   statusDotClassName = 'bg-slate-400',
@@ -73,10 +75,17 @@ const PersonCard: React.FC<PersonCardProps> = ({
 }) => {
   return (
     <article className="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm hover:shadow-md transition-all flex flex-col gap-2.5">
-      <div className="flex items-center justify-between gap-3">
-        <span className={`px-2.5 py-1 rounded-lg border text-[11px] font-black ${ageClassName}`}>
-          [{ageLabel}]
-        </span>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className={`px-2.5 py-1 rounded-lg border text-[11px] font-black ${ageClassName}`}>
+            [{ageLabel}]
+          </span>
+          {birthLabel ? (
+            <span className="px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700">
+              [{birthLabel}]
+            </span>
+          ) : null}
+        </div>
         {statusLabel ? (
           <span className={`inline-flex items-center gap-1.5 text-[11px] font-black ${statusTextClassName}`}>
             <span className={`h-2.5 w-2.5 rounded-full ${statusDotClassName}`} />
@@ -158,4 +167,3 @@ const PersonCard: React.FC<PersonCardProps> = ({
 };
 
 export default PersonCard;
-
