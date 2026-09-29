@@ -10,6 +10,8 @@ alter table public.pessoas
 
 -- Dados permanentes do adolescente levantados/confirmados durante a visita.
 alter table public.adolescentes
+  add column if not exists batizado boolean,
+  add column if not exists crismado boolean,
   add column if not exists turno_escolar text,
   add column if not exists serie_escolar text,
   add column if not exists grau_escolar text,
