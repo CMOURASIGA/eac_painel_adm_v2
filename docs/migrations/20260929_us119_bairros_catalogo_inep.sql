@@ -395,3 +395,15 @@ select codigo_inep, nome, bairro from public.escolas
 where codigo_inep in ('33057451','33150931','33161429','33165920')
 order by codigo_inep;
 commit;
+
+-- Resultado único para copiar do SQL Editor após a transação.
+select jsonb_build_object(
+  'total', count(*),
+  'com_bairro', count(*) filter (where nullif(btrim(bairro), '') is not null),
+  'sem_bairro', count(*) filter (where nullif(btrim(bairro), '') is null),
+  'pensi', (select jsonb_agg(jsonb_build_object('inep', codigo_inep, 'nome', nome, 'bairro', bairro)
+                        order by codigo_inep)
+            from public.escolas
+            where codigo_inep in ('33057451','33150931','33161429','33165920'))
+) as resultado
+from public.escolas where municipio = 'Niterói' and uf = 'RJ' and ativo = true;
