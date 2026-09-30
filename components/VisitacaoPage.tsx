@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import PersonCard from './PersonCard.tsx';
 import Drawer from './Drawer.tsx';
 import { visitacaoService } from '../services/visitacaoService.ts';
-import type { User, VisitacaoHistoricoItem, VisitacaoPriorizado, VisitacaoQuestionarioResposta, VisitacaoStatus } from '../types.ts';
+import type { User, VisitacaoCadastro, VisitacaoHistoricoItem, VisitacaoPriorizado, VisitacaoQuestionarioResposta, VisitacaoStatus } from '../types.ts';
 import { toCleanString } from '../utils/textEncoding.ts';
 import { createEmptyVisitacaoQuestionario, summarizeVisitacaoQuestionario } from '../utils/visitacaoQuestionario.ts';
 import VisitacaoQuestionarioFields from './VisitacaoQuestionarioFields.tsx';
+import VisitacaoCadastroFields from './VisitacaoCadastroFields.tsx';
+import { createVisitacaoCadastroFromItem } from '../utils/visitacaoCadastro.ts';
 
 const STATUS_VISITACAO_UI: Record<VisitacaoStatus, { label: string; badge: string; dot: string }> = {
   NENHUMA_ACAO: { label: 'Nenhuma ação', badge: 'bg-slate-50 text-slate-700 border border-slate-200', dot: 'bg-slate-400' },
@@ -86,6 +88,7 @@ const VisitacaoPage: React.FC<VisitacaoPageProps> = ({ user, initialFilters }) =
   const [viewOpen, setViewOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [questionario, setQuestionario] = useState<VisitacaoQuestionarioResposta>(createEmptyVisitacaoQuestionario());
+  const [cadastro, setCadastro] = useState<VisitacaoCadastro>(createVisitacaoCadastroFromItem(null));
   const [form, setForm] = useState({
     status_visitacao: 'CONTATO_INICIAL_FEITO' as VisitacaoStatus,
     data_acao: new Date().toISOString().slice(0, 16),
@@ -200,6 +203,7 @@ const VisitacaoPage: React.FC<VisitacaoPageProps> = ({ user, initialFilters }) =
       observacao: item.observacao || '',
     });
     setQuestionario(item.respostas_questionario ? item.respostas_questionario : createEmptyVisitacaoQuestionario());
+    setCadastro(createVisitacaoCadastroFromItem(item));
     setModalOpen(true);
   };
 
@@ -228,6 +232,7 @@ const VisitacaoPage: React.FC<VisitacaoPageProps> = ({ user, initialFilters }) =
     const result = await visitacaoService.registrar(selectedItem.inscricao_id, {
       ...form,
       respostas_questionario: questionario,
+      cadastro,
       origem_registro: 'PAINEL',
       data_acao: new Date(form.data_acao).toISOString(),
     });
@@ -270,7 +275,7 @@ const VisitacaoPage: React.FC<VisitacaoPageProps> = ({ user, initialFilters }) =
         <div className="mt-2 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
           <div>
             <h2 className="text-3xl font-black tracking-tight text-slate-900">Controle operacional dos priorizados</h2>
-            <p className="mt-2 text-sm text-slate-500">Acompanhe contato inicial, visita realizada e pendências sem alterar a inscrição oficial.</p>
+            <p className="mt-2 text-sm text-slate-500">Acompanhe a visitação e revise o cadastro oficial do adolescente no mesmo fluxo.</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <button type="button" onClick={handleExportCsv} className="rounded-2xl border border-emerald-300 bg-emerald-50 text-emerald-700 px-5 py-3 text-xs font-black uppercase tracking-widest">
@@ -404,7 +409,7 @@ const VisitacaoPage: React.FC<VisitacaoPageProps> = ({ user, initialFilters }) =
       {modalOpen && selectedItem ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-900/50" onClick={() => setModalOpen(false)} />
-          <form onSubmit={handleSave} className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl">
+          <form onSubmit={handleSave} className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-2xl">
             <div className="shrink-0 px-6 pt-6">
               <p className="text-[11px] font-black uppercase tracking-[0.25em] text-blue-600">Atualizar visitação</p>
               <h3 className="mt-2 text-2xl font-black text-slate-900">{selectedItem.nome}</h3>
@@ -436,8 +441,15 @@ const VisitacaoPage: React.FC<VisitacaoPageProps> = ({ user, initialFilters }) =
                 </label>
                 <div className="space-y-3 rounded-[2rem] border border-blue-100 bg-blue-50/60 p-5">
                   <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.25em] text-blue-600">Perguntas da visitação</p>
-                    <p className="mt-1 text-sm font-semibold text-slate-600">Registre as respostas da visita antes de salvar a ação operacional.</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.25em] text-blue-600">Revisão e complementação cadastral</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-600">Confirme ou corrija os dados oficiais. Campos vazios não apagam automaticamente informações já existentes.</p>
+                  </div>
+                  <VisitacaoCadastroFields value={cadastro} onChange={setCadastro} />
+                </div>
+                <div className="space-y-3 rounded-[2rem] border border-slate-200 bg-slate-50 p-5">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.25em] text-slate-600">Perguntas históricas da visitação</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-600">Mantidas como snapshot para compatibilidade com as visitações anteriores.</p>
                   </div>
                   <VisitacaoQuestionarioFields value={questionario} onChange={setQuestionario} compact />
                 </div>
@@ -475,6 +487,7 @@ const VisitacaoPage: React.FC<VisitacaoPageProps> = ({ user, initialFilters }) =
                 <p className="text-[11px] font-black uppercase tracking-[0.2em] text-blue-700">Respostas da visitação</p>
                 <p className="mt-2 text-sm font-semibold leading-6 text-slate-700">{summarizeVisitacaoQuestionario(selectedItem.respostas_questionario)}</p>
               </div>
+              <VisitacaoCadastroFields value={createVisitacaoCadastroFromItem(selectedItem)} onChange={() => {}} disabled />
               <div className="rounded-[1.5rem] border border-slate-200 p-5">
                 <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Observação registrada</p>
                 <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{selectedItem.observacao || 'Nenhuma observação registrada.'}</p>

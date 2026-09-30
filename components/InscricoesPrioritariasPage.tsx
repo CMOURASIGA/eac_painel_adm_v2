@@ -541,8 +541,11 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
         inscricoesService.obterCirculoAtualMapa({ googleWebAppUrl, encontroId: US118_ENCONTRO_ID }),
       ]);
 
-      if (!rPrior.success && !rAdmin.success) {
-        throw new Error(rPrior.error || rAdmin.error || 'Falha ao listar inscrições prioritárias.');
+      // A fonte de verdade para saber se uma inscrição continua priorizada é
+      // public.inscricoes.status. O endpoint administrativo já vem filtrado por
+      // status=PRIORIZADO e, por isso, é obrigatório para montar a tela.
+      if (!rAdmin.success) {
+        throw new Error(rAdmin.error || 'Falha ao validar o status atual das inscrições prioritárias.');
       }
 
       const fromPriorRaw = Array.isArray((rPrior as any)?.data?.items) ? (rPrior as any).data.items : [];
@@ -612,8 +615,27 @@ const InscricoesPrioritariasPage: React.FC<InscricoesPrioritariasPageProps> = ({
       fromPrior.forEach(mergeCandidate);
       fromAdmin.forEach(mergeCandidate);
 
+      // Somente registros confirmados pela consulta canônica de inscrições
+      // com status atual PRIORIZADO podem permanecer na tela. A tabela auxiliar
+      // de priorização serve apenas para enriquecer dados e não para manter um
+      // adolescente visível depois que o status operacional evolui para FILA,
+      // CONFIRMADO ou qualquer outro.
+      const canonicalPriorityKeys = new Set<string>();
+      fromAdmin.forEach((item: any) => {
+        const keyByInscricao = toCleanString(item?.inscricao_id || item?.linhaOrigem || '').trim();
+        const keyByIdentity = `${normalize(item?.nome)}|${toCleanString(item?.telefone || '').replace(/\D/g, '')}`;
+        if (keyByInscricao) canonicalPriorityKeys.add(`id:${keyByInscricao}`);
+        if (keyByIdentity !== '|') canonicalPriorityKeys.add(`identity:${keyByIdentity}`);
+      });
+
       const normalizedPriorizados = Array.from(mergedByKey.values())
         .filter(hasIdentity)
+        .filter((item: any) => {
+          const keyByInscricao = toCleanString(item?.inscricao_id || item?.linhaOrigem || '').trim();
+          const keyByIdentity = `${normalize(item?.nome)}|${toCleanString(item?.telefone || '').replace(/\D/g, '')}`;
+          return (keyByInscricao && canonicalPriorityKeys.has(`id:${keyByInscricao}`))
+            || (keyByIdentity !== '|' && canonicalPriorityKeys.has(`identity:${keyByIdentity}`));
+        })
         .filter((item: any) => normalize(item?.status) === 'priorizado')
         .map((item: any) => ({ ...item, idade: calculateAgeFromBirthDate(item.dataNascimento) ?? item.idade }));
 

@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { visitacaoService } from '../services/visitacaoService.ts';
-import type { VisitacaoPriorizado, VisitacaoQuestionarioResposta, VisitacaoStatus } from '../types.ts';
+import type { VisitacaoCadastro, VisitacaoPriorizado, VisitacaoQuestionarioResposta, VisitacaoStatus } from '../types.ts';
 import { createEmptyVisitacaoQuestionario, summarizeVisitacaoQuestionario } from '../utils/visitacaoQuestionario.ts';
 import { showAppAlert } from '../utils/appDialog.ts';
 import VisitacaoQuestionarioFields from './VisitacaoQuestionarioFields.tsx';
+import VisitacaoCadastroFields from './VisitacaoCadastroFields.tsx';
+import { createVisitacaoCadastroFromItem } from '../utils/visitacaoCadastro.ts';
 
 const STATUS_OPTIONS: Array<{ value: VisitacaoStatus; label: string }> = [
   { value: 'CONTATO_INICIAL_FEITO', label: 'Deseja fazer' },
@@ -30,6 +32,7 @@ const VisitacaoForm: React.FC<{ token?: string }> = ({ token }) => {
     observacao: '',
   });
   const [questionario, setQuestionario] = useState<VisitacaoQuestionarioResposta>(createEmptyVisitacaoQuestionario());
+  const [cadastro, setCadastro] = useState<VisitacaoCadastro>(createVisitacaoCadastroFromItem(null));
 
   const loadItems = async () => {
     if (!token) {
@@ -66,6 +69,7 @@ const VisitacaoForm: React.FC<{ token?: string }> = ({ token }) => {
 
   useEffect(() => {
     setQuestionario(selectedItem?.respostas_questionario ? selectedItem.respostas_questionario : createEmptyVisitacaoQuestionario());
+    setCadastro(createVisitacaoCadastroFromItem(selectedItem));
   }, [selectedItem?.inscricao_id]);
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -88,6 +92,7 @@ const VisitacaoForm: React.FC<{ token?: string }> = ({ token }) => {
     const result = await visitacaoService.registrar(selectedId, {
       ...form,
       respostas_questionario: questionario,
+      cadastro,
       origem_registro: 'FORMULARIO_VISITACAO',
       token,
       data_acao: new Date(form.data_acao).toISOString(),
@@ -152,14 +157,6 @@ const VisitacaoForm: React.FC<{ token?: string }> = ({ token }) => {
             <input value={search} onChange={(event) => setSearch(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-4 font-semibold outline-none focus:border-blue-500" placeholder="Digite nome ou telefone" />
           </label>
 
-          <div className="space-y-3 rounded-[2rem] border border-blue-100 bg-blue-50/60 p-5">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.25em] text-blue-600">Perguntas da visitação</p>
-              <p className="mt-1 text-sm font-semibold text-slate-600">Preencha as respostas quando houver contato com a família. Se não houver informação, mantenha como "Não informado".</p>
-            </div>
-            <VisitacaoQuestionarioFields value={questionario} onChange={setQuestionario} compact />
-          </div>
-
           <label className="space-y-2 block">
             <span className="text-sm font-black text-slate-700">Adolescente selecionado</span>
             <select value={selectedId} onChange={(event) => setSelectedId(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-4 py-4 font-semibold outline-none focus:border-blue-500" required>
@@ -173,17 +170,30 @@ const VisitacaoForm: React.FC<{ token?: string }> = ({ token }) => {
           </label>
 
           {selectedItem ? (
-            <div className="rounded-[2rem] bg-slate-50 border border-slate-200 p-5 grid md:grid-cols-2 gap-3 text-sm font-semibold text-slate-600">
-              <div>Atual: <span className="text-slate-900 font-black">{selectedItem.status_visitacao}</span></div>
-              <div>Responsável cadastrado: <span className="text-slate-900 font-black">{selectedItem.responsavel_nome || '-'}</span></div>
-              <div>Telefone: <span className="text-slate-900 font-black">{selectedItem.telefone || '-'}</span></div>
-              <div>Bairro: <span className="text-slate-900 font-black">{selectedItem.bairro || '-'}</span></div>
-              {selectedItem.respostas_questionario ? (
-                <div className="md:col-span-2 rounded-2xl bg-white border border-slate-200 p-4 text-slate-600">
-                  <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">Últimas respostas</div>
-                  <div className="mt-2 font-semibold text-slate-700">{summarizeVisitacaoQuestionario(selectedItem.respostas_questionario)}</div>
+            <div className="space-y-5">
+              <div className="rounded-[2rem] bg-slate-50 border border-slate-200 p-5 grid md:grid-cols-2 gap-3 text-sm font-semibold text-slate-600">
+                <div>Atual: <span className="text-slate-900 font-black">{selectedItem.status_visitacao}</span></div>
+                <div>Responsável cadastrado: <span className="text-slate-900 font-black">{selectedItem.responsavel_nome || '-'}</span></div>
+                <div>Telefone: <span className="text-slate-900 font-black">{selectedItem.telefone || '-'}</span></div>
+                <div>Bairro: <span className="text-slate-900 font-black">{selectedItem.bairro || '-'}</span></div>
+              </div>
+              <div className="rounded-[2rem] border border-blue-100 bg-blue-50/60 p-5 space-y-4">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.25em] text-blue-600">Revisão cadastral durante a visita</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-600">Confirme ou complete os dados abaixo. O envio não apaga dados oficiais quando um campo vier vazio.</p>
                 </div>
-              ) : null}
+                <VisitacaoCadastroFields value={cadastro} onChange={setCadastro} />
+              </div>
+              <div className="rounded-[2rem] border border-slate-200 bg-slate-50 p-5 space-y-3">
+                <p className="text-[11px] font-black uppercase tracking-[0.25em] text-slate-600">Perguntas históricas da visitação</p>
+                <VisitacaoQuestionarioFields value={questionario} onChange={setQuestionario} compact />
+                {selectedItem.respostas_questionario ? (
+                  <div className="rounded-2xl bg-white border border-slate-200 p-4 text-slate-600">
+                    <div className="text-[11px] font-black uppercase tracking-widest text-slate-400">Últimas respostas</div>
+                    <div className="mt-2 font-semibold text-slate-700">{summarizeVisitacaoQuestionario(selectedItem.respostas_questionario)}</div>
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
