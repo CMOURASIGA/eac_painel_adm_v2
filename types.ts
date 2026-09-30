@@ -239,6 +239,51 @@ export interface VisitacaoQuestionarioResposta {
   crismado: VisitacaoRespostaOpcao;
 }
 
+export interface VisitacaoCadastro {
+  nome_completo?: string | null;
+  nome_social?: string | null;
+  data_nascimento?: string | null;
+  idade?: number | null;
+  sexo?: string | null;
+  telefone?: string | null;
+  email?: string | null;
+  endereco?: string | null;
+  bairro?: string | null;
+  cidade?: string | null;
+  estado?: string | null;
+  pai_nome?: string | null;
+  mae_nome?: string | null;
+  responsavel_nome?: string | null;
+  responsavel_telefone?: string | null;
+  responsavel_email?: string | null;
+  tamanho_camisa?: string | null;
+  escola_id?: string | null;
+  escola_nome?: string | null;
+  escola_nome_outro?: string | null;
+  turno_escolar?: string | null;
+  serie_escolar?: string | null;
+  grau_escolar?: string | null;
+  encontro_anterior?: string | null;
+  convidado_por?: string | null;
+  pais_fizeram_ecc?: VisitacaoRespostaOpcao;
+  primeira_comunhao?: VisitacaoRespostaOpcao;
+  paroquia?: string | null;
+  toca_instrumento?: VisitacaoRespostaOpcao;
+  instrumento?: string | null;
+  gosta_cantar?: VisitacaoRespostaOpcao;
+  motivacao?: string | null;
+  outra_doutrina_familia?: VisitacaoRespostaOpcao;
+  outra_doutrina_descricao?: string | null;
+  restricao_alimentar?: VisitacaoRespostaOpcao;
+  restricao_alimentar_descricao?: string | null;
+}
+
+export interface VisitacaoAlteracaoCadastral {
+  campo: string;
+  anterior?: string | null;
+  novo?: string | null;
+}
+
 export interface VisitacaoPriorizado {
   inscricao_id: string;
   encontro_id?: string | null;
@@ -269,6 +314,7 @@ export interface VisitacaoPriorizado {
   responsavel_acao?: string | null;
   observacao?: string | null;
   respostas_questionario?: VisitacaoQuestionarioResposta | null;
+  cadastro?: VisitacaoCadastro | null;
   origem_registro?: string | null;
   atualizado_em?: string | null;
 }
@@ -294,6 +340,7 @@ export interface VisitacaoHistoricoItem {
   descricao?: string | null;
   responsavel_acao?: string | null;
   respostas_questionario?: VisitacaoQuestionarioResposta | null;
+  alteracoes_cadastrais?: VisitacaoAlteracaoCadastral[] | null;
   origem_registro?: string | null;
   criado_em: string;
 }
