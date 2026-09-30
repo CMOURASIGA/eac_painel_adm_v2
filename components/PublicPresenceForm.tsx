@@ -120,7 +120,7 @@ const PublicPresenceForm: React.FC = () => {
   };
 
   const maskPhone = (value?: string) => {
-    const digits = digitsOnly(value);
+    const digits = String(value || '').replace(/\D/g, '');
     if (!digits) return 'Não informado';
     const local = digits.startsWith('55') ? digits.slice(2) : digits;
     if (local.length < 4) return '••••';
