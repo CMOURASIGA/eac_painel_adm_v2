@@ -416,7 +416,7 @@ const PublicPresenceForm: React.FC = () => {
                 {(forcarCorrecaoTelefone || !toCleanString(selectedCandidate?.telefone)) ? (
                   <div className="mt-3">
                     <label className="block text-sm font-extrabold text-slate-800 mb-1">
-                      {toCleanString(selectedCandidate?.telefone) ? 'Telefone atualizado *' : (isManualEntry ? 'Telefone *' : 'Telefone atualizado')}
+                      {toCleanString(selectedCandidate?.telefone) ? 'Telefone atualizado *' : 'Telefone atualizado'}
                     </label>
                     <input
                       value={telefoneAtualizado}
@@ -441,9 +441,7 @@ const PublicPresenceForm: React.FC = () => {
                 </label>
                 {!toCleanString(selectedCandidate?.email) ? (
                   <p className="mt-2 text-xs font-semibold text-amber-700">
-                    {isManualEntry
-                      ? 'E-mail opcional para o registro manual.'
-                      : 'Este nome esta sem e-mail vinculado. Se quiser, informe agora para atualizar o cadastro junto com a presenca.'}
+                    Este nome esta sem e-mail vinculado. Se quiser, informe agora para atualizar o cadastro junto com a presenca.
                   </p>
                 ) : null}
                 {(forcarCorrecaoEmail || !toCleanString(selectedCandidate?.email)) ? (
