@@ -19,6 +19,7 @@ interface PresenceCandidate {
   hasEmail?: boolean;
 }
 
+// O registro público de presença exige seleção de um candidato carregado da base.
 const PublicPresenceForm: React.FC = () => {
   const [toast, setToast] = useState<ToastState>(null);
   const [isLoading, setIsLoading] = useState(false);
