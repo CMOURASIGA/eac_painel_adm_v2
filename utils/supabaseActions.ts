@@ -812,7 +812,10 @@ function buildPublicPresenceCandidates(payload: {
         prev?.circulo ||
         ''
       ),
-      origem: prev?.origem === 'ENCONTRISTA' || origem === 'ENCONTRISTA' ? 'ENCONTRISTA' : 'ENCONTREIRO',
+      origem:
+        prev && prev.origem !== origem
+          ? 'AMBOS'
+          : (prev?.origem || origem),
     });
     identities.forEach((identity) => identityToKey.set(identity, key));
   };
