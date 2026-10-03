@@ -113,9 +113,6 @@ const PublicPresenceForm: React.FC = () => {
     [filteredCandidates, selectedKey]
   );
 
-  const manualName = toCleanString(nameQuery).replace(/\s+/g, ' ');
-  const isManualEntry = !selectedCandidate && manualName.length >= 5;
-
   const getOriginLabel = (origem: PresenceCandidate['origem']) => {
     if (origem === 'ENCONTRISTA') return 'Encontrista';
     if (origem === 'ENCONTREIRO') return 'Encontreiro';
@@ -165,8 +162,8 @@ const PublicPresenceForm: React.FC = () => {
     if (isLoading) return;
     setError(null);
 
-    if (!selectedCandidate && manualName.length < 5) {
-      const msg = 'Selecione uma pessoa da lista ou informe o nome completo.';
+    if (!selectedCandidate) {
+      const msg = 'Selecione uma pessoa da lista para registrar a presenca.';
       setError(msg);
       showToast(msg, 'info');
       return;
@@ -191,10 +188,8 @@ const PublicPresenceForm: React.FC = () => {
       return;
     }
 
-    if (semTelefone && !toCleanString(selectedCandidate?.pessoaId) && !toCleanString(telefoneAtualizado)) {
-      const msg = isManualEntry
-        ? 'Para um nome que nao esta na pesquisa, informe um telefone para registrar a presenca.'
-        : 'Este nome esta sem identificador suficiente. Informe um telefone para registrar a presenca.';
+    if (semTelefone && !toCleanString(selectedCandidate.pessoaId) && !toCleanString(telefoneAtualizado)) {
+      const msg = 'Este nome esta sem identificador suficiente. Informe um telefone para registrar a presenca.';
       setError(msg);
       showToast(msg, 'info');
       return;
@@ -204,13 +199,13 @@ const PublicPresenceForm: React.FC = () => {
     try {
       const r = await postComunicadosAction<any>('MARK_PRESENCE', {
         tipoEvento: eventType,
-        nome: selectedCandidate?.nome || manualName,
-        telefone: selectedCandidate?.telefone || '',
-        pessoaId: selectedCandidate?.pessoaId || undefined,
+        nome: selectedCandidate.nome,
+        telefone: selectedCandidate.telefone || '',
+        pessoaId: selectedCandidate.pessoaId || undefined,
         telefoneAtualizado: querAtualizarTelefone && toCleanString(telefoneAtualizado) ? telefoneAtualizado : undefined,
         emailAtualizado: querAtualizarEmail && toCleanString(emailAtualizado) ? emailAtualizado : undefined,
-        circulo: toCleanString(circulo) || toCleanString(selectedCandidate?.circulo),
-        origemPublico: selectedCandidate?.origem || 'MANUAL',
+        circulo: toCleanString(circulo) || toCleanString(selectedCandidate.circulo),
+        origemPublico: selectedCandidate.origem,
       });
       if (!r.success) throw new Error((r.raw as any)?.error || r.error || 'Nao foi possivel registrar presenca.');
 
@@ -354,13 +349,13 @@ const PublicPresenceForm: React.FC = () => {
                           </button>
                         ))
                       ) : (
-                        <p className="px-3 py-4 text-sm font-semibold text-slate-500">Nenhum nome encontrado. Você pode continuar com o nome digitado e informar um telefone.</p>
+                        <p className="px-3 py-4 text-sm font-semibold text-slate-500">Nenhum nome encontrado. Confira o filtro selecionado e a grafia do nome.</p>
                       )}
                     </div>
                   ) : null}
                 </div>
                 <p className="mt-1 text-xs font-semibold text-slate-500">
-                  Escolha uma pessoa da lista ou, se ela não aparecer, informe o nome completo manualmente.
+                  Digite o nome e selecione uma pessoa da lista para registrar a presença.
                 </p>
               </div>
 
@@ -382,13 +377,6 @@ const PublicPresenceForm: React.FC = () => {
                   </div>
                   <p className="mt-3 text-[11px] font-semibold text-slate-500">
                     Por segurança, os dados são exibidos parcialmente. Se estiverem corretos, não marque as opções de atualização abaixo.
-                  </p>
-                </div>
-              ) : isManualEntry ? (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-xs font-black uppercase tracking-widest text-amber-800">Nome informado manualmente</p>
-                  <p className="mt-1 text-xs font-semibold text-amber-800">
-                    Esta pessoa não foi selecionada na pesquisa. Informe um telefone abaixo para identificar o registro de presença.
                   </p>
                 </div>
               ) : null}
@@ -422,9 +410,7 @@ const PublicPresenceForm: React.FC = () => {
                 </label>
                 {!toCleanString(selectedCandidate?.telefone) ? (
                   <p className="mt-2 text-xs font-semibold text-amber-700">
-                    {isManualEntry
-                      ? 'Informe um telefone para identificar este registro manual de presença.'
-                      : 'Este nome esta sem telefone vinculado. Se quiser, informe agora para atualizar o cadastro junto com a presenca.'}
+                    Este nome esta sem telefone vinculado. Se quiser, informe agora para atualizar o cadastro junto com a presenca.
                   </p>
                 ) : null}
                 {(forcarCorrecaoTelefone || !toCleanString(selectedCandidate?.telefone)) ? (
