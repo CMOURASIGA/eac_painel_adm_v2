@@ -494,6 +494,7 @@ export async function executeInscricoesAdminList(params: {
   }
 
   try {
+    const cicloNovasInscricoes = await getCicloNovasInscricoes(supabase);
     let adolescenteIdsBase: string[] | null = null;
     try {
       const hasBasePessoaFilters =
@@ -548,6 +549,8 @@ export async function executeInscricoesAdminList(params: {
           summary: {
             total: 0,
             por_status: {},
+            novas_inscricoes: 0,
+            ciclo_novas_inscricoes: cicloNovasInscricoes,
           },
           pagination: {
             page,
@@ -575,9 +578,13 @@ export async function executeInscricoesAdminList(params: {
       return { status: 502, body: { success: false, error: 'ERRO_LISTAR_INSCRICOES', message: 'Não foi possível carregar as inscrições.' } };
     }
 
-    const consolidatedRows = consolidarInscricoesPorAdolescente(Array.isArray(baseRows) ? baseRows : []);
-    const cicloNovasInscricoes = await getCicloNovasInscricoes(supabase);
-    const novasRows = consolidatedRows.filter((row: any) => isInscricaoNoCiclo(row, cicloNovasInscricoes));
+    const rawRows = Array.isArray(baseRows) ? baseRows : [];
+    const consolidatedRows = consolidarInscricoesPorAdolescente(rawRows);
+    // O indicador mede entradas no ciclo, não o status histórico escolhido pela consolidação geral.
+    // Primeiro recortamos as inscrições pela janela entre EACs e só então consolidamos por adolescente.
+    const novasRows = consolidarInscricoesPorAdolescente(
+      rawRows.filter((row: any) => isInscricaoNoCiclo(row, cicloNovasInscricoes))
+    );
     const rowsDoCicloAplicado = novasInscricoesOnly ? novasRows : consolidatedRows;
     const statusExcluirSet = new Set(statusExcluir);
     const filteredRows = rowsDoCicloAplicado
