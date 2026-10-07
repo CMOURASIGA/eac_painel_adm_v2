@@ -3,7 +3,22 @@ import Drawer from './Drawer.tsx';
 import { inscricoesService, type EncontroItem, type InscricaoAdminItem, type InscricoesAdminFilters } from '../services/inscricoesService.ts';
 
 type Pagination = { page: number; page_size: number; total: number; total_pages: number };
-type Summary = { total: number; por_status: Record<string, number> };
+type CycleSummary = {
+  disponivel?: boolean;
+  inicio_iso?: string;
+  fim_iso_exclusivo?: string;
+  ultimo_encontro_id?: string | null;
+  ultimo_encontro_nome?: string | null;
+  proximo_encontro_id?: string | null;
+  proximo_encontro_nome?: string | null;
+  label?: string;
+};
+type Summary = {
+  total: number;
+  por_status: Record<string, number>;
+  novas_inscricoes?: number;
+  ciclo_novas_inscricoes?: CycleSummary;
+};
 
 const STATUS_OPTIONS = [
   'INSCRITO',
@@ -332,7 +347,7 @@ const InscricoesReviewPage: React.FC<InscricoesReviewPageProps> = ({ initialFilt
       if (!r.success) throw new Error(r.error || 'Não foi possível carregar as inscrições.');
 
       setItems(Array.isArray((r.data as any)?.data) ? (r.data as any).data : []);
-      setSummary((r.data as any)?.summary || { total: 0, por_status: {} });
+      setSummary((r.data as any)?.summary || { total: 0, por_status: {}, novas_inscricoes: 0 });
       setPagination((r.data as any)?.pagination || { page: 1, page_size: 25, total: 0, total_pages: 1 });
     } catch (e: any) {
       setItems([]);
@@ -372,6 +387,17 @@ const InscricoesReviewPage: React.FC<InscricoesReviewPageProps> = ({ initialFilt
     const nextStatus = normalized && normalized !== String(draft.status || '') ? normalized : '';
     setDraft((prev) => ({ ...prev, status: nextStatus, page: 1 }));
     setApplied((prev) => ({ ...prev, status: nextStatus, page: 1 }));
+  };
+
+  const applyNovasInscricoesFilter = () => {
+    const nextValue = String(applied.novas_inscricoes || '').toLowerCase() !== 'true';
+    setDraft((prev) => ({ ...prev, novas_inscricoes: nextValue ? 'true' : '', page: 1 }));
+    setApplied((prev) => ({ ...prev, novas_inscricoes: nextValue ? 'true' : '', page: 1 }));
+  };
+
+  const applyAllQuickFilter = () => {
+    setDraft((prev) => ({ ...prev, status: '', novas_inscricoes: '', page: 1 }));
+    setApplied((prev) => ({ ...prev, status: '', novas_inscricoes: '', page: 1 }));
   };
 
   const clearFilters = () => {
@@ -663,12 +689,12 @@ const InscricoesReviewPage: React.FC<InscricoesReviewPageProps> = ({ initialFilt
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
           <button
             type="button"
-            onClick={() => applyQuickStatusFilter('')}
+            onClick={applyAllQuickFilter}
             className={`p-3 rounded-xl border text-left transition-colors ${
-              !String(applied.status || '').trim()
+              !String(applied.status || '').trim() && String(applied.novas_inscricoes || '').toLowerCase() !== 'true'
                 ? 'border-blue-600 bg-blue-50'
                 : 'border-slate-200 bg-white hover:border-blue-300'
             }`}
@@ -676,6 +702,24 @@ const InscricoesReviewPage: React.FC<InscricoesReviewPageProps> = ({ initialFilt
             <p className="text-[10px] uppercase tracking-widest text-slate-500 font-black">Total</p>
             <p className="text-2xl font-black text-slate-900">{summary.total || 0}</p>
           </button>
+
+          <button
+            type="button"
+            onClick={applyNovasInscricoesFilter}
+            className={`p-3 rounded-xl border text-left transition-colors ${
+              String(applied.novas_inscricoes || '').toLowerCase() === 'true'
+                ? 'border-emerald-600 bg-emerald-50'
+                : 'border-emerald-200 bg-white hover:border-emerald-400'
+            }`}
+            title="Inscrições realizadas após o último EAC e antes do próximo EAC cadastrado."
+          >
+            <p className="text-[10px] uppercase tracking-widest text-emerald-700 font-black">Novas inscrições</p>
+            <p className="text-2xl font-black text-slate-900">{summary.novas_inscricoes || 0}</p>
+            <p className="mt-0.5 text-[10px] font-bold text-slate-500 leading-tight">
+              {summary.ciclo_novas_inscricoes?.label || 'Ciclo indisponível'}
+            </p>
+          </button>
+
           {statusCards.map((s) => (
             <button
               key={s.key}
@@ -710,14 +754,26 @@ const InscricoesReviewPage: React.FC<InscricoesReviewPageProps> = ({ initialFilt
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => applyQuickStatusFilter('')}
+                onClick={applyAllQuickFilter}
                 className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border ${
-                  !String(applied.status || '').trim()
+                  !String(applied.status || '').trim() && String(applied.novas_inscricoes || '').toLowerCase() !== 'true'
                     ? 'bg-blue-600 border-blue-600 text-white'
                     : 'bg-white border-slate-300 text-slate-700'
                 }`}
               >
                 Todos ({summary.total || 0})
+              </button>
+              <button
+                type="button"
+                onClick={applyNovasInscricoesFilter}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border ${
+                  String(applied.novas_inscricoes || '').toLowerCase() === 'true'
+                    ? 'bg-emerald-600 border-emerald-600 text-white'
+                    : 'bg-white border-emerald-300 text-emerald-700'
+                }`}
+                title={summary.ciclo_novas_inscricoes?.label || 'Novas inscrições do ciclo atual'}
+              >
+                Novas do ciclo ({summary.novas_inscricoes || 0})
               </button>
               {statusCards.map((s) => (
                 <button
