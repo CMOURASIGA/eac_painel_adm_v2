@@ -69,6 +69,7 @@ export type InscricoesAdminFilters = {
   data_fim?: string;
   busca?: string;
   origem_dado?: string;
+  novas_inscricoes?: boolean | string;
   page?: number;
   page_size?: number;
 };
@@ -187,7 +188,21 @@ export const inscricoesService = {
   ): Promise<
     EacApiResult<{
       data: InscricaoAdminItem[];
-      summary: { total: number; por_status: Record<string, number> };
+      summary: {
+        total: number;
+        por_status: Record<string, number>;
+        novas_inscricoes?: number;
+        ciclo_novas_inscricoes?: {
+          disponivel?: boolean;
+          inicio_iso?: string;
+          fim_iso_exclusivo?: string;
+          ultimo_encontro_id?: string | null;
+          ultimo_encontro_nome?: string | null;
+          proximo_encontro_id?: string | null;
+          proximo_encontro_nome?: string | null;
+          label?: string;
+        };
+      };
       pagination: { page: number; page_size: number; total: number; total_pages: number };
     }>
   > {

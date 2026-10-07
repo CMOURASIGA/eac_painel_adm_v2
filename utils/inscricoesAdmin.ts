@@ -76,6 +76,107 @@ function addOneDayIso(dateYmd: string) {
   return dt.toISOString();
 }
 
+function extractDateYmd(value: any) {
+  const raw = toCleanString(value);
+  const direct = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (direct) return direct[1];
+  const dt = new Date(raw);
+  if (Number.isNaN(dt.getTime())) return '';
+  return dt.toISOString().slice(0, 10);
+}
+
+function getSaoPauloTodayYmd() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${byType.year}-${byType.month}-${byType.day}`;
+}
+
+function saoPauloDayStartIso(dateYmd: string) {
+  return dateYmd ? `${dateYmd}T03:00:00.000Z` : '';
+}
+
+function formatEncontroCycleName(encontro: any) {
+  const numero = toCleanString(encontro?.numero);
+  if (numero) return `EAC${numero}`;
+  return toCleanString(encontro?.nome) || 'EAC';
+}
+
+async function getCicloNovasInscricoes(supabase: AnySupabaseClient) {
+  const { data, error } = await supabase
+    .from('encontros')
+    .select('id,nome,numero,data_inicio,data_fim,status')
+    .order('data_inicio', { ascending: true });
+
+  if (error) throw error;
+
+  const todayYmd = getSaoPauloTodayYmd();
+  const encontros = (Array.isArray(data) ? data : [])
+    .map((encontro: any) => ({
+      ...encontro,
+      inicioYmd: extractDateYmd(encontro?.data_inicio),
+      fimYmd: extractDateYmd(encontro?.data_fim) || extractDateYmd(encontro?.data_inicio),
+    }))
+    .filter((encontro: any) => encontro.inicioYmd);
+
+  const realizados = encontros.filter((encontro: any) => encontro.fimYmd && encontro.fimYmd < todayYmd);
+  const ultimo = realizados.length
+    ? realizados.reduce((best: any, atual: any) => (!best || atual.fimYmd > best.fimYmd ? atual : best), null)
+    : null;
+
+  if (!ultimo) {
+    return {
+      disponivel: false,
+      inicio_iso: '',
+      fim_iso_exclusivo: '',
+      ultimo_encontro_id: null,
+      ultimo_encontro_nome: null,
+      proximo_encontro_id: null,
+      proximo_encontro_nome: null,
+      label: 'Ciclo indisponível',
+    };
+  }
+
+  const proximo = encontros
+    .filter((encontro: any) => encontro.inicioYmd > todayYmd)
+    .sort((a: any, b: any) => a.inicioYmd.localeCompare(b.inicioYmd))[0] || null;
+
+  const inicioDia = addOneDayIso(ultimo.fimYmd)?.slice(0, 10) || '';
+  const inicioIso = saoPauloDayStartIso(inicioDia);
+  const fimIsoExclusivo = proximo ? saoPauloDayStartIso(proximo.inicioYmd) : '';
+
+  return {
+    disponivel: Boolean(inicioIso),
+    inicio_iso: inicioIso,
+    fim_iso_exclusivo: fimIsoExclusivo,
+    ultimo_encontro_id: ultimo.id ?? null,
+    ultimo_encontro_nome: formatEncontroCycleName(ultimo),
+    proximo_encontro_id: proximo?.id ?? null,
+    proximo_encontro_nome: proximo ? formatEncontroCycleName(proximo) : null,
+    label: proximo
+      ? `${formatEncontroCycleName(ultimo)} → ${formatEncontroCycleName(proximo)}`
+      : `Desde ${formatEncontroCycleName(ultimo)}`,
+  };
+}
+
+function isInscricaoNoCiclo(row: any, ciclo: any) {
+  if (!ciclo?.disponivel || !ciclo?.inicio_iso) return false;
+  const dt = new Date(toCleanString(row?.data_inscricao));
+  if (Number.isNaN(dt.getTime())) return false;
+  const time = dt.getTime();
+  const inicio = new Date(ciclo.inicio_iso).getTime();
+  if (time < inicio) return false;
+  if (ciclo.fim_iso_exclusivo) {
+    const fim = new Date(ciclo.fim_iso_exclusivo).getTime();
+    if (time >= fim) return false;
+  }
+  return true;
+}
+
 function uniq(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
@@ -356,6 +457,7 @@ export async function executeInscricoesAdminList(params: {
   const buscaDigits = normalizarTelefoneBusca(busca);
   const buscaText = busca;
   const applyTriagemRule = toCleanString(query.apply_triagem_rule).toLowerCase() === 'true';
+  const novasInscricoesOnly = toCleanString(query.novas_inscricoes).toLowerCase() === 'true';
   console.log('[executeInscricoesAdminList] busca:', busca, 'buscaDigits:', buscaDigits);
 
   const page = Math.max(1, parseIntSafe(query.page, 1));
@@ -392,6 +494,7 @@ export async function executeInscricoesAdminList(params: {
   }
 
   try {
+    const cicloNovasInscricoes = await getCicloNovasInscricoes(supabase);
     let adolescenteIdsBase: string[] | null = null;
     try {
       const hasBasePessoaFilters =
@@ -446,6 +549,8 @@ export async function executeInscricoesAdminList(params: {
           summary: {
             total: 0,
             por_status: {},
+            novas_inscricoes: 0,
+            ciclo_novas_inscricoes: cicloNovasInscricoes,
           },
           pagination: {
             page,
@@ -473,9 +578,16 @@ export async function executeInscricoesAdminList(params: {
       return { status: 502, body: { success: false, error: 'ERRO_LISTAR_INSCRICOES', message: 'Não foi possível carregar as inscrições.' } };
     }
 
-    const consolidatedRows = consolidarInscricoesPorAdolescente(Array.isArray(baseRows) ? baseRows : []);
+    const rawRows = Array.isArray(baseRows) ? baseRows : [];
+    const consolidatedRows = consolidarInscricoesPorAdolescente(rawRows);
+    // O indicador mede entradas no ciclo, não o status histórico escolhido pela consolidação geral.
+    // Primeiro recortamos as inscrições pela janela entre EACs e só então consolidamos por adolescente.
+    const novasRows = consolidarInscricoesPorAdolescente(
+      rawRows.filter((row: any) => isInscricaoNoCiclo(row, cicloNovasInscricoes))
+    );
+    const rowsDoCicloAplicado = novasInscricoesOnly ? novasRows : consolidatedRows;
     const statusExcluirSet = new Set(statusExcluir);
-    const filteredRows = consolidatedRows
+    const filteredRows = rowsDoCicloAplicado
       .filter((row: any) => (status ? toCleanString(row?.status).toUpperCase() === status : true))
       .filter((row: any) => (statusExcluirSet.size > 0 ? !statusExcluirSet.has(toCleanString(row?.status).toUpperCase()) : true));
     const total = filteredRows.length;
@@ -622,6 +734,8 @@ export async function executeInscricoesAdminList(params: {
         summary: {
           total,
           por_status: porStatus,
+          novas_inscricoes: novasRows.length,
+          ciclo_novas_inscricoes: cicloNovasInscricoes,
         },
         pagination: {
           page,
