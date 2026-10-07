@@ -395,6 +395,11 @@ const InscricoesReviewPage: React.FC<InscricoesReviewPageProps> = ({ initialFilt
     setApplied((prev) => ({ ...prev, novas_inscricoes: nextValue ? 'true' : '', page: 1 }));
   };
 
+  const applyAllQuickFilter = () => {
+    setDraft((prev) => ({ ...prev, status: '', novas_inscricoes: '', page: 1 }));
+    setApplied((prev) => ({ ...prev, status: '', novas_inscricoes: '', page: 1 }));
+  };
+
   const clearFilters = () => {
     const reset = { page: 1, page_size: 25 };
     setDraft(reset);
@@ -687,9 +692,9 @@ const InscricoesReviewPage: React.FC<InscricoesReviewPageProps> = ({ initialFilt
         <div className="mt-4 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3">
           <button
             type="button"
-            onClick={() => applyQuickStatusFilter('')}
+            onClick={applyAllQuickFilter}
             className={`p-3 rounded-xl border text-left transition-colors ${
-              !String(applied.status || '').trim()
+              !String(applied.status || '').trim() && String(applied.novas_inscricoes || '').toLowerCase() !== 'true'
                 ? 'border-blue-600 bg-blue-50'
                 : 'border-slate-200 bg-white hover:border-blue-300'
             }`}
@@ -749,9 +754,9 @@ const InscricoesReviewPage: React.FC<InscricoesReviewPageProps> = ({ initialFilt
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => applyQuickStatusFilter('')}
+                onClick={applyAllQuickFilter}
                 className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest border ${
-                  !String(applied.status || '').trim()
+                  !String(applied.status || '').trim() && String(applied.novas_inscricoes || '').toLowerCase() !== 'true'
                     ? 'bg-blue-600 border-blue-600 text-white'
                     : 'bg-white border-slate-300 text-slate-700'
                 }`}
