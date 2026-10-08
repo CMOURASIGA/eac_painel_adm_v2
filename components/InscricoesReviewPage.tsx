@@ -64,7 +64,9 @@ function getTriagemRawStatus(status: string) {
 
 function getTriagemStatusLabel(status: string) {
   const normalized = getTriagemRawStatus(status);
-  return normalized === 'CONFIRMADO' ? 'ENCONTREIRO' : normalized;
+  if (normalized === 'CONFIRMADO') return 'ENCONTREIRO';
+  if (normalized === 'AGUARDANDO_RESPONSAVEL') return 'AGUARDANDO RESPONSÁVEL';
+  return normalized;
 }
 
 function formatDateTime(value: any) {
