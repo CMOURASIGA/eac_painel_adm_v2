@@ -54,6 +54,11 @@ export type InscricaoAdminItem = {
   aceite_normas?: boolean | null;
   ja_fez_eac?: boolean | null;
   observacoes?: string | null;
+  confirmacao_responsavel_enviada_em?: string | null;
+  confirmacao_responsavel_confirmada_em?: string | null;
+  confirmacao_responsavel_expira_em?: string | null;
+  termos_versao_snapshot?: string | null;
+  termos_respostas?: any;
 };
 
 export type InscricoesAdminFilters = {

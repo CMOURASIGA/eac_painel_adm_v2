@@ -1,12 +1,24 @@
 ﻿import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseServerClient } from '../../utils/supabaseServer.js';
 import { executeInscricaoCreate } from '../../utils/inscricaoCreate.js';
+import { getInscricaoConfirmation, confirmInscricaoByResponsavel } from '../../utils/inscricaoConfirm.js';
 
 function clean(value: unknown) {
   return String(value ?? '').trim().replace(/\s+/g, ' ');
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === 'GET' && clean(req.query.resource).toLowerCase() === 'confirmacao') {
+    const token = clean(req.query.token);
+    if (!token) {
+      return res.status(400).json({ success: false, error: 'TOKEN_OBRIGATORIO', message: 'Link de confirmação inválido.' });
+    }
+    const supabase = getSupabaseServerClient();
+    if (!supabase) return res.status(500).json({ success: false, error: 'SUPABASE_NOT_CONFIGURED', message: 'Supabase não configurado.' });
+    const result = await getInscricaoConfirmation(supabase, token);
+    return res.status(result.status).json(result.body);
+  }
+
   if (req.method === 'GET' && clean(req.query.resource).toLowerCase() === 'escolas') {
     const busca = clean(req.query.busca).slice(0, 100);
     if (busca.length < 2) return res.status(200).json({ success: true, data: [] });
@@ -51,9 +63,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const body = req.body ?? {};
+    if (clean(body?.action).toLowerCase() === 'confirmar_responsavel') {
+      const token = clean(body?.token);
+      if (!token) {
+        return res.status(400).json({ success: false, error: 'TOKEN_OBRIGATORIO', message: 'Link de confirmação inválido.' });
+      }
+      const supabase = getSupabaseServerClient();
+      if (!supabase) return res.status(500).json({ success: false, error: 'SUPABASE_NOT_CONFIGURED', message: 'Supabase não configurado.' });
+      const result = await confirmInscricaoByResponsavel(
+        supabase,
+        token,
+        body?.respostas && typeof body.respostas === 'object' ? body.respostas : {},
+      );
+      return res.status(result.status).json(result.body);
+    }
+
     const result = await executeInscricaoCreate({
       supabase: getSupabaseServerClient(),
-      body: req.body ?? {},
+      body,
     });
 
     return res.status(result.status).json(result.body);

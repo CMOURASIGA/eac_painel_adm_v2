@@ -30,7 +30,7 @@ function calcAgeOnDate(birth: Date, on: Date) {
 }
 
 const DEFAULT_SUCCESS_MESSAGE =
-  'Inscrição recebida com sucesso! A equipe responsável irá revisar as informações e, se necessário, entrará em contato pelos telefones informados.';
+  'Formulário recebido. Enviamos um e-mail ao responsável informado. A inscrição só será concluída depois que ele revisar e confirmar os termos.';
 const TAMANHOS_CAMISA = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XXG'] as const;
 type EscolaItem = { id: string; codigo_inep?: string | null; nome: string; rede?: string | null; bairro?: string | null };
 
@@ -67,7 +67,6 @@ const PublicInscricaoForm: React.FC = () => {
     paroquia: '',
     participou_antes: 'Nao',
     observacoes: '',
-    aceite_termos: false,
   });
   const [schoolQuery, setSchoolQuery] = useState('');
   const [schoolResults, setSchoolResults] = useState<EscolaItem[]>([]);
@@ -136,9 +135,12 @@ const PublicInscricaoForm: React.FC = () => {
     const telR = toCleanString(form.telefone_responsavel).replace(/\D/g, '');
     if (telR.length < 10 || /^0+$/.test(telR)) errors.telefone_responsavel = 'Informe um telefone válido do responsável.';
 
-    if (!toCleanString(form.endereco)) errors.endereco = 'Informe o endereço completo.';
+    const emailR = toCleanString(form.email_responsavel);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailR)) {
+      errors.email_responsavel = 'Informe um e-mail válido do responsável. A confirmação da inscrição será enviada para esse endereço.';
+    }
 
-    if (!form.aceite_termos) errors.aceite_termos = 'É necessário aceitar os termos para enviar a inscrição.';
+    if (!toCleanString(form.endereco)) errors.endereco = 'Informe o endereço completo.';
 
     return errors;
   };
@@ -179,7 +181,6 @@ const PublicInscricaoForm: React.FC = () => {
         paroquia: toCleanString(form.paroquia),
         participou_antes: form.participou_antes === 'Sim',
         observacoes: toCleanString(form.observacoes),
-        aceite_termos: form.aceite_termos,
       };
 
       const r = await inscricoesService.createInscricao(payload);
@@ -211,9 +212,9 @@ const PublicInscricaoForm: React.FC = () => {
           </div>
           <div className="p-8 text-center">
             <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl font-black">✓</div>
-            <h1 className="text-3xl font-black text-emerald-600 mb-4">Inscrição enviada!</h1>
+            <h1 className="text-3xl font-black text-emerald-600 mb-4">Formulário enviado!</h1>
             <p className="text-slate-700 text-lg">{DEFAULT_SUCCESS_MESSAGE}</p>
-            <p className="mt-5 text-sm text-slate-500">Obrigado por confiar no EAC.</p>
+            <p className="mt-5 text-sm text-slate-500">A inscrição ainda ficará aguardando a confirmação do responsável pelo e-mail informado.</p>
           </div>
         </div>
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -391,13 +392,14 @@ const PublicInscricaoForm: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className={labelClass}>E-mail do responsável</label>
+                  <label className={labelClass}>E-mail do responsável *</label>
                   <input
                     value={form.email_responsavel}
                     onChange={(e) => setForm((prev) => ({ ...prev, email_responsavel: e.target.value }))}
                     className={inputClass('email_responsavel')}
                     placeholder="email@exemplo.com"
                   />
+                  {fieldErrors.email_responsavel ? <p className="mt-1 text-xs text-red-600">{fieldErrors.email_responsavel}</p> : null}
                 </div>
               </div>
 
@@ -480,14 +482,13 @@ const PublicInscricaoForm: React.FC = () => {
                 />
               </div>
 
-              <div className="flex items-start gap-3">
-                <input type="checkbox" checked={form.aceite_termos} onChange={(e) => setForm((prev) => ({ ...prev, aceite_termos: e.target.checked }))} className="mt-1 w-5 h-5" />
-                <div>
-                  <p className="text-sm text-slate-800 font-bold">Aceito os termos *</p>
-                  <p className="text-xs text-slate-500">Confirmo que as informações acima são verdadeiras e autorizo o contato pelos telefones informados.</p>
-                </div>
+              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                <p className="text-sm font-black text-blue-900">Confirmação obrigatória do responsável</p>
+                <p className="mt-1 text-sm text-blue-800">
+                  Depois do envio deste formulário, o responsável receberá um e-mail com um link individual para revisar os dados,
+                  ler os termos e responder às autorizações. A inscrição só será concluída após essa confirmação.
+                </p>
               </div>
-              {fieldErrors.aceite_termos ? <p className="text-xs text-red-600">{fieldErrors.aceite_termos}</p> : null}
 
               <button
                 type="submit"

@@ -21,6 +21,7 @@ type Summary = {
 };
 
 const STATUS_OPTIONS = [
+  'AGUARDANDO_RESPONSAVEL',
   'INSCRITO',
   'EM_ANALISE',
   'PRIORIZADO',
@@ -63,7 +64,9 @@ function getTriagemRawStatus(status: string) {
 
 function getTriagemStatusLabel(status: string) {
   const normalized = getTriagemRawStatus(status);
-  return normalized === 'CONFIRMADO' ? 'ENCONTREIRO' : normalized;
+  if (normalized === 'CONFIRMADO') return 'ENCONTREIRO';
+  if (normalized === 'AGUARDANDO_RESPONSAVEL') return 'AGUARDANDO RESPONSÁVEL';
+  return normalized;
 }
 
 function formatDateTime(value: any) {
@@ -413,7 +416,7 @@ const InscricoesReviewPage: React.FC<InscricoesReviewPageProps> = ({ initialFilt
   };
 
   const statusCards = useMemo(() => {
-    const keys = ['INSCRITO', 'EM_ANALISE', 'PRIORIZADO', 'FILA', 'CONFIRMADO', 'NAO_SELECIONADO'];
+    const keys = ['AGUARDANDO_RESPONSAVEL', 'INSCRITO', 'EM_ANALISE', 'PRIORIZADO', 'FILA', 'CONFIRMADO', 'NAO_SELECIONADO'];
     return keys.map((key) => ({
       key,
       filterValue: getTriagemStatusLabel(key),
@@ -935,6 +938,25 @@ const InscricoesReviewPage: React.FC<InscricoesReviewPageProps> = ({ initialFilt
               <p className="text-sm">Criado via sistema: {selected.criado_via_sistema ? 'Sim' : 'Não'}</p>
               <p className="text-sm">Colégio: {selected.escola_nome || '-'}</p>
               <p className="text-sm">Tamanho da camisa: {selected.tamanho_camisa || '-'}</p>
+            </div>
+
+            <div className="p-3 rounded-xl border border-blue-200 bg-blue-50">
+              <p className="text-xs uppercase tracking-widest text-blue-700 font-black">Termos e confirmação do responsável</p>
+              <p className="text-sm mt-1">Situação: <span className="font-black">{selected.confirmacao_responsavel_confirmada_em ? 'Confirmado' : 'Aguardando confirmação'}</span></p>
+              <p className="text-sm">E-mail enviado em: {formatDateTime(selected.confirmacao_responsavel_enviada_em)}</p>
+              <p className="text-sm">Confirmado em: {formatDateTime(selected.confirmacao_responsavel_confirmada_em)}</p>
+              <p className="text-sm">Versão dos termos: {selected.termos_versao_snapshot || '-'}</p>
+              {selected.termos_respostas?.respostas ? (
+                <div className="mt-3 space-y-1 text-sm">
+                  <p><span className="font-bold">Normas do EAC:</span> {selected.termos_respostas.respostas.NORMAS_EAC || '-'}</p>
+                  <p><span className="font-bold">Veracidade dos dados:</span> {selected.termos_respostas.respostas.VERACIDADE_DADOS || '-'}</p>
+                  <p><span className="font-bold">Uso de imagem e voz:</span> {selected.termos_respostas.respostas.USO_IMAGEM_VOZ || '-'}</p>
+                  <p><span className="font-bold">Ciência de privacidade:</span> {selected.termos_respostas.respostas.CIENCIA_PRIVACIDADE || '-'}</p>
+                  <p className="pt-1 text-xs text-slate-600">Responsável registrado: {selected.termos_respostas.responsavel_nome_snapshot || selected.nome_responsavel || '-'}</p>
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-slate-600">Os termos ainda não foram confirmados pelo responsável.</p>
+              )}
             </div>
 
             <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">

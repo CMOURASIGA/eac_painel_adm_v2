@@ -1,4 +1,6 @@
 ﻿import type { SupabaseClient } from '@supabase/supabase-js';
+import { createHash, randomBytes } from 'node:crypto';
+import { getInscricaoTermsSnapshot } from './inscricaoTerms.js';
 
 type AnyObject = Record<string, any>;
 type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
@@ -21,6 +23,7 @@ const INSCRICAO_DUPLICATE_BLOCK_STATUSES = new Set([
   'CONFIRMADO',
   'NAO_SELECIONADO',
   'EM_ANALISE',
+  'AGUARDANDO_RESPONSAVEL',
 ]);
 
 const REQUIRED_MESSAGES = {
@@ -32,7 +35,7 @@ const REQUIRED_MESSAGES = {
   telefone_adolescente: 'Informe um telefone válido do adolescente.',
   nome_responsavel: 'Informe o nome do responsável.',
   telefone_responsavel: 'Informe um telefone válido do responsável.',
-  aceite_termos: 'É necessário aceitar os termos para enviar a inscrição.',
+  email_responsavel: 'Informe um e-mail válido do responsável. A confirmação da inscrição será enviada para esse endereço.',
 };
 
 export function normalizarTexto(valor: any): string {
@@ -146,7 +149,6 @@ export function validarPayloadInscricao(payload: AnyObject): ValidationResult {
     telefone_adolescente: normalizarTelefoneBR(payload.telefone_adolescente),
     nome_responsavel: normalizarTexto(payload.nome_responsavel),
     telefone_responsavel: normalizarTelefoneBR(payload.telefone_responsavel),
-    aceite_termos: payload.aceite_termos === true,
 
     bairro: normalizarTexto(payload.bairro) || null,
     paroquia: normalizarTexto(payload.paroquia) || null,
@@ -191,8 +193,8 @@ export function validarPayloadInscricao(payload: AnyObject): ValidationResult {
   if (!validarTelefoneBR(normalized.telefone_responsavel)) {
     fields.telefone_responsavel = REQUIRED_MESSAGES.telefone_responsavel;
   }
-  if (!normalized.aceite_termos) {
-    fields.aceite_termos = REQUIRED_MESSAGES.aceite_termos;
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizarTexto(normalized.email_responsavel))) {
+    fields.email_responsavel = REQUIRED_MESSAGES.email_responsavel;
   }
 
   return { normalized, fields };
@@ -229,9 +231,10 @@ function calcAgeOnDate(birth: Date, on: Date): number {
 }
 
 async function enviarEmailConfirmacaoInscricao(opts: {
-  nome: string;
-  emailAdolescente?: string | null;
-  emailResponsavel?: string | null;
+  nomeAdolescente: string;
+  nomeResponsavel: string;
+  emailResponsavel: string;
+  confirmationUrl: string;
 }) {
   const senderMode = normalizarTexto(process.env.EAC_EMAIL_SENDER_MODE || '').toLowerCase();
   const senderFrom = normalizarTexto(process.env.EAC_EMAIL_FROM || '');
@@ -239,7 +242,7 @@ async function enviarEmailConfirmacaoInscricao(opts: {
     return { sent: false as const, reason: 'smtp_not_configured' };
   }
 
-  const to = normalizarTexto(opts.emailResponsavel) || normalizarTexto(opts.emailAdolescente);
+  const to = normalizarTexto(opts.emailResponsavel);
   if (!to || !to.includes('@') || !to.includes('.')) {
     return { sent: false as const, reason: 'missing_destination_email' };
   }
@@ -262,14 +265,6 @@ async function enviarEmailConfirmacaoInscricao(opts: {
     auth: { user: smtpUser, pass: smtpPass },
   });
 
-  const bodyBase = [
-    `<p style="margin:0 0 14px 0; font-size:28px; line-height:1.2; color:#0b3b69; font-weight:800;">Ola, ${normalizarTexto(opts.nome) || 'amigo(a)'}!</p>`,
-    '<p style="margin:0 0 14px 0;">Recebemos sua inscricao para o EAC e gostariamos de informar que seu cadastro esta em nossa <strong>lista de verificacao</strong>.</p>',
-    '<p style="margin:0 0 14px 0;">Estamos organizando as vagas para o proximo encontro e em breve entraremos em contato para confirmar sua participacao.</p>',
-    '<p style="margin:0 0 14px 0;">Fique atento ao seu E-mail e WhatsApp!</p>',
-    '<p style="margin:22px 0 0 0;">Fraternalmente,<br><strong>Coordenacao EAC</strong></p>',
-  ].join('');
-
   const htmlBody = `
     <div style="margin:0;padding:24px;background:#f3f6fb;font-family:Arial,Helvetica,sans-serif;">
       <div style="max-width:680px;margin:0 auto;border:1px solid #dbe3ef;border-radius:24px;overflow:hidden;background:#ffffff;">
@@ -277,10 +272,15 @@ async function enviarEmailConfirmacaoInscricao(opts: {
           <img src="https://i.imgur.com/c5XQ7TW.png" alt="Logo EAC" style="height:40px;display:inline-block;" />
         </div>
         <div style="padding:28px 30px;color:#334155;font-size:16px;line-height:1.65;">
-          ${bodyBase}
-        </div>
-        <div style="padding:20px;background:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;">
-          <a href="https://www.instagram.com/eacporciunculadesantana/" style="display:inline-block;background:#044372;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:10px;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;">Siga nosso Instagram</a>
+          <p style="margin:0 0 14px 0;font-size:26px;line-height:1.2;color:#0b3b69;font-weight:800;">Confirmação do responsável</p>
+          <p style="margin:0 0 14px 0;">Olá, <strong>${normalizarTexto(opts.nomeResponsavel)}</strong>.</p>
+          <p style="margin:0 0 14px 0;">Recebemos um formulário de inscrição para <strong>${normalizarTexto(opts.nomeAdolescente)}</strong>.</p>
+          <p style="margin:0 0 14px 0;">A inscrição <strong>ainda não está concluída</strong>. Para finalizá-la, revise os dados principais e responda aos termos e autorizações apresentados no link abaixo.</p>
+          <p style="margin:22px 0;text-align:center;">
+            <a href="${opts.confirmationUrl}" style="display:inline-block;background:#0a4a86;color:#ffffff;text-decoration:none;padding:14px 24px;border-radius:12px;font-weight:800;">REVISAR TERMOS E CONFIRMAR INSCRIÇÃO</a>
+          </p>
+          <p style="margin:0 0 10px 0;font-size:14px;color:#64748b;">O link é individual e deve ser utilizado pelo responsável legal. Ele permanece válido por 7 dias. Se você não reconhece esta solicitação, não confirme.</p>
+          <p style="margin:22px 0 0 0;">Fraternalmente,<br><strong>Coordenação EAC</strong></p>
         </div>
       </div>
     </div>
@@ -289,12 +289,26 @@ async function enviarEmailConfirmacaoInscricao(opts: {
   await transporter.sendMail({
     from: senderFrom,
     to,
-    subject: 'EAC: Atualizacao sobre sua Inscricao',
+    subject: `EAC: confirme a inscrição de ${normalizarTexto(opts.nomeAdolescente)}`,
     html: htmlBody,
-    textEncoding: 'base64',
+    text: `Recebemos um formulário de inscrição para ${normalizarTexto(opts.nomeAdolescente)}. Para concluir, acesse: ${opts.confirmationUrl}`,
   });
 
   return { sent: true as const, reason: 'ok' };
+}
+
+function createConfirmationToken() {
+  const token = randomBytes(32).toString('hex');
+  const hash = createHash('sha256').update(token).digest('hex');
+  return { token, hash };
+}
+
+function getPublicAppUrl() {
+  const explicit = normalizarTexto(process.env.EAC_PUBLIC_APP_URL || '');
+  if (explicit) return explicit.replace(/\/$/, '');
+  const vercelUrl = normalizarTexto(process.env.VERCEL_URL || '');
+  if (vercelUrl) return `https://${vercelUrl.replace(/\/$/, '')}`;
+  return 'https://eac-painel-adm-v2.vercel.app';
 }
 
 async function findExistingInscricao(
@@ -517,7 +531,7 @@ export async function executeInscricaoCreate(params: { supabase: AnySupabaseClie
     .from('adolescentes')
     .insert({
       pessoa_id: pessoaAdolescente.id,
-      aceite_normas: true,
+      aceite_normas: false,
       ja_fez_eac: normalized.participou_antes,
       origem_dado: 'SISTEMA',
       criado_via_sistema: true,
@@ -596,7 +610,7 @@ export async function executeInscricaoCreate(params: { supabase: AnySupabaseClie
       email_adolescente_snapshot: normalized.email_adolescente,
       email_responsavel_snapshot: normalized.email_responsavel,
       email_destino_snapshot: normalized.email_responsavel || normalized.email_adolescente,
-      status: 'INSCRITO',
+      status: 'AGUARDANDO_RESPONSAVEL',
       origem_dado: 'SISTEMA',
       criado_via_sistema: true,
       data_inscricao: nowIso,
@@ -613,12 +627,35 @@ export async function executeInscricaoCreate(params: { supabase: AnySupabaseClie
     return { status: 502, body: { success: false, error: 'CREATE_INSCRICAO_FAILED', message: 'Não foi possível concluir a inscrição.' } };
   }
 
+  const confirmation = createConfirmationToken();
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const termsSnapshot = getInscricaoTermsSnapshot();
+
+  const { error: confirmationMetaError } = await supabase
+    .from('inscricoes')
+    .update({
+      confirmacao_responsavel_token_hash: confirmation.hash,
+      confirmacao_responsavel_expira_em: expiresAt,
+      confirmacao_responsavel_enviada_em: nowIso,
+      termos_versao_snapshot: termsSnapshot[0]?.versao || null,
+      termos_snapshot: termsSnapshot,
+    })
+    .eq('id', inscricao.id);
+
+  if (confirmationMetaError) {
+    console.error('[inscricaoCreate] falha ao salvar metadados de confirmação:', confirmationMetaError);
+    return { status: 502, body: { success: false, error: 'CONFIRMATION_SETUP_FAILED', message: 'Não foi possível preparar a confirmação do responsável.' } };
+  }
+
+  const confirmationUrl = `${getPublicAppUrl()}/inscricao/confirmar?token=${encodeURIComponent(confirmation.token)}`;
+
   let emailDispatch: { sent: boolean; reason: string } = { sent: false, reason: 'not_attempted' };
   try {
     emailDispatch = await enviarEmailConfirmacaoInscricao({
-      nome: normalized.nome_adolescente,
-      emailAdolescente: normalized.email_adolescente,
+      nomeAdolescente: normalized.nome_adolescente,
+      nomeResponsavel: normalized.nome_responsavel,
       emailResponsavel: normalized.email_responsavel,
+      confirmationUrl,
     });
   } catch (e: any) {
     console.error('[inscricaoCreate] falha ao enviar e-mail de confirmação:', e?.message || e);
@@ -638,7 +675,9 @@ export async function executeInscricaoCreate(params: { supabase: AnySupabaseClie
         vinculo_id: vinculo.id,
         email_confirmacao: emailDispatch,
       },
-      message: 'Inscrição recebida com sucesso! A equipe responsável irá revisar as informações e, se necessário, entrará em contato pelos telefones informados.',
+      message: emailDispatch.sent
+        ? 'Formulário recebido. Enviamos um e-mail ao responsável para revisar os termos e concluir a inscrição.'
+        : 'Formulário recebido, mas não foi possível enviar o e-mail de confirmação. A inscrição permanece aguardando confirmação do responsável.',
     },
   };
 }

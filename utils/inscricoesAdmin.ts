@@ -17,6 +17,7 @@ const STATUS_ALLOWED = new Set([
   'NAO_SELECIONADO',
   'DESISTENTE',
   'CANCELADO',
+  'AGUARDANDO_RESPONSAVEL',
 ]);
 
 const ORIGEM_ALLOWED = new Set(['SISTEMA', 'PLANILHA']);
@@ -38,7 +39,9 @@ function toCleanString(value: any) {
 
 function normalizeTriagemStatusAlias(value: any) {
   const normalized = toCleanString(value).toUpperCase();
-  return normalized === 'ENCONTREIRO' ? 'CONFIRMADO' : normalized;
+  if (normalized === 'ENCONTREIRO') return 'CONFIRMADO';
+  if (normalized === 'AGUARDANDO RESPONSÁVEL' || normalized === 'AGUARDANDO RESPONSAVEL') return 'AGUARDANDO_RESPONSAVEL';
+  return normalized;
 }
 
 function normalizeSearchText(value: any) {
@@ -404,7 +407,7 @@ function buildInscricoesQuery(
     .select(
       onlyStatus
         ? 'status'
-        : 'id,status,origem_dado,criado_via_sistema,data_inscricao,criado_em,encontro_id,adolescente_id,tamanho_camisa,escola_id,escola_nome_outro',
+        : 'id,status,origem_dado,criado_via_sistema,data_inscricao,criado_em,encontro_id,adolescente_id,tamanho_camisa,escola_id,escola_nome_outro,confirmacao_responsavel_enviada_em,confirmacao_responsavel_confirmada_em,confirmacao_responsavel_expira_em,termos_versao_snapshot,termos_respostas',
       withCount ? { count: 'exact' } : undefined
     );
 
@@ -683,6 +686,11 @@ export async function executeInscricoesAdminList(params: {
         escola_id: i.escola_id ?? null,
         escola_nome_outro: i.escola_nome_outro ?? null,
         escola_nome: i.escola_id ? (escolasMap.get(String(i.escola_id))?.nome ?? null) : (i.escola_nome_outro ?? null),
+        confirmacao_responsavel_enviada_em: i.confirmacao_responsavel_enviada_em ?? null,
+        confirmacao_responsavel_confirmada_em: i.confirmacao_responsavel_confirmada_em ?? null,
+        confirmacao_responsavel_expira_em: i.confirmacao_responsavel_expira_em ?? null,
+        termos_versao_snapshot: i.termos_versao_snapshot ?? null,
+        termos_respostas: i.termos_respostas ?? null,
 
         encontro_id: encontro?.id ?? i.encontro_id,
         encontro_nome: encontro?.nome ?? null,
