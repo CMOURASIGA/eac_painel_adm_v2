@@ -33,7 +33,7 @@ const PublicInscricaoConfirmacao: React.FC<{ token: string }> = ({ token }) => {
       setLoading(true);
       setError('');
       try {
-        const response = await fetch('/api/inscricoes/confirmar?token=' + encodeURIComponent(token));
+        const response = await fetch('/api/inscricoes/create?resource=confirmacao&token=' + encodeURIComponent(token));
         const body = await response.json();
         if (!response.ok || !body?.success) throw new Error(body?.message || 'Não foi possível carregar a confirmação.');
         setData(body.data);
@@ -61,10 +61,10 @@ const PublicInscricaoConfirmacao: React.FC<{ token: string }> = ({ token }) => {
     setSubmitting(true);
     setError('');
     try {
-      const response = await fetch('/api/inscricoes/confirmar', {
+      const response = await fetch('/api/inscricoes/create', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ token, respostas: responses }),
+        body: JSON.stringify({ action: 'confirmar_responsavel', token, respostas: responses }),
       });
       const body = await response.json();
       if (!response.ok || !body?.success) throw new Error(body?.message || 'Não foi possível concluir a inscrição.');
