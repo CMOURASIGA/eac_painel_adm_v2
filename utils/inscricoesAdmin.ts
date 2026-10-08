@@ -39,7 +39,9 @@ function toCleanString(value: any) {
 
 function normalizeTriagemStatusAlias(value: any) {
   const normalized = toCleanString(value).toUpperCase();
-  return normalized === 'ENCONTREIRO' ? 'CONFIRMADO' : normalized;
+  if (normalized === 'ENCONTREIRO') return 'CONFIRMADO';
+  if (normalized === 'AGUARDANDO RESPONSÁVEL' || normalized === 'AGUARDANDO RESPONSAVEL') return 'AGUARDANDO_RESPONSAVEL';
+  return normalized;
 }
 
 function normalizeSearchText(value: any) {
