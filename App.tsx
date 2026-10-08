@@ -20,6 +20,7 @@ import PresencePage from './components/PresencePage.tsx';
 import VisitacaoPage from './components/VisitacaoPage.tsx';
 import PublicInterestForm from './components/PublicInterestForm.tsx';
 import PublicInscricaoForm from './components/PublicInscricaoForm.tsx';
+import PublicInscricaoConfirmacao from './components/PublicInscricaoConfirmacao.tsx';
 import PublicEncontreiroForm from './components/PublicEncontreiroForm.tsx';
 import PublicPresenceForm from './components/PublicPresenceForm.tsx';
 import VisitacaoForm from './components/VisitacaoForm.tsx';
@@ -65,6 +66,7 @@ const pathViewMap: Record<string, View> = {
 
 const publicFormPathMap = {
   inscricao: '/inscricao/form',
+  inscricaoConfirmar: '/inscricao/confirmar',
   encontreiro: '/encontreiro/form',
   presenca: '/presenca/form',
   visitacao: '/visitacao/form',
@@ -110,6 +112,7 @@ const App: React.FC = () => {
     const pathname = window.location.pathname.replace(/\/+$/, '') || '/';
     const modeFromPath =
       pathname === publicFormPathMap.inscricao ? 'inscricao_form'
+      : pathname === publicFormPathMap.inscricaoConfirmar ? 'inscricao_confirmar'
       : pathname === publicFormPathMap.encontreiro ? 'encontreiro_form'
       : pathname === publicFormPathMap.presenca ? 'presenca_form'
       : pathname === publicFormPathMap.visitacao ? 'visitacao_form'
@@ -525,6 +528,15 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-slate-50">
         <PublicInscricaoForm />
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        {dialogNode}
+      </div>
+    );
+  }
+
+  if (queryParams.mode === 'inscricao_confirmar') {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <PublicInscricaoConfirmacao token={queryParams.token} />
         {dialogNode}
       </div>
     );
