@@ -1,6 +1,6 @@
 ﻿import type { SupabaseClient } from '@supabase/supabase-js';
 import { createHash, randomBytes } from 'node:crypto';
-import { getInscricaoTermsSnapshot } from './inscricaoTerms';
+import { getInscricaoTermsSnapshot } from './inscricaoTerms.js';
 
 type AnyObject = Record<string, any>;
 type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
