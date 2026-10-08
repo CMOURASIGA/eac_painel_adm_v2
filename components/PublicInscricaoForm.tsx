@@ -390,7 +390,6 @@ const PublicInscricaoForm: React.FC = () => {
                     className={inputClass('email_adolescente')}
                     placeholder="email@exemplo.com"
                   />
-                  {fieldErrors.email_responsavel ? <p className="mt-1 text-xs text-red-600">{fieldErrors.email_responsavel}</p> : null}
                 </div>
                 <div>
                   <label className={labelClass}>E-mail do responsável *</label>
@@ -400,6 +399,7 @@ const PublicInscricaoForm: React.FC = () => {
                     className={inputClass('email_responsavel')}
                     placeholder="email@exemplo.com"
                   />
+                  {fieldErrors.email_responsavel ? <p className="mt-1 text-xs text-red-600">{fieldErrors.email_responsavel}</p> : null}
                 </div>
               </div>
 
