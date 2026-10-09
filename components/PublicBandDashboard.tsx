@@ -50,38 +50,38 @@ const PublicBandDashboard: React.FC<{ token: string }> = ({ token }) => {
   if (error) return <div className="min-h-screen grid place-items-center bg-slate-50 p-4"><div className="max-w-lg rounded-2xl border border-rose-200 bg-white p-7 text-center font-bold text-rose-700">{error}</div></div>;
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-6">
+    <div className="min-h-screen bg-slate-50 px-3 py-3 pb-[max(20px,env(safe-area-inset-bottom))] sm:px-4 sm:py-6">
       <div className="mx-auto max-w-4xl space-y-5">
-        <section className="rounded-[28px] bg-[#0f1b33] p-6 text-white shadow-sm">
+        <section className="rounded-[22px] bg-[#0f1b33] p-4 text-white shadow-sm sm:rounded-[28px] sm:p-6">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-300">Banda do EAC</p>
-          <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+          <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
             <div>
-              <h1 className="text-3xl font-black">Interessados</h1>
+              <h1 className="text-[28px] font-black leading-tight sm:text-3xl">Interessados</h1>
               <p className="mt-1 text-sm text-white/70">Acompanhamento compartilhável para os responsáveis pela banda.</p>
             </div>
-            <div className="rounded-2xl bg-white/10 px-5 py-3 text-center">
+            <div className="w-full rounded-2xl bg-white/10 px-5 py-3 text-center sm:w-auto">
               <p className="text-3xl font-black">{total}</p>
               <p className="text-[10px] font-black uppercase tracking-widest text-white/70">inscritos ativos</p>
             </div>
           </div>
         </section>
 
-        <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <section className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-4">
           {['INSCRITO','CONTATADO','ENTROU_NA_BANDA','DESISTIU'].map((status) => (
-            <div key={status} className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div key={status} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4">
               <p className="text-2xl font-black text-slate-900">{counts[status] || 0}</p>
-              <p className="mt-1 text-[11px] font-black uppercase tracking-wide text-slate-500">{STATUS_LABEL[status]}</p>
+              <p className="mt-1 break-words text-[10px] font-black uppercase leading-tight tracking-wide text-slate-500 sm:text-[11px]">{STATUS_LABEL[status]}</p>
             </div>
           ))}
         </section>
 
         {cabecaUrl ? (
-          <a href={cabecaUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-2xl border border-purple-200 bg-purple-50 p-4 text-purple-900">
+          <a href={cabecaUrl} target="_blank" rel="noreferrer" className="flex items-center justify-between gap-3 rounded-2xl border border-purple-200 bg-purple-50 p-4 text-purple-900">
             <div>
               <p className="font-black">Cabeça do EAC</p>
               <p className="text-sm text-purple-700">Abrir o livro de músicas e repertórios.</p>
             </div>
-            <span className="font-black">Abrir ↗</span>
+            <span className="shrink-0 font-black">Abrir ↗</span>
           </a>
         ) : null}
 
@@ -94,7 +94,7 @@ const PublicBandDashboard: React.FC<{ token: string }> = ({ token }) => {
               </div>
               <div className="w-full sm:max-w-sm">
                 <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Pesquisar</label>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
@@ -106,12 +106,12 @@ const PublicBandDashboard: React.FC<{ token: string }> = ({ token }) => {
                     }}
                     placeholder="Nome ou telefone"
                     inputMode="search"
-                    className="h-11 min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-blue-500"
+                    className="h-12 min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 text-base outline-none focus:border-blue-500 sm:h-11 sm:text-sm"
                   />
                   <button
                     type="button"
                     onClick={() => setAppliedQuery(query.trim())}
-                    className="h-11 shrink-0 rounded-xl bg-blue-600 px-4 text-xs font-black uppercase tracking-wide text-white"
+                    className="h-12 w-full shrink-0 rounded-xl bg-blue-600 px-4 text-xs font-black uppercase tracking-wide text-white sm:h-11 sm:w-auto"
                   >
                     Pesquisar
                   </button>
@@ -130,7 +130,7 @@ const PublicBandDashboard: React.FC<{ token: string }> = ({ token }) => {
           </div>
           <div className="divide-y divide-slate-100">
             {activeItems.map((item) => (
-              <div key={item.id} className="grid gap-1 px-5 py-4 sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-4">
+              <div key={item.id} className="grid gap-2 px-4 py-4 sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-4 sm:px-5">
                 <div>
                   <p className="font-bold text-slate-900">{item.nome}</p>
                   <p className="text-xs text-slate-400">{item.telefone_mascarado}</p>
