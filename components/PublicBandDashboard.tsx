@@ -24,11 +24,12 @@ const PublicBandDashboard: React.FC<{ token: string }> = ({ token }) => {
   const [cabecaUrl, setCabecaUrl] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
 
   useEffect(() => {
     void (async () => {
       setLoading(true);
-      const r = await postComunicadosAction<any>('GET_BANDA_RESPONSAVEIS_DASHBOARD', { token });
+      const r = await postComunicadosAction<any>('GET_BANDA_RESPONSAVEIS_DASHBOARD', { token, query });
       setLoading(false);
       if (!r.success) {
         setError(r.error || 'Não foi possível abrir o acompanhamento.');
@@ -40,7 +41,7 @@ const PublicBandDashboard: React.FC<{ token: string }> = ({ token }) => {
       setCounts(data?.counts || {});
       setCabecaUrl(String(data?.cabeca_eac_url || ''));
     })();
-  }, [token]);
+  }, [token, query]);
 
   const activeItems = useMemo(() => items.filter((item) => item.status !== 'DESISTIU'), [items]);
 
@@ -85,8 +86,22 @@ const PublicBandDashboard: React.FC<{ token: string }> = ({ token }) => {
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
           <div className="border-b border-slate-200 px-5 py-4">
-            <h2 className="font-black text-slate-900">Lista de interessados</h2>
-            <p className="text-xs text-slate-500">Telefones são mascarados neste link compartilhável.</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="font-black text-slate-900">Lista de interessados</h2>
+                <p className="text-xs text-slate-500">Ordem alfabética. Telefones permanecem mascarados neste link compartilhável.</p>
+              </div>
+              <div className="w-full sm:max-w-sm">
+                <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Pesquisar</label>
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Nome ou telefone"
+                  inputMode="search"
+                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
           </div>
           <div className="divide-y divide-slate-100">
             {activeItems.map((item) => (
@@ -99,7 +114,7 @@ const PublicBandDashboard: React.FC<{ token: string }> = ({ token }) => {
                 <span className="justify-self-start rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase text-slate-600 sm:justify-self-end">{STATUS_LABEL[item.status] || item.status}</span>
               </div>
             ))}
-            {activeItems.length === 0 ? <p className="px-5 py-8 text-center text-sm text-slate-400">Nenhum interessado registrado.</p> : null}
+            {activeItems.length === 0 ? <p className="px-5 py-8 text-center text-sm text-slate-400">{query.trim() ? 'Nenhum interessado encontrado para esta pesquisa.' : 'Nenhum interessado registrado.'}</p> : null}
           </div>
         </section>
       </div>
