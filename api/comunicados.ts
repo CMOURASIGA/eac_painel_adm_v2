@@ -231,6 +231,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       'SAVE_FORMULARIOS_CONFIG',
       'GET_BANDA_PUBLIC_CONFIG',
       'SEARCH_BANDA_CANDIDATES',
+      'GET_BANDA_CANDIDATE_DETAIL',
       'SAVE_BANDA_INTEREST',
       'GET_BANDA_RESPONSAVEIS_DASHBOARD',
       'GET_CONTEXT_HELP',
