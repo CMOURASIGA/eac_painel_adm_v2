@@ -4263,11 +4263,23 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       }
 
       if (existingRow) {
+        const existingFull = await supabase
+          .from('banda_interesses')
+          .select('id,status,origem')
+          .eq('id', existingRow.id)
+          .maybeSingle();
+        if (existingFull.error && !isMissingRelationError(existingFull.error)) throw existingFull.error;
+
+        const updatePayload = {
+          ...payload,
+          origem: cleanText((existingFull.data as any)?.origem) || payload.origem,
+        };
+
         const update = await supabase
           .from('banda_interesses')
-          .update(payload)
+          .update(updatePayload)
           .eq('id', existingRow.id)
-          .select('id,status')
+          .select('id,status,origem')
           .maybeSingle();
         if (update.error) throw update.error;
         return {
