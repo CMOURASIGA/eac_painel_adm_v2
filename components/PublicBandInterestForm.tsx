@@ -119,15 +119,15 @@ const PublicBandInterestForm: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#fff9e8] to-[#f5f7fb] px-4 py-8">
-      <form onSubmit={submit} className="mx-auto w-full max-w-xl overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-lg">
-        <div className="bg-[#0f1b33] px-6 py-7 text-white">
+    <div className="min-h-screen bg-gradient-to-b from-[#fff9e8] to-[#f5f7fb] px-3 py-3 pb-[max(20px,env(safe-area-inset-bottom))] sm:px-4 sm:py-8">
+      <form onSubmit={submit} className="mx-auto w-full max-w-xl overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-lg sm:rounded-[30px]">
+        <div className="bg-[#0f1b33] px-4 py-5 text-white sm:px-6 sm:py-7">
           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">EAC Porciúncula</p>
-          <h1 className="mt-1 text-3xl font-black">Quero participar da Banda 🎶</h1>
+          <h1 className="mt-1 text-[26px] font-black leading-tight sm:text-3xl">Quero participar da Banda 🎶</h1>
           <p className="mt-2 text-sm text-white/80">Registre seu interesse para participar da equipe de música do EAC.</p>
         </div>
 
-        <div className="space-y-5 p-6">
+        <div className="space-y-4 p-4 sm:space-y-5 sm:p-6">
           <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
             <p className="font-black">Já fez o EAC?</p>
             <p className="mt-1">Pesquise seu cadastro pelo nome ou telefone. Isso ajuda a evitar cadastro duplicado e agiliza o preenchimento.</p>
@@ -139,7 +139,7 @@ const PublicBandInterestForm: React.FC = () => {
               value={query}
               onChange={(e) => { setQuery(e.target.value); setSelected(null); }}
               placeholder="Digite seu nome ou telefone"
-              className="h-12 w-full rounded-xl border border-slate-300 px-4 outline-none focus:border-blue-500"
+              className="h-12 w-full rounded-xl border border-slate-300 px-4 text-base outline-none focus:border-blue-500"
             />
             {searching ? <p className="mt-2 text-xs font-bold text-slate-400">Pesquisando...</p> : null}
             {candidates.length > 0 ? (
@@ -149,10 +149,10 @@ const PublicBandInterestForm: React.FC = () => {
                     type="button"
                     key={(candidate.pessoa_id || candidate.nome) + index}
                     onClick={() => choose(candidate)}
-                    className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left hover:bg-slate-50"
+                    className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-3 text-left hover:bg-slate-50"
                   >
-                    <span className="font-bold text-slate-800">{candidate.nome}</span>
-                    <span className="text-xs text-slate-400">{candidate.telefone_mascarado}</span>
+                    <span className="min-w-0 flex-1 break-words font-bold text-slate-800">{candidate.nome}</span>
+                    <span className="shrink-0 text-xs text-slate-400">{candidate.telefone_mascarado}</span>
                   </button>
                 ))}
               </div>
@@ -173,7 +173,7 @@ const PublicBandInterestForm: React.FC = () => {
 
           <div>
             <label className="mb-1.5 block text-sm font-black text-slate-800">Telefone / WhatsApp *</label>
-            <input value={telefone} onChange={(e) => setTelefone(e.target.value)} inputMode="tel" placeholder="(21) 99999-9999" className="h-12 w-full rounded-xl border border-slate-300 px-4 outline-none focus:border-blue-500" />
+            <input value={telefone} onChange={(e) => setTelefone(e.target.value)} inputMode="tel" autoComplete="tel" placeholder="(21) 99999-9999" className="h-12 w-full rounded-xl border border-slate-300 px-4 text-base outline-none focus:border-blue-500" />
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
