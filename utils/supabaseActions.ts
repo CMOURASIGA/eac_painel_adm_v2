@@ -4245,21 +4245,37 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       // Compatibilidade com a carga histórica da planilha:
       // registros antigos não possuem pessoa_id/cadastro_oficial_id e usam chave "legacy:*".
       // Antes de inserir, tenta reconciliar por telefone normalizado + nome normalizado.
-      if (!existingRow && telefoneNormalizado) {
+      if (!existingRow) {
         const legacyCandidates = await supabase
           .from('banda_interesses')
-          .select('id,status,nome_snapshot,telefone_normalizado,chave_unica')
+          .select('id,status,nome_snapshot,telefone_normalizado,chave_unica,pessoa_id')
           .limit(500);
         if (legacyCandidates.error && !isMissingRelationError(legacyCandidates.error)) throw legacyCandidates.error;
 
+        const rows = Array.isArray(legacyCandidates.data) ? legacyCandidates.data : [];
         const currentPhone11 = telefoneNormalizado.slice(-11);
         const currentName = normalizeKeyPart(nome);
 
-        existingRow = (Array.isArray(legacyCandidates.data) ? legacyCandidates.data : []).find((row: any) => {
-          const rowPhone11 = normalizeDigits(row?.telefone_normalizado).slice(-11);
-          const rowName = normalizeKeyPart(cleanText(row?.nome_snapshot));
-          return Boolean(currentPhone11) && rowPhone11 === currentPhone11 && rowName === currentName;
-        }) || null;
+        if (telefoneNormalizado) {
+          existingRow = rows.find((row: any) => {
+            const rowPhone11 = normalizeDigits(row?.telefone_normalizado).slice(-11);
+            const rowName = normalizeKeyPart(cleanText(row?.nome_snapshot));
+            return Boolean(currentPhone11) && rowPhone11 === currentPhone11 && rowName === currentName;
+          }) || null;
+        }
+
+        // Fallback seguro para históricos com telefone incompleto/malformado:
+        // somente reconcilia por nome quando existe exatamente um registro histórico
+        // ainda não vinculado com o mesmo nome normalizado.
+        if (!existingRow && currentName) {
+          const sameNameHistorical = rows.filter((row: any) =>
+            !cleanText(row?.pessoa_id) &&
+            normalizeKeyPart(cleanText(row?.nome_snapshot)) === currentName
+          );
+          if (sameNameHistorical.length === 1) {
+            existingRow = sameNameHistorical[0];
+          }
+        }
       }
 
       if (existingRow) {
