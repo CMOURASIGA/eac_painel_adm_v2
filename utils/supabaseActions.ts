@@ -4215,8 +4215,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
 
       const { data: rows, error } = await supabase
         .from('banda_interesses')
-        .select('id,nome_snapshot,telefone_snapshot,status,origem,criado_em')
-        .order('criado_em', { ascending: false });
+        .select('id,nome_snapshot,telefone_snapshot,status,origem,criado_em');
       if (error) throw error;
 
       const list = Array.isArray(rows) ? rows : [];
@@ -4225,7 +4224,25 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         acc[key] = (acc[key] || 0) + 1;
         return acc;
       }, {});
-      const items = list.map((row: any) => {
+
+      const query = cleanText(ctx.payload.query);
+      const queryName = query.toLocaleLowerCase('pt-BR');
+      const queryDigits = normalizeDigits(query);
+
+      const filtered = list
+        .filter((row: any) => {
+          if (!query) return true;
+          const nome = cleanText(row?.nome_snapshot).toLocaleLowerCase('pt-BR');
+          const telefone = normalizeDigits(row?.telefone_snapshot);
+          const nameMatch = queryName ? nome.includes(queryName) : false;
+          const phoneMatch = queryDigits ? telefone.includes(queryDigits) : false;
+          return nameMatch || phoneMatch;
+        })
+        .sort((a: any, b: any) =>
+          cleanText(a?.nome_snapshot).localeCompare(cleanText(b?.nome_snapshot), 'pt-BR', { sensitivity: 'base' })
+        );
+
+      const items = filtered.map((row: any) => {
         const digits = normalizeDigits(row?.telefone_snapshot);
         return {
           id: row.id,
@@ -4242,8 +4259,10 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         data: {
           success: true,
           total: list.filter((row: any) => cleanText(row?.status).toUpperCase() !== 'DESISTIU').length,
+          total_filtrado: filtered.filter((row: any) => cleanText(row?.status).toUpperCase() !== 'DESISTIU').length,
           counts,
           items,
+          query,
           cabeca_eac_url: cleanText(process.env.EAC_CABECA_URL) || 'https://eac-cabeca-musicas-christians-projects-4954426e.vercel.app',
         },
       };
