@@ -4116,6 +4116,60 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       return { ok: true, data: { success: true, items: matched } };
     }
 
+    if (ctx.action === 'GET_BANDA_CANDIDATE_DETAIL') {
+      const pessoaId = cleanText(ctx.payload.pessoa_id);
+      const cadastroId = cleanText(ctx.payload.cadastro_oficial_id);
+      if (!pessoaId && !cadastroId) {
+        return { ok: true, data: { success: false, error: 'Cadastro inválido.' } };
+      }
+
+      let cadastro: any = null;
+      if (cadastroId) {
+        const cadastroRes = await supabase
+          .from('cadastro_oficial')
+          .select('id,pessoa_id,ativo,status')
+          .eq('id', cadastroId)
+          .maybeSingle();
+        if (!cadastroRes.error) cadastro = cadastroRes.data;
+      }
+      if (!cadastro && pessoaId) {
+        const cadastroRes = await supabase
+          .from('cadastro_oficial')
+          .select('id,pessoa_id,ativo,status')
+          .eq('pessoa_id', pessoaId)
+          .eq('ativo', true)
+          .limit(1)
+          .maybeSingle();
+        if (!cadastroRes.error) cadastro = cadastroRes.data;
+      }
+
+      const resolvedPessoaId = cleanText(cadastro?.pessoa_id || pessoaId);
+      if (!resolvedPessoaId) {
+        return { ok: true, data: { success: false, error: 'Pessoa não localizada.' } };
+      }
+
+      const pessoaRes = await supabase
+        .from('pessoas')
+        .select('id,nome_completo,telefone')
+        .eq('id', resolvedPessoaId)
+        .maybeSingle();
+      if (pessoaRes.error) throw pessoaRes.error;
+      if (!pessoaRes.data) {
+        return { ok: true, data: { success: false, error: 'Pessoa não localizada.' } };
+      }
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          pessoa_id: cleanText((pessoaRes.data as any).id),
+          cadastro_oficial_id: cleanText(cadastro?.id) || null,
+          nome: cleanText((pessoaRes.data as any).nome_completo),
+          telefone: cleanText((pessoaRes.data as any).telefone),
+        },
+      };
+    }
+
     if (ctx.action === 'SAVE_BANDA_INTEREST') {
       const { data: config, error: configError } = await supabase
         .from('configuracoes_formularios')
