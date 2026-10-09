@@ -25,11 +25,12 @@ const PublicBandDashboard: React.FC<{ token: string }> = ({ token }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [appliedQuery, setAppliedQuery] = useState('');
 
   useEffect(() => {
     void (async () => {
       setLoading(true);
-      const r = await postComunicadosAction<any>('GET_BANDA_RESPONSAVEIS_DASHBOARD', { token, query });
+      const r = await postComunicadosAction<any>('GET_BANDA_RESPONSAVEIS_DASHBOARD', { token, query: appliedQuery });
       setLoading(false);
       if (!r.success) {
         setError(r.error || 'Não foi possível abrir o acompanhamento.');
@@ -41,7 +42,7 @@ const PublicBandDashboard: React.FC<{ token: string }> = ({ token }) => {
       setCounts(data?.counts || {});
       setCabecaUrl(String(data?.cabeca_eac_url || ''));
     })();
-  }, [token, query]);
+  }, [token, appliedQuery]);
 
   const activeItems = useMemo(() => items.filter((item) => item.status !== 'DESISTIU'), [items]);
 
@@ -93,13 +94,37 @@ const PublicBandDashboard: React.FC<{ token: string }> = ({ token }) => {
               </div>
               <div className="w-full sm:max-w-sm">
                 <label className="mb-1 block text-[10px] font-black uppercase tracking-widest text-slate-400">Pesquisar</label>
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Nome ou telefone"
-                  inputMode="search"
-                  className="h-11 w-full rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-blue-500"
-                />
+                <div className="flex gap-2">
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        setAppliedQuery(query.trim());
+                      }
+                    }}
+                    placeholder="Nome ou telefone"
+                    inputMode="search"
+                    className="h-11 min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-4 text-sm outline-none focus:border-blue-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setAppliedQuery(query.trim())}
+                    className="h-11 shrink-0 rounded-xl bg-blue-600 px-4 text-xs font-black uppercase tracking-wide text-white"
+                  >
+                    Pesquisar
+                  </button>
+                </div>
+                {appliedQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => { setQuery(''); setAppliedQuery(''); }}
+                    className="mt-2 text-[11px] font-bold text-slate-500 hover:text-blue-700"
+                  >
+                    Limpar pesquisa
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>
@@ -114,7 +139,7 @@ const PublicBandDashboard: React.FC<{ token: string }> = ({ token }) => {
                 <span className="justify-self-start rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase text-slate-600 sm:justify-self-end">{STATUS_LABEL[item.status] || item.status}</span>
               </div>
             ))}
-            {activeItems.length === 0 ? <p className="px-5 py-8 text-center text-sm text-slate-400">{query.trim() ? 'Nenhum interessado encontrado para esta pesquisa.' : 'Nenhum interessado registrado.'}</p> : null}
+            {activeItems.length === 0 ? <p className="px-5 py-8 text-center text-sm text-slate-400">{appliedQuery ? 'Nenhum interessado encontrado para esta pesquisa.' : 'Nenhum interessado registrado.'}</p> : null}
           </div>
         </section>
       </div>
