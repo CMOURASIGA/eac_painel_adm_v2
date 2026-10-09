@@ -4249,13 +4249,17 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         const legacyCandidates = await supabase
           .from('banda_interesses')
           .select('id,status,nome_snapshot,telefone_normalizado,chave_unica')
-          .eq('telefone_normalizado', telefoneNormalizado)
-          .limit(20);
+          .limit(500);
         if (legacyCandidates.error && !isMissingRelationError(legacyCandidates.error)) throw legacyCandidates.error;
 
-        existingRow = (Array.isArray(legacyCandidates.data) ? legacyCandidates.data : []).find((row: any) =>
-          normalizeKeyPart(cleanText(row?.nome_snapshot)) === normalizeKeyPart(nome)
-        ) || null;
+        const currentPhone11 = telefoneNormalizado.slice(-11);
+        const currentName = normalizeKeyPart(nome);
+
+        existingRow = (Array.isArray(legacyCandidates.data) ? legacyCandidates.data : []).find((row: any) => {
+          const rowPhone11 = normalizeDigits(row?.telefone_normalizado).slice(-11);
+          const rowName = normalizeKeyPart(cleanText(row?.nome_snapshot));
+          return Boolean(currentPhone11) && rowPhone11 === currentPhone11 && rowName === currentName;
+        }) || null;
       }
 
       if (existingRow) {
