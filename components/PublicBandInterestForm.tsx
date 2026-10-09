@@ -57,13 +57,35 @@ const PublicBandInterestForm: React.FC = () => {
     return () => window.clearTimeout(id);
   }, [query, canSearch]);
 
-  const choose = (candidate: Candidate) => {
+  const choose = async (candidate: Candidate) => {
     setSelected(candidate);
     setNome(candidate.nome || '');
-    if (candidate.telefone) setTelefone(candidate.telefone);
-    else if (/\d{8,}/.test(query.replace(/\D/g, ''))) setTelefone(query);
     setCandidates([]);
     setQuery(candidate.nome || '');
+    setError('');
+
+    const r = await postComunicadosAction<any>('GET_BANDA_CANDIDATE_DETAIL', {
+      pessoa_id: candidate.pessoa_id || null,
+      cadastro_oficial_id: candidate.cadastro_oficial_id || null,
+    });
+
+    if (r.success) {
+      const detail: any = r.data;
+      setSelected({
+        ...candidate,
+        pessoa_id: detail?.pessoa_id || candidate.pessoa_id || null,
+        cadastro_oficial_id: detail?.cadastro_oficial_id || candidate.cadastro_oficial_id || null,
+        nome: detail?.nome || candidate.nome,
+        telefone: detail?.telefone || '',
+      });
+      setNome(String(detail?.nome || candidate.nome || ''));
+      setTelefone(String(detail?.telefone || ''));
+      return;
+    }
+
+    if (/\d{8,}/.test(query.replace(/\D/g, ''))) setTelefone(query);
+    else setTelefone('');
+    setError('Cadastro localizado, mas não foi possível recuperar o telefone. Informe-o para continuar.');
   };
 
   const submit = async (event: React.FormEvent) => {
@@ -148,7 +170,7 @@ const PublicBandInterestForm: React.FC = () => {
                   <button
                     type="button"
                     key={(candidate.pessoa_id || candidate.nome) + index}
-                    onClick={() => choose(candidate)}
+                    onClick={() => void choose(candidate)}
                     className="flex w-full items-start justify-between gap-3 rounded-lg px-3 py-3 text-left hover:bg-slate-50"
                   >
                     <span className="min-w-0 flex-1 break-words font-bold text-slate-800">{candidate.nome}</span>
@@ -163,6 +185,7 @@ const PublicBandInterestForm: React.FC = () => {
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
               <p className="text-xs font-black uppercase tracking-widest text-emerald-700">Cadastro localizado</p>
               <p className="mt-1 font-bold text-emerald-900">{selected.nome}</p>
+              <p className="mt-1 text-xs font-semibold text-emerald-700">{telefone ? 'Telefone do cadastro preenchido automaticamente.' : 'Cadastro sem telefone: informe abaixo para continuar.'}</p>
             </div>
           ) : null}
 
