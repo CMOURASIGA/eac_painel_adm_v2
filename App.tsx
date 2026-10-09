@@ -23,6 +23,8 @@ import PublicInscricaoForm from './components/PublicInscricaoForm.tsx';
 import PublicInscricaoConfirmacao from './components/PublicInscricaoConfirmacao.tsx';
 import PublicEncontreiroForm from './components/PublicEncontreiroForm.tsx';
 import PublicPresenceForm from './components/PublicPresenceForm.tsx';
+import PublicBandInterestForm from './components/PublicBandInterestForm.tsx';
+import PublicBandDashboard from './components/PublicBandDashboard.tsx';
 import VisitacaoForm from './components/VisitacaoForm.tsx';
 import Toast from './components/Toast.tsx';
 import AppDialog from './components/AppDialog.tsx';
@@ -70,6 +72,8 @@ const publicFormPathMap = {
   encontreiro: '/encontreiro/form',
   presenca: '/presenca/form',
   visitacao: '/visitacao/form',
+  banda: '/banda/form',
+  bandaAcompanhamento: '/banda/acompanhamento',
 } as const;
 
 const App: React.FC = () => {
@@ -116,6 +120,8 @@ const App: React.FC = () => {
       : pathname === publicFormPathMap.encontreiro ? 'encontreiro_form'
       : pathname === publicFormPathMap.presenca ? 'presenca_form'
       : pathname === publicFormPathMap.visitacao ? 'visitacao_form'
+      : pathname === publicFormPathMap.banda ? 'banda_form'
+      : pathname === publicFormPathMap.bandaAcompanhamento ? 'banda_acompanhamento'
       : '';
 
     setQueryParams({
@@ -557,6 +563,24 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-slate-50">
         <PublicPresenceForm />
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        {dialogNode}
+      </div>
+    );
+  }
+
+  if (queryParams.mode === 'banda_form') {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <PublicBandInterestForm />
+        {dialogNode}
+      </div>
+    );
+  }
+
+  if (queryParams.mode === 'banda_acompanhamento') {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <PublicBandDashboard token={queryParams.token} />
         {dialogNode}
       </div>
     );
