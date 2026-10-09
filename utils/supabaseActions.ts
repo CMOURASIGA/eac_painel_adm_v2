@@ -4235,15 +4235,46 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
 
       const existing = await supabase
         .from('banda_interesses')
-        .select('id,status')
+        .select('id,status,nome_snapshot,telefone_normalizado,chave_unica')
         .eq('chave_unica', chaveUnica)
         .maybeSingle();
       if (existing.error && !isMissingRelationError(existing.error)) throw existing.error;
 
-      if (existing.data) {
-        const update = await supabase.from('banda_interesses').update(payload).eq('id', (existing.data as any).id).select('id,status').maybeSingle();
+      let existingRow: any = existing.data || null;
+
+      // Compatibilidade com a carga histórica da planilha:
+      // registros antigos não possuem pessoa_id/cadastro_oficial_id e usam chave "legacy:*".
+      // Antes de inserir, tenta reconciliar por telefone normalizado + nome normalizado.
+      if (!existingRow && telefoneNormalizado) {
+        const legacyCandidates = await supabase
+          .from('banda_interesses')
+          .select('id,status,nome_snapshot,telefone_normalizado,chave_unica')
+          .eq('telefone_normalizado', telefoneNormalizado)
+          .limit(20);
+        if (legacyCandidates.error && !isMissingRelationError(legacyCandidates.error)) throw legacyCandidates.error;
+
+        existingRow = (Array.isArray(legacyCandidates.data) ? legacyCandidates.data : []).find((row: any) =>
+          normalizeKeyPart(cleanText(row?.nome_snapshot)) === normalizeKeyPart(nome)
+        ) || null;
+      }
+
+      if (existingRow) {
+        const update = await supabase
+          .from('banda_interesses')
+          .update(payload)
+          .eq('id', existingRow.id)
+          .select('id,status')
+          .maybeSingle();
         if (update.error) throw update.error;
-        return { ok: true, data: { success: true, alreadyExists: true, interesse: update.data, message: 'Seu interesse na Banda do EAC já estava registrado e foi confirmado novamente.' } };
+        return {
+          ok: true,
+          data: {
+            success: true,
+            alreadyExists: true,
+            interesse: update.data,
+            message: 'Seu interesse na Banda do EAC já estava registrado e foi confirmado novamente.',
+          },
+        };
       }
 
       const insert = await supabase.from('banda_interesses').insert({
