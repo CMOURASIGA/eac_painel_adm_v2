@@ -221,6 +221,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate, lastSync, onRefresh, isLo
       { label: 'Encontrista', desc: 'Formulário de inscrição', action: () => openExternal(`${origin}/inscricao/form`) },
       { label: 'Encontreiro', desc: 'Formulário de cadastro', action: () => openExternal(`${origin}/encontreiro/form`) },
       { label: 'Presença', desc: 'Registro de presença', action: () => openExternal(`${origin}/presenca/form`) },
+      { label: 'Banda do EAC', desc: 'Formulário de interesse', action: () => openExternal(`${origin}/banda/form`) },
       { label: 'Compra de Camisas', desc: 'Loja oficial do EAC', action: () => openExternal('https://webappcamisa.vercel.app/') },
     ];
   }, []);
@@ -300,7 +301,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate, lastSync, onRefresh, isLo
       {/* Acessos rápidos */}
       <section>
         <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 px-2 mb-3">Acessos rápidos</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           {quickAccess.map((item) => (
             <button
               key={item.label}

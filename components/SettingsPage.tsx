@@ -29,7 +29,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, focusEnco
   const [savingEncontro, setSavingEncontro] = useState(false);
   const [encontrosError, setEncontrosError] = useState('');
   const [encontrosFeedback, setEncontrosFeedback] = useState('');
-  const [formSettings, setFormSettings] = useState<any>({ encontrista_ativo: true, encontreiro_ativo: true, presenca_ativo: true, encontro_confirmacao_id: '' });
+  const [formSettings, setFormSettings] = useState<any>({ encontrista_ativo: true, encontreiro_ativo: true, presenca_ativo: true, banda_ativo: true, banda_responsaveis_token: '', encontro_confirmacao_id: '' });
   const [savingForms, setSavingForms] = useState(false);
   const [editingId, setEditingId] = useState('');
   const [encontroForm, setEncontroForm] = useState({
@@ -179,13 +179,35 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, focusEnco
         {!focusEncontros && <section className="rounded-[2.5rem] border border-slate-200 bg-white p-8 shadow-sm">
           <h3 className="text-sm font-black uppercase tracking-wider text-slate-900">Formulários públicos</h3>
           <p className="mt-2 text-sm text-slate-500">Defina quais formulários podem ser usados e qual EAC recebe a confirmação de equipe.</p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {([
               ['encontrista_ativo', 'Encontrista'],
               ['encontreiro_ativo', 'Encontreiro'],
               ['presenca_ativo', 'Presença'],
+              ['banda_ativo', 'Banda do EAC'],
             ] as const).map(([field, label]) => <label key={field} className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-sm font-bold text-slate-700"><input type="checkbox" checked={formSettings[field] !== false} onChange={(e) => setFormSettings((prev: any) => ({ ...prev, [field]: e.target.checked }))} /> {label} ativo</label>)}
           </div>
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-black text-slate-800">Banda do EAC</p>
+            <p className="mt-1 text-xs text-slate-500">Links para divulgação e acompanhamento pelos responsáveis.</p>
+            <div className="mt-3 grid gap-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Formulário público</p>
+                <p className="mt-1 break-all text-xs font-semibold text-slate-700">{typeof window !== 'undefined' ? `${window.location.origin}/banda/form` : '/banda/form'}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Acompanhamento dos responsáveis</p>
+                <p className="mt-1 break-all text-xs font-semibold text-slate-700">
+                  {formSettings.banda_responsaveis_token
+                    ? (typeof window !== 'undefined'
+                        ? `${window.location.origin}/banda/acompanhamento?token=${formSettings.banda_responsaveis_token}`
+                        : `/banda/acompanhamento?token=${formSettings.banda_responsaveis_token}`)
+                    : 'Execute a migration da Banda para gerar o token de acesso.'}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div className="mt-5">
             <label className="mb-1 block text-sm font-extrabold text-slate-800">EAC aberto para confirmação de equipe</label>
             <select value={formSettings.encontro_confirmacao_id || ''} onChange={(e) => setFormSettings((prev: any) => ({ ...prev, encontro_confirmacao_id: e.target.value }))} className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4">
