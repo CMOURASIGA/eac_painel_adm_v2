@@ -36,6 +36,11 @@ create index if not exists ix_banda_interesses_criado_em on public.banda_interes
 alter table public.banda_interesses enable row level security;
 revoke all on public.banda_interesses from anon, authenticated;
 
+-- A aplicação acessa esta tabela exclusivamente pelo backend usando a service role.
+-- RLS não substitui privilégios SQL; em projetos onde os default grants foram alterados,
+-- a service_role pode receber "permission denied" mesmo com BYPASSRLS.
+grant select, insert, update, delete on table public.banda_interesses to service_role;
+
 insert into public.banda_interesses
   (nome_snapshot, telefone_snapshot, telefone_normalizado, chave_unica, origem, status, criado_em)
 values
