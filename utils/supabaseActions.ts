@@ -4046,6 +4046,8 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         encontrista_ativo: config ? (config as any).encontrista_ativo !== false : true,
         encontreiro_ativo: config ? (config as any).encontreiro_ativo !== false : true,
         presenca_ativo: config ? (config as any).presenca_ativo !== false : true,
+        banda_ativo: config ? (config as any).banda_ativo !== false : true,
+        banda_responsaveis_token: cleanText((config as any)?.banda_responsaveis_token) || null,
         encontro_confirmacao_id: encontroId || null,
         encontro_confirmacao_nome: encontroId ? nome : null,
       } } };
@@ -4057,12 +4059,194 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         encontrista_ativo: ctx.payload.encontrista_ativo !== false,
         encontreiro_ativo: ctx.payload.encontreiro_ativo !== false,
         presenca_ativo: ctx.payload.presenca_ativo !== false,
+        banda_ativo: ctx.payload.banda_ativo !== false,
         encontro_confirmacao_id: cleanText(ctx.payload.encontro_confirmacao_id) || null,
         atualizado_em: new Date().toISOString(),
       };
       const result = await supabase.from('configuracoes_formularios').upsert(payload).select('*').maybeSingle();
       if (result.error) throw result.error;
       return { ok: true, data: { success: true, config: result.data } };
+    }
+
+    if (ctx.action === 'GET_BANDA_PUBLIC_CONFIG') {
+      const { data: config, error } = await supabase
+        .from('configuracoes_formularios')
+        .select('banda_ativo')
+        .eq('id', 'geral')
+        .maybeSingle();
+      if (error && !isMissingRelationError(error)) throw error;
+      return {
+        ok: true,
+        data: {
+          success: true,
+          ativo: config ? (config as any).banda_ativo !== false : false,
+        },
+      };
+    }
+
+    if (ctx.action === 'SEARCH_BANDA_CANDIDATES') {
+      const queryText = cleanText(ctx.payload.query);
+      const queryDigits = normalizeDigits(queryText);
+      const queryName = queryText.toLocaleLowerCase('pt-BR');
+      if (queryDigits.length < 4 && queryName.length < 3) {
+        return { ok: true, data: { success: true, items: [] } };
+      }
+
+      const members = await fetchActiveMembersFromNormalizedTables(supabase);
+      const matched = members
+        .filter((member: any) => {
+          const nome = cleanText(member?.nome).toLocaleLowerCase('pt-BR');
+          const telDigits = normalizeDigits(member?.telefone || member?.whatsapp);
+          if (queryDigits.length >= 4 && telDigits.includes(queryDigits)) return true;
+          return queryName.length >= 3 && nome.includes(queryName);
+        })
+        .slice(0, 12)
+        .map((member: any) => {
+          const digits = normalizeDigits(member?.telefone || member?.whatsapp);
+          const revealPhone = queryDigits.length >= 8 && digits.includes(queryDigits);
+          return {
+            pessoa_id: cleanText(member?.pessoa_id) || null,
+            cadastro_oficial_id: cleanText(member?.cadastro_oficial_id) || null,
+            nome: cleanText(member?.nome),
+            telefone: revealPhone ? cleanText(member?.telefone || member?.whatsapp) : '',
+            telefone_mascarado: digits ? `•••• ${digits.slice(-4)}` : 'Sem telefone',
+          };
+        });
+
+      return { ok: true, data: { success: true, items: matched } };
+    }
+
+    if (ctx.action === 'SAVE_BANDA_INTEREST') {
+      const { data: config, error: configError } = await supabase
+        .from('configuracoes_formularios')
+        .select('banda_ativo')
+        .eq('id', 'geral')
+        .maybeSingle();
+      if (configError && !isMissingRelationError(configError)) throw configError;
+      if (!config || (config as any).banda_ativo === false) {
+        return { ok: true, data: { success: false, error: 'O formulário de interesse da Banda do EAC está fechado no momento.' } };
+      }
+
+      const pessoaId = cleanText(ctx.payload.pessoa_id);
+      const cadastroId = cleanText(ctx.payload.cadastro_oficial_id);
+      let nome = cleanText(ctx.payload.nome);
+      let telefone = cleanText(ctx.payload.telefone);
+      let resolvedPessoaId = pessoaId || null;
+      let resolvedCadastroId = cadastroId || null;
+
+      if (pessoaId || cadastroId) {
+        let cadastro: any = null;
+        if (cadastroId) {
+          const cadastroRes = await supabase.from('cadastro_oficial').select('id,pessoa_id,ativo,status').eq('id', cadastroId).maybeSingle();
+          if (!cadastroRes.error) cadastro = cadastroRes.data;
+        }
+        if (!cadastro && pessoaId) {
+          const cadastroRes = await supabase.from('cadastro_oficial').select('id,pessoa_id,ativo,status').eq('pessoa_id', pessoaId).eq('ativo', true).limit(1).maybeSingle();
+          if (!cadastroRes.error) cadastro = cadastroRes.data;
+        }
+        const canonicalPessoaId = cleanText(cadastro?.pessoa_id || pessoaId);
+        if (canonicalPessoaId) {
+          const pessoaRes = await supabase.from('pessoas').select('id,nome_completo,telefone').eq('id', canonicalPessoaId).maybeSingle();
+          if (!pessoaRes.error && pessoaRes.data) {
+            resolvedPessoaId = cleanText((pessoaRes.data as any).id) || resolvedPessoaId;
+            resolvedCadastroId = cleanText(cadastro?.id) || resolvedCadastroId;
+            nome = cleanText((pessoaRes.data as any).nome_completo) || nome;
+            telefone = cleanText(ctx.payload.telefone) || cleanText((pessoaRes.data as any).telefone);
+          }
+        }
+      }
+
+      const telefoneNormalizado = normalizeDigits(telefone);
+      if (!nome || telefoneNormalizado.length < 8) {
+        return { ok: true, data: { success: false, error: 'Informe nome completo e um telefone válido.' } };
+      }
+
+      const normalizeKeyPart = (value: string) =>
+        cleanText(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ');
+      const chaveUnica = resolvedPessoaId
+        ? `pessoa:${resolvedPessoaId}`
+        : `manual:${normalizeKeyPart(nome)}:${telefoneNormalizado.slice(-11)}`;
+
+      const payload = {
+        pessoa_id: resolvedPessoaId,
+        cadastro_oficial_id: resolvedCadastroId,
+        nome_snapshot: nome,
+        telefone_snapshot: telefone,
+        telefone_normalizado: telefoneNormalizado,
+        chave_unica: chaveUnica,
+        origem: 'FORMULARIO',
+        status: 'INSCRITO',
+        atualizado_em: new Date().toISOString(),
+      };
+
+      const existing = await supabase
+        .from('banda_interesses')
+        .select('id,status')
+        .eq('chave_unica', chaveUnica)
+        .maybeSingle();
+      if (existing.error && !isMissingRelationError(existing.error)) throw existing.error;
+
+      if (existing.data) {
+        const update = await supabase.from('banda_interesses').update(payload).eq('id', (existing.data as any).id).select('id,status').maybeSingle();
+        if (update.error) throw update.error;
+        return { ok: true, data: { success: true, alreadyExists: true, interesse: update.data, message: 'Seu interesse na Banda do EAC já estava registrado e foi confirmado novamente.' } };
+      }
+
+      const insert = await supabase.from('banda_interesses').insert({
+        ...payload,
+        criado_em: new Date().toISOString(),
+      }).select('id,status').maybeSingle();
+      if (insert.error) throw insert.error;
+      return { ok: true, data: { success: true, alreadyExists: false, interesse: insert.data, message: 'Interesse registrado com sucesso.' } };
+    }
+
+    if (ctx.action === 'GET_BANDA_RESPONSAVEIS_DASHBOARD') {
+      const token = cleanText(ctx.payload.token);
+      const { data: config, error: configError } = await supabase
+        .from('configuracoes_formularios')
+        .select('banda_responsaveis_token')
+        .eq('id', 'geral')
+        .maybeSingle();
+      if (configError && !isMissingRelationError(configError)) throw configError;
+      const expected = cleanText((config as any)?.banda_responsaveis_token);
+      if (!token || !expected || token !== expected) {
+        return { ok: true, data: { success: false, error: 'Link de acompanhamento inválido.' } };
+      }
+
+      const { data: rows, error } = await supabase
+        .from('banda_interesses')
+        .select('id,nome_snapshot,telefone_snapshot,status,origem,criado_em')
+        .order('criado_em', { ascending: false });
+      if (error) throw error;
+
+      const list = Array.isArray(rows) ? rows : [];
+      const counts = list.reduce((acc: Record<string, number>, row: any) => {
+        const key = cleanText(row?.status).toUpperCase() || 'INSCRITO';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+      const items = list.map((row: any) => {
+        const digits = normalizeDigits(row?.telefone_snapshot);
+        return {
+          id: row.id,
+          nome: cleanText(row?.nome_snapshot),
+          telefone_mascarado: digits ? `•••• ${digits.slice(-4)}` : '-',
+          status: cleanText(row?.status) || 'INSCRITO',
+          origem: cleanText(row?.origem),
+          criado_em: row?.criado_em || null,
+        };
+      });
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          total: list.filter((row: any) => cleanText(row?.status).toUpperCase() !== 'DESISTIU').length,
+          counts,
+          items,
+          cabeca_eac_url: cleanText(process.env.EAC_CABECA_URL) || 'https://eac-cabeca-musicas-christians-projects-4954426e.vercel.app',
+        },
+      };
     }
 
     if (ctx.action === 'GET_CONTEXT_HELP') {
