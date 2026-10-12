@@ -1,0 +1,56 @@
+name: EAC infrastructure and mock validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/presenca-v2-reestruturacao-mock
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eac-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install from lockfile
+        run: npm ci --ignore-scripts
+      - name: Audit API action inventory (read-only)
+        run: npm run audit:api-actions > /tmp/eac-api-audit.json
+      - name: Fixture tests
+        run: npm run test:fixtures
+      - name: Presence V2 mock domain tests
+        run: node --test tests/eac-presenca-v2-domain.test.mjs
+      - name: TypeScript no emit
+        run: npx tsc --noEmit
+      - name: Vite build
+        run: npm run build
+      - name: Record build sizes
+        run: |
+          find dist -type f -printf '%s %p\n' | sort -nr > /tmp/eac-build-size.txt
+          head -n 25 /tmp/eac-build-size.txt
+      - name: Upload diagnostic outputs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eac-validation-diagnostics
+          path: |
+            /tmp/eac-api-audit.json
+            /tmp/eac-build-size.txt
+          if-no-files-found: ignore
+          retention-days: 7
