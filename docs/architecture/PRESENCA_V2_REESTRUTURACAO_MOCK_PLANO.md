@@ -118,3 +118,50 @@ A revisão estática confirmou: React/TypeScript/Vite no frontend; API serverles
 - [ ] Auditoria completa de todos os módulos e métricas Vercel.
 - [ ] SPEC técnica/RLS/API definitiva.
 - [ ] Autorização para implementar.
+
+## 11. Evidência Supabase — Diagnóstico SQL 02 (2026-10-12; leitura, sem mudança)
+Origem: exportação SQL de metadados e contagens fornecida pelo proprietário. **Valores não são estimativas de produto**; são agregados no instante do levantamento.
+
+| Indicador | Resultado |
+|---|---:|
+| Pessoas | 1.220 |
+| Pessoas com cadastro adolescente | 481 |
+| Pessoas com cadastro encontreiro | 579 |
+| Ambos os cadastros (mesmo pessoa_id) | 223 |
+| Apenas adolescente | 258 |
+| Apenas encontreiro | 356 |
+| Pessoas com vínculo histórico de círculo | 209 |
+| Pessoas com círculo histórico e encontreiro | 206 |
+| Pessoas sem telefone em pessoas | 79 |
+| Pessoas com telefone | 1.141 |
+| Números com formato fora dos comprimentos esperados | 26 |
+| Números telefônicos compartilhados | 159 |
+| Pessoas usando números compartilhados | 343 |
+| Maior compartilhamento de um número | 13 pessoas |
+| Adolescentes sem telefone próprio em pessoas | 40 |
+| Encontreiros sem telefone em pessoas | 27 |
+| Adolescentes sem vínculo de responsável | 3 de 481 |
+| Com um vínculo de responsável | 474 |
+| Com múltiplos responsáveis | 4 |
+| Presenças existentes | 477 |
+| Presenças ligadas a pessoa_id | 477 |
+| Presenças ligadas a encontro_id | 0 |
+| Presenças ligadas a circulo_id | 1 |
+| Presenças com adolescente_id | 379 |
+| Históricos 35/36/37 | 213 vínculos, 209 conciliados, 4 pendentes |
+
+### Consequências para a SPEC
+- **Identidade canônica é `pessoas.id`**. Dupla qualificação encontrista/encontreiro é vínculo, não pessoa nova. `adolescentes` não equivale exatamente a 'encontrista da edição'; validar participação histórica/edição.
+- A checagem por número de telefone isolado é **insegura** devido a números compartilhados: até 13 pessoas no mesmo número. Telefone ausente/divergente/compartilhado exige caminho de solicitação pendente, e o backend não deve escolher identidade silenciosamente.
+- A conferência do responsável é viável estruturalmente por `adolescente_responsaveis` (474 com um vínculo), mas o diagnóstico não provou a presença/qualidade do telefone na tabela `responsaveis`; medir antes de aprovar correspondência automática.
+- As 477 presenças legadas não têm encontro_id, e quase todas não têm circulo_id; **não atribuir sessão/edição retroativamente por dedução**. Relatório novo deve distinguir LEGADO_SEM_SESSAO de presença V2; migração conservadora.
+- As 26 entradas fora do comprimento são triagem técnica, não declaração de telefone inválido; comprimentos 10/11/12/13 são apenas aproximação, não confirmam telefone ativo/verdadeiro.
+
+### Achados de segurança a tratar antes de integração real
+- `pessoas`: `anon` tem privilégio SELECT e política permissiva de leitura irrestrita `USING true`. Supor risco real para dados pessoais até validação de caminhos de API/exposição; proibir pesquisa pública direta.
+- `encontros`: papel público com políticas permissivas SELECT, INSERT e UPDATE `true`, e privilégios de `anon` para essas operações. Corrigir apenas após identificar consumidores legados.
+- `presencas`: políticas permissivas `presencas_*_all` para `authenticated` com SELECT/INSERT/UPDATE `true` (as outras RLS não restringem devido a OR entre permissivas). `anon` possui grants SELECT/INSERT/UPDATE, mas políticas listadas não autorizam `anon` explicitamente; testar comportamento efetivo sem escrita real.
+- API server-side usa service role; restrições RLS não substituem autorização explícita por ação e usuário.
+
+### Gate atualizado
+A auditoria Supabase SQL 02 está concluída, mas não autoriza DDL, reforma das políticas RLS, atualização de dados ou deploy. Priorizar um plano de contenção de exposição e observabilidade; para a fase mock, não consultar o banco e sim simular cenários sintéticos de telefone compartilhado, ausente e divergente. Pendente medir credenciais e resultados reais de segurança em um ambiente controlado antes de qualquer liberação pública.
