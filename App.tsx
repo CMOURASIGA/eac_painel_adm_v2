@@ -33,6 +33,10 @@ import { sanitizeTextDeep } from './utils/textEncoding.ts';
 import { postComunicadosAction } from './services/eacApiClient.ts';
 import GroupHubPage from './components/GroupHubPage.tsx';
 import { NAVIGATION_ROADMAP, NAVIGATION_GROUPS, isViewEnabledInRoadmap, groupHasAccess, visibleGroupItems } from './utils/navigationRoadmap.ts';
+import MockEnvironmentBanner from './components/MockEnvironmentBanner.tsx';
+import MockPresenceAdminPage from './components/presenca-v2/MockPresenceAdminPage.tsx';
+import MockPublicCheckinPage from './components/presenca-v2/MockPublicCheckinPage.tsx';
+import { isMockRuntime } from './services/mock/mockRuntime.ts';
 
 const viewPathMap: Partial<Record<View, string>> = {
   members: '/cadastro',
@@ -532,6 +536,7 @@ const App: React.FC = () => {
   if (queryParams.mode === 'inscricao_form') {
     return (
       <div className="min-h-screen bg-slate-50">
+        <MockEnvironmentBanner />
         <PublicInscricaoForm />
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         {dialogNode}
@@ -561,7 +566,8 @@ const App: React.FC = () => {
   if (queryParams.mode === 'presenca_form') {
     return (
       <div className="min-h-screen bg-slate-50">
-        <PublicPresenceForm />
+        <MockEnvironmentBanner />
+        {isMockRuntime() ? <MockPublicCheckinPage /> : <PublicPresenceForm />}
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         {dialogNode}
       </div>
@@ -598,6 +604,7 @@ const App: React.FC = () => {
 
   if (!user) return (
     <>
+      <MockEnvironmentBanner />
       <LoginPage onLogin={(u) => { setUser(u); localStorage.setItem('eac_user', JSON.stringify(u)); handleNavigate(pathViewMap[window.location.pathname.replace(/\/+$/, '') || '/'] || 'dashboard'); }} googleWebAppUrl={effectiveGoogleWebAppUrl} />
       {dialogNode}
     </>
@@ -606,6 +613,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col text-slate-900 overflow-x-hidden">
+      <MockEnvironmentBanner />
       <Header user={user} onLogout={() => { setUser(null); localStorage.removeItem('eac_user'); }} onNavigate={handleNavigate} currentView={currentView} />
       <main className="flex-grow pt-[72px] bg-slate-50 relative">
         {currentView === 'dashboard' && (
@@ -642,7 +650,7 @@ const App: React.FC = () => {
         {currentView === 'encontreiros' && <EncontreiroPage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialFilters={pendingFilters} />}
         {currentView === 'encontros' && <SettingsPage settings={settings} onSave={(next) => { setSettings(next); localStorage.setItem('eac_settings', JSON.stringify(next)); }} focusEncontros />}
         {currentView === 'equipes' && <EncontreiroPage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialView="equipes" />}
-        {currentView === 'presence' && <PresencePage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialFilters={pendingFilters} />}
+        {currentView === 'presence' && (isMockRuntime() ? <MockPresenceAdminPage /> : <PresencePage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialFilters={pendingFilters} />)}
         {currentView === 'dispatches' && <DispatchesPage dispatches={dispatches} onExecute={handleExecuteDispatch} onClearStatus={async (d) => { await callApiProxy('CLEAR_DISPATCH_STATUS', { type: d.type }); fetchSpreadsheetData(); }} operator={user.name} />}
         {currentView === 'calendar' && <CalendarPage googleWebAppUrl={effectiveGoogleWebAppUrl} user={user} />}
         {currentView === 'comunicados' && <ComunicadosPage comunicados={comunicados} onSave={async (c) => { await callApiProxy('SAVE_COMUNICADO', c); fetchSpreadsheetData(); }} onDelete={async (id) => { await callApiProxy('DELETE_COMUNICADO', { id }); fetchSpreadsheetData(); }} onSync={fetchSpreadsheetData} isLoading={isLoadingSheet} user={user} />}

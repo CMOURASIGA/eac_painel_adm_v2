@@ -184,9 +184,9 @@ async function enrichVisitacaoItems(supabase: AnySupabaseClient, rows: any[]) {
     inscricaoIds.length ? supabase.from('inscricoes').select('*').in('id', inscricaoIds) : Promise.resolve({ data: [], error: null } as any),
   ]);
 
-  const pessoas = new Map((Array.isArray(pessoasRes.data) ? pessoasRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
-  const adolescentes = new Map((Array.isArray(adolescentesRes.data) ? adolescentesRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
-  const inscricoes = new Map((Array.isArray(inscricoesRes.data) ? inscricoesRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
+  const pessoas = new Map<string, Record<string, any>>((Array.isArray(pessoasRes.data) ? pessoasRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
+  const adolescentes = new Map<string, Record<string, any>>((Array.isArray(adolescentesRes.data) ? adolescentesRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
+  const inscricoes = new Map<string, Record<string, any>>((Array.isArray(inscricoesRes.data) ? inscricoesRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
 
   const vinculosRes = adolescenteIds.length
     ? await supabase.from('adolescente_responsaveis').select('*').in('adolescente_id', adolescenteIds)
@@ -196,7 +196,7 @@ async function enrichVisitacaoItems(supabase: AnySupabaseClient, rows: any[]) {
   const responsaveisRes = responsavelIds.length
     ? await supabase.from('responsaveis').select('*').in('id', responsavelIds)
     : ({ data: [], error: null } as any);
-  const responsaveis = new Map((Array.isArray(responsaveisRes.data) ? responsaveisRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
+  const responsaveis = new Map<string, Record<string, any>>((Array.isArray(responsaveisRes.data) ? responsaveisRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
 
   const familiaPorAdolescente = new Map<string, { pai_nome?: string | null; mae_nome?: string | null }>();
   for (const vinculo of vinculos) {
@@ -215,7 +215,7 @@ async function enrichVisitacaoItems(supabase: AnySupabaseClient, rows: any[]) {
   const escolasRes = escolaIds.length
     ? await supabase.from('escolas').select('*').in('id', escolaIds)
     : ({ data: [], error: null } as any);
-  const escolas = new Map((Array.isArray(escolasRes.data) ? escolasRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
+  const escolas = new Map<string, Record<string, any>>((Array.isArray(escolasRes.data) ? escolasRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
 
   return items.map((item) => {
     const pessoa = pessoas.get(toCleanString(item?.pessoa_adolescente_id)) || {};
@@ -432,7 +432,7 @@ async function updateCadastroOficialFromVisitacao(
       ? await supabase.from('responsaveis').select('*').in('id', respIds)
       : ({ data: [], error: null } as any);
     if (respRes.error) throw respRes.error;
-    const respMap = new Map((Array.isArray(respRes.data) ? respRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
+    const respMap = new Map<string, Record<string, any>>((Array.isArray(respRes.data) ? respRes.data : []).map((row: any) => [toCleanString(row?.id), row]));
 
     const roleKey = role.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     let targetLink = links.find((link: any) => {

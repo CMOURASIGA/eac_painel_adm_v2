@@ -42,7 +42,7 @@ export function registerPresenceMock(state, fixture, sessionId, input) {
   // Idempotency is scoped to the same session + synthetic input; production will use a DB unique key.
   const key = [sessionId, String(input.personId ?? ''), String(input.phone ?? '').replace(/\D/g, '')].join(':');
   if (requests.some(r => r.key === key)) return { state, result: { status: 'ALREADY_PENDING' } };
-  const request = { key, sessionId, personId: input.personId ?? null, reason: verdict.reason, status: 'PENDING' };
+  const request = { key, sessionId, personId: input.personId ?? null, reportedName: String(input.name ?? ''), reportedPhone: String(input.phone ?? '').replace(/\D/g, ''), reason: verdict.reason, status: 'PENDING' };
   return { state: { ...state, records, requests: [...requests, request] }, result: { status: 'PENDING', request } };
 }
 export function closeSessionMock(fixture, sessionId) {

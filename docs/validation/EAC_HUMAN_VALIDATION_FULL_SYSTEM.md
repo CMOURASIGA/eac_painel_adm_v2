@@ -54,8 +54,14 @@ Homologar **todo o painel administrativo e todos os formulários públicos**, in
 - Plano separado de migração ao Supabase, RLS, regularização dos quatro vínculos históricos e rollback somente após homologação mock.
 - Não abrir merge em develop nem subir produção sem aprovação expressa.
 
+## Checkpoint técnico implementado em `d994ced`
+- O adapter de MOCK passou a interceptar toda chamada interna para `/api/*` antes de ela alcançar funções da Vercel, Supabase, Google Apps Script/Sheets, e-mail ou WhatsApp. Destinos externos conhecidos são bloqueados pelo runtime MOCK.
+- A flag é explícita: `VITE_EAC_MOCK_MODE=true` e, para um build de Preview, `VITE_EAC_MOCK_PREVIEW=true`. Sem a flag, o bundle normal não contém os dados sintéticos de Presença V2; com a flag, o repositório sintético é carregado em chunk separado.
+- O painel e o formulário público de Presença usam a V2 somente no MOCK. O legado permanece intacto quando a flag não está presente.
+- A jornada V2 já cobre sessão de dupla, pós-encontro, abrir/encerrar sem reabrir, nova sessão, presença única por pessoa/sessão, pendência idempotente e decisão do ADM após encerramento.
+
 ## Bloqueadores presentes nesta data
-- Ainda não foi criado adapter MOCK de toda aplicação; os arquivos de fixture e domínio V2 são isolados.
+- Os demais módulos ainda dependem de respostas sintéticas mínimas e precisam de jornadas completas de criar/editar/excluir antes da Human Validation integral.
 - Autorização de backend do legado permanece em auditoria.
-- Testes E2E, build, métricas reais da Vercel, revisão visual e Human Validation não foram executados.
+- Testes E2E em Chromium, métricas reais da Vercel, revisão visual e Human Validation ainda não foram executados.
 - Tios sem login por senha: opção passwordless proposta, ainda não implementada.
