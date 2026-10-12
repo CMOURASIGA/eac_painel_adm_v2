@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "validate:supabase-sync": "node scripts/validate-supabase-sync.mjs"
+    "validate:supabase-sync": "node scripts/validate-supabase-sync.mjs",
+    "audit:api-actions": "node scripts/audit-api-actions.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",
