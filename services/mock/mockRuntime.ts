@@ -93,6 +93,8 @@ async function handlePresenceAction(action: string, data: any) {
   const repo = await loadRepository();
   try {
     if (action === 'PRESENCA_V2_LIST_SESSIONS') return actionSuccess({ sessions: repo.listSessions(current), audit: current.audit });
+    if (action === 'PRESENCA_V2_LIST_RESPONSIBLE_SESSIONS') return actionSuccess({ sessions: repo.listResponsibleSessions(current, String(data?.scope || '')) });
+    if (action === 'PRESENCA_V2_GET_ANALYTICS') return actionSuccess({ analytics: repo.presenceAnalytics(current) });
     if (action === 'PRESENCA_V2_GET_PUBLIC_SESSION') return actionSuccess({ session: repo.publicSession(current, String(data?.token || data?.sessionId || '')) });
     if (action === 'PRESENCA_V2_CREATE_SESSION') {
       const result = repo.createSession(current, data);
