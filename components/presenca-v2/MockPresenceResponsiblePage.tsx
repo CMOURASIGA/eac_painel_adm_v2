@@ -20,13 +20,6 @@ const call = async (action: string, data: any = {}) => {
   return result.data as any;
 };
 
-const scopeLabel: Record<string, string> = {
-  'dupla-a': 'Tios · AZUL + LARANJA',
-  'dupla-b': 'Tios · VERDE + VERMELHO',
-  'dupla-c': 'Tios · AMARELO + ROXO',
-  pos: 'Responsável do Pós-encontro',
-};
-
 const formatDateTime = (value?: string | null) => {
   if (!value) return 'Horário não registrado';
   const date = new Date(value);
@@ -38,6 +31,7 @@ const MockPresenceResponsiblePage: React.FC = () => {
   const params = new URLSearchParams(window.location.search);
   const scope = (params.get('scope') || '').toLowerCase();
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [responsibleLabel, setResponsibleLabel] = useState('');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [qrSession, setQrSession] = useState<Session | null>(null);
@@ -46,8 +40,13 @@ const MockPresenceResponsiblePage: React.FC = () => {
     setLoading(true);
     setNotice('');
     try {
-      const data = await call('PRESENCA_V2_LIST_RESPONSIBLE_SESSIONS', { scope });
+      const [data, groups] = await Promise.all([
+        call('PRESENCA_V2_LIST_RESPONSIBLE_SESSIONS', { scope }),
+        call('PRESENCA_V2_LIST_RESPONSIBLE_GROUPS'),
+      ]);
       setSessions(Array.isArray(data.sessions) ? data.sessions : []);
+      const current = (groups.responsibleGroups || []).find((item: any) => item.id === scope);
+      setResponsibleLabel(current?.label || '');
     } catch (error: any) {
       setNotice(error?.message || 'Não foi possível carregar as reuniões.');
     } finally {
@@ -62,7 +61,7 @@ const MockPresenceResponsiblePage: React.FC = () => {
 
   const checkinUrl = (session: Session) => `${window.location.origin}/presenca/form?session=${encodeURIComponent(session.publicToken)}`;
 
-  if (!scopeLabel[scope]) {
+  if (!loading && !responsibleLabel) {
     return (
       <main className="min-h-screen bg-slate-50 p-4 sm:p-8">
         <section className="mx-auto max-w-xl rounded-3xl bg-white p-6 shadow">
@@ -78,7 +77,7 @@ const MockPresenceResponsiblePage: React.FC = () => {
       <section className="mx-auto max-w-5xl">
         <header className="rounded-3xl bg-[#044372] p-6 text-white shadow-lg sm:p-8">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-200">Presença · acesso operacional</p>
-          <h1 className="mt-1 text-2xl font-black sm:text-3xl">{scopeLabel[scope]}</h1>
+          <h1 className="mt-1 text-2xl font-black sm:text-3xl">{responsibleLabel || 'Carregando responsável…'}</h1>
           <p className="mt-2 max-w-3xl text-sm text-sky-100">Aqui aparecem somente reuniões abertas e encerradas do seu escopo. Sessões agendadas e canceladas não são exibidas.</p>
         </header>
 
@@ -103,7 +102,7 @@ const MockPresenceResponsiblePage: React.FC = () => {
                   {openSessions.map((session) => (
                     <article key={session.id} className="rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm">
                       <div className="flex items-start justify-between gap-3">
-                        <div><h3 className="font-black text-slate-900">{session.title}</h3><p className="mt-1 text-xs text-slate-500">Aberta em {formatDateTime(session.openedAt)}</p></div>
+                        <div><h3 className="font-black text-slate-900">{session.title}</h3><p className="mt-1 text-xs text-slate-500">Reunião: {formatDateTime((session as any).scheduledAt)} · aberta em {formatDateTime(session.openedAt)}</p></div>
                         <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">ABERTA</span>
                       </div>
                       <div className="mt-4 grid grid-cols-3 gap-2 text-center">
@@ -125,7 +124,7 @@ const MockPresenceResponsiblePage: React.FC = () => {
                   {closedSessions.map((session) => (
                     <article key={session.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div><h3 className="font-bold text-slate-900">{session.title}</h3><p className="mt-1 text-xs text-slate-500">Encerrada em {formatDateTime(session.closedAt)}</p></div>
+                        <div><h3 className="font-bold text-slate-900">{session.title}</h3><p className="mt-1 text-xs text-slate-500">Reunião: {formatDateTime((session as any).scheduledAt)} · encerrada em {formatDateTime(session.closedAt)}</p></div>
                         <span className="w-fit rounded-full bg-slate-200 px-3 py-1 text-xs font-black text-slate-700">ENCERRADA</span>
                       </div>
                       <div className="mt-4 flex flex-wrap gap-4 text-sm text-slate-700">
