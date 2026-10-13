@@ -55,8 +55,8 @@ const MockPresenceAnalyticsPage: React.FC = () => {
 
       <div className="mt-6 grid gap-6 xl:grid-cols-2">
         <section className="rounded-3xl bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-black text-slate-900">Desempenho por grupo</h2>
-          <p className="mt-1 text-sm text-slate-600">Duplas de círculos e Pós-encontro, considerando sessões encerradas.</p>
+          <h2 className="text-lg font-black text-slate-900">Desempenho por responsáveis</h2>
+          <p className="mt-1 text-sm text-slate-600">Casais de tios e responsável do Pós, considerando as sessões encerradas atribuídas a cada um.</p>
           <div className="mt-4 space-y-3">
             {groups.map((group: any) => (
               <div key={group.key} className="rounded-2xl border border-slate-200 p-4">
