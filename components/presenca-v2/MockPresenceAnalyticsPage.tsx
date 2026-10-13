@@ -10,6 +10,7 @@ const call = async (action: string, data: any = {}) => {
 const MockPresenceAnalyticsPage: React.FC = () => {
   const [analytics, setAnalytics] = useState<any>(null);
   const [notice, setNotice] = useState('');
+  const [circlesOpen, setCirclesOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -29,6 +30,11 @@ const MockPresenceAnalyticsPage: React.FC = () => {
   const people = Array.isArray(analytics.people) ? analytics.people : [];
   const groups = Array.isArray(analytics.groups) ? analytics.groups : [];
   const evolution = Array.isArray(analytics.sessionEvolution) ? analytics.sessionEvolution : [];
+  const postGroups = groups.filter((group: any) => group.kind === 'POS');
+  const circleGroups = groups
+    .filter((group: any) => group.kind === 'TIOS')
+    .slice()
+    .sort((a: any, b: any) => String(a.label || '').localeCompare(String(b.label || ''), 'pt-BR'));
 
   return (
     <section className="mx-auto max-w-7xl p-5 md:p-8">
@@ -58,12 +64,48 @@ const MockPresenceAnalyticsPage: React.FC = () => {
           <h2 className="text-lg font-black text-slate-900">Desempenho por responsáveis</h2>
           <p className="mt-1 text-sm text-slate-600">Casais de tios e responsável do Pós, considerando as sessões encerradas atribuídas a cada um.</p>
           <div className="mt-4 space-y-3">
-            {groups.map((group: any) => (
-              <div key={group.key} className="rounded-2xl border border-slate-200 p-4">
-                <div className="flex items-center justify-between gap-3"><p className="font-bold text-slate-900">{group.label}</p><span className="text-lg font-black text-sky-700">{group.rate}%</span></div>
-                <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-600"><span>{group.sessions} sessão(ões)</span><span>{group.present}/{group.eligible} presenças elegíveis</span></div>
+            {postGroups.map((group: any) => (
+              <div key={group.key} className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wide text-sky-700">Pós-encontro</p>
+                    <p className="font-bold text-slate-900">{group.label}</p>
+                  </div>
+                  <span className="text-lg font-black text-sky-700">{group.rate}%</span>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-600">
+                  <span>{group.sessions} sessão(ões)</span>
+                  <span>{group.present}/{group.eligible} presenças elegíveis</span>
+                </div>
               </div>
             ))}
+
+            <div className="rounded-2xl border border-slate-200">
+              <button type="button" onClick={() => setCirclesOpen((value) => !value)} className="flex w-full items-center justify-between gap-3 p-4 text-left">
+                <div>
+                  <p className="font-bold text-slate-900">Círculos</p>
+                  <p className="text-xs text-slate-500">{circleGroups.length} casal(is) de tios</p>
+                </div>
+                <span className="text-xl font-black text-slate-500">{circlesOpen ? '−' : '+'}</span>
+              </button>
+
+              {circlesOpen && (
+                <div className="space-y-3 border-t border-slate-200 p-4">
+                  {circleGroups.map((group: any) => (
+                    <div key={group.key} className="rounded-2xl border border-slate-200 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-bold text-slate-900">{group.label}</p>
+                        <span className="text-lg font-black text-sky-700">{group.rate}%</span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-600">
+                        <span>{group.sessions} sessão(ões)</span>
+                        <span>{group.present}/{group.eligible} presenças elegíveis</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </section>
 
