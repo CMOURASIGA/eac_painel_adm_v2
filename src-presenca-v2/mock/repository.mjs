@@ -98,8 +98,35 @@ export function resolveRequest(state, key, decision, actor = 'mock-admin') {
   if (request.status !== 'PENDING') throw new Error('REQUEST_ALREADY_RESOLVED');
   const session = state.scenario.sessions.find((item) => item.id === request.sessionId);
   if (!session || session.status !== 'ENCERRADA') throw new Error('REQUEST_RESOLUTION_REQUIRES_CLOSED_SESSION');
-  const requests = state.requests.map((item) => item.key === key ? { ...item, status: decision, resolvedAt: now(), resolvedBy: actor } : item);
-  return { state: audit({ ...state, requests }, `REQUEST_${decision}`, actor, { requestKey: key }), request: requests.find((item) => item.key === key) };
+
+  const resolvedAt = now();
+  const requests = state.requests.map((item) => item.key === key ? { ...item, status: decision, resolvedAt, resolvedBy: actor } : item);
+  let records = state.records ?? [];
+
+  if (decision === 'APPROVED') {
+    const alreadyRecorded = request.personId
+      ? records.some((record) => record.sessionId === request.sessionId && record.personId === request.personId)
+      : records.some((record) => record.requestKey === request.key);
+
+    if (!alreadyRecorded) {
+      records = [...records, {
+        sessionId: request.sessionId,
+        personId: request.personId ?? null,
+        requestKey: request.key,
+        reportedName: request.reportedName || '',
+        reportedPhone: request.reportedPhone || '',
+        origin: 'MOCK_ADMIN_RECONCILIATION',
+        confirmedAt: resolvedAt,
+        confirmedBy: actor,
+      }];
+    }
+  }
+
+  const next = { ...state, requests, records };
+  return {
+    state: audit(next, `REQUEST_${decision}`, actor, { requestKey: key }),
+    request: requests.find((item) => item.key === key),
+  };
 }
 
 export function publicSession(state, publicToken) {
