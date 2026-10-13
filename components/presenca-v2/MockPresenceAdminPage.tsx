@@ -51,6 +51,7 @@ const MockPresenceAdminPage: React.FC = () => {
   const [responsibleGroups, setResponsibleGroups] = useState<any[]>([]);
   const [responsibleId, setResponsibleId] = useState('tios-ana-bruno');
   const [scheduledAt, setScheduledAt] = useState('2026-10-13T19:00');
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ pos: true });
 
   const refresh = useCallback(async () => {
     const [sessionsResult, pendingResult, responsibleResult] = await Promise.all([
@@ -83,6 +84,60 @@ const MockPresenceAdminPage: React.FC = () => {
   const responsibleLink = (scope: string) => `${window.location.origin}/presenca/responsavel?scope=${encodeURIComponent(scope)}`;
   const unresolved = useMemo(() => pending.filter((item) => item.status === 'PENDING'), [pending]);
   const resolved = useMemo(() => pending.filter((item) => item.status === 'APPROVED' || item.status === 'REJECTED').slice().reverse(), [pending]);
+
+  const postSessions = useMemo(() => sessions
+    .filter((session) => session.type === 'POS_ENCONTRO_GERAL')
+    .slice()
+    .sort((a: any, b: any) => {
+      const rank: Record<string, number> = { ABERTA: 0, AGENDADA: 1, ENCERRADA: 2, CANCELADA: 3 };
+      const byStatus = (rank[a.status] ?? 9) - (rank[b.status] ?? 9);
+      if (byStatus !== 0) return byStatus;
+      return Date.parse(b.scheduledAt || b.openedAt || b.closedAt || b.createdAt || '1970-01-01') - Date.parse(a.scheduledAt || a.openedAt || a.closedAt || a.createdAt || '1970-01-01');
+    }), [sessions]);
+
+  const circleGroups = useMemo(() => responsibleGroups
+    .filter((item) => item.kind === 'TIOS')
+    .map((item) => ({
+      ...item,
+      sessions: sessions
+        .filter((session: any) => session.type === 'REUNIAO_DUPLA_TIOS' && session.responsibleId === item.id)
+        .slice()
+        .sort((a: any, b: any) => {
+          const rank: Record<string, number> = { ABERTA: 0, AGENDADA: 1, ENCERRADA: 2, CANCELADA: 3 };
+          const byStatus = (rank[a.status] ?? 9) - (rank[b.status] ?? 9);
+          if (byStatus !== 0) return byStatus;
+          return Date.parse(b.scheduledAt || b.openedAt || b.closedAt || b.createdAt || '1970-01-01') - Date.parse(a.scheduledAt || a.openedAt || a.closedAt || a.createdAt || '1970-01-01');
+        }),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')), [responsibleGroups, sessions]);
+
+  const toggleGroup = (key: string) => setExpandedGroups((current) => ({ ...current, [key]: !current[key] }));
+
+  const renderSessionCard = (session: Session) => (
+    <article key={session.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="font-bold text-slate-900">{session.title}</h3>
+          <p className="mt-1 text-xs text-slate-500">{(session as any).scheduledAt ? `Reunião em ${new Date((session as any).scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}` : 'Data não informada'}{(session as any).circlePairLabel ? ` · ${(session as any).circlePairLabel}` : ''}</p>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-xs font-black ${statusStyle[session.status]}`}>{session.status}</span>
+      </div>
+      <dl className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
+        <div className="rounded-lg bg-slate-50 p-2"><dt className="text-xs text-slate-500">Elegíveis</dt><dd className="font-black">{session.eligibleCount}</dd></div>
+        <div className="rounded-lg bg-slate-50 p-2"><dt className="text-xs text-slate-500">Confirmados</dt><dd className="font-black">{session.confirmedCount}</dd></div>
+        <div className="rounded-lg bg-slate-50 p-2"><dt className="text-xs text-slate-500">Pendentes</dt><dd className="font-black">{session.pendingCount}</dd></div>
+      </dl>
+      <p className="mt-4 break-all rounded-lg bg-slate-50 p-2 text-xs text-slate-600">QR público simulado: {qrLink(session)}</p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {session.status === 'AGENDADA' && <>
+          <button disabled={busy} onClick={() => void execute('PRESENCA_V2_OPEN_SESSION', { sessionId: session.id }, 'Sessão aberta.')} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white">Abrir sessão</button>
+          <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CANCEL_SESSION', { sessionId: session.id }, 'Sessão cancelada no MOCK.')} className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700">Cancelar</button>
+        </>}
+        {session.status === 'ABERTA' && <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CLOSE_SESSION', { sessionId: session.id }, 'Sessão encerrada. Ela não pode ser reaberta.')} className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white">Encerrar sessão</button>}
+        <button type="button" onClick={() => navigator.clipboard?.writeText(qrLink(session)).then(() => setNotice('Link do QR público copiado.'))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">Copiar link</button>
+      </div>
+    </article>
+  );
 
   return (
     <section className="mx-auto max-w-6xl p-5 md:p-8">
@@ -129,43 +184,74 @@ const MockPresenceAdminPage: React.FC = () => {
 
       <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="font-bold text-slate-900">Acessos operacionais de homologação</h2>
-        <p className="mt-1 text-sm text-slate-600">Estes links simulam o acesso dos tios e do responsável do Pós. No fluxo real, o acesso será autenticado e vinculado ao escopo do responsável.</p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {responsibleGroups.map((item) => (
-            (() => {
-              const scope = item.id;
-              const label = item.label;
-              return (
-            <div key={scope} className="rounded-xl border border-slate-200 p-3">
-              <p className="text-sm font-bold text-slate-900">{label}</p>
-              <button
-                type="button"
-                onClick={() => navigator.clipboard?.writeText(responsibleLink(scope)).then(() => setNotice(`Acesso ${label} copiado.`))}
-                className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700"
-              >
-                Copiar acesso
-              </button>
+        <p className="mt-1 text-sm text-slate-600">O Pós aparece primeiro. Os casais de tios ficam agrupados abaixo para evitar crescimento excessivo da tela.</p>
+
+        {responsibleGroups.filter((item) => item.kind === 'POS').map((item) => (
+          <div key={item.id} className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div><p className="text-xs font-black uppercase tracking-wide text-sky-700">Pós-encontro</p><p className="font-bold text-slate-900">{item.label}</p></div>
+              <button type="button" onClick={() => navigator.clipboard?.writeText(responsibleLink(item.id)).then(() => setNotice(`Acesso ${item.label} copiado.`))} className="rounded-lg border border-sky-300 bg-white px-3 py-2 text-sm font-bold text-sky-800">Copiar acesso</button>
             </div>
-              );
-            })()
-          ))}
+          </div>
+        ))}
+
+        <div className="mt-4 rounded-xl border border-slate-200">
+          <button type="button" onClick={() => toggleGroup('access-circles')} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
+            <div><p className="font-bold text-slate-900">Acessos dos tios de círculo</p><p className="text-xs text-slate-500">{responsibleGroups.filter((item) => item.kind === 'TIOS').length} casal(is) configurado(s)</p></div>
+            <span className="text-lg font-black text-slate-500">{expandedGroups['access-circles'] ? '−' : '+'}</span>
+          </button>
+          {expandedGroups['access-circles'] && <div className="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-3">
+            {responsibleGroups.filter((item) => item.kind === 'TIOS').map((item) => (
+              <div key={item.id} className="rounded-xl border border-slate-200 p-3">
+                <p className="text-sm font-bold text-slate-900">{item.label}</p>
+                <button type="button" onClick={() => navigator.clipboard?.writeText(responsibleLink(item.id)).then(() => setNotice(`Acesso ${item.label} copiado.`))} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">Copiar acesso</button>
+              </div>
+            ))}
+          </div>}
         </div>
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {sessions.map((session) => (
-          <article key={session.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-3"><div><h2 className="font-bold text-slate-900">{session.title}</h2><p className="mt-1 text-xs text-slate-500">{(session as any).scheduledAt ? `Reunião em ${new Date((session as any).scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}` : 'Data não informada'}{(session as any).circlePairLabel ? ` · ${(session as any).circlePairLabel}` : ''}</p></div><span className={`rounded-full px-3 py-1 text-xs font-black ${statusStyle[session.status]}`}>{session.status}</span></div>
-            <dl className="mt-4 grid grid-cols-3 gap-2 text-center text-sm"><div className="rounded-lg bg-slate-50 p-2"><dt className="text-xs text-slate-500">Elegíveis</dt><dd className="font-black">{session.eligibleCount}</dd></div><div className="rounded-lg bg-slate-50 p-2"><dt className="text-xs text-slate-500">Confirmados</dt><dd className="font-black">{session.confirmedCount}</dd></div><div className="rounded-lg bg-slate-50 p-2"><dt className="text-xs text-slate-500">Pendentes</dt><dd className="font-black">{session.pendingCount}</dd></div></dl>
-            <p className="mt-4 break-all rounded-lg bg-slate-50 p-2 text-xs text-slate-600">QR público simulado: {qrLink(session)}</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {session.status === 'AGENDADA' && <><button disabled={busy} onClick={() => void execute('PRESENCA_V2_OPEN_SESSION', { sessionId: session.id }, 'Sessão aberta.')} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white">Abrir sessão</button><button disabled={busy} onClick={() => void execute('PRESENCA_V2_CANCEL_SESSION', { sessionId: session.id }, 'Sessão cancelada no MOCK.')} className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700">Cancelar</button></>}
-              {session.status === 'ABERTA' && <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CLOSE_SESSION', { sessionId: session.id }, 'Sessão encerrada. Ela não pode ser reaberta.')} className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white">Encerrar sessão</button>}
-              <button type="button" onClick={() => navigator.clipboard?.writeText(qrLink(session)).then(() => setNotice('Link do QR público copiado.'))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">Copiar link</button>
+      <section className="mb-6">
+        <div className="mb-3">
+          <h2 className="text-lg font-black text-slate-900">Acompanhamento das sessões</h2>
+          <p className="text-sm text-slate-600">Pós-encontro em primeiro lugar; reuniões dos círculos agrupadas por casal de tios.</p>
+        </div>
+
+        <div className="rounded-2xl border border-sky-200 bg-sky-50/50">
+          <button type="button" onClick={() => toggleGroup('pos')} className="flex w-full items-center justify-between gap-3 p-4 text-left">
+            <div>
+              <p className="text-xs font-black uppercase tracking-wide text-sky-700">Pós-encontro</p>
+              <p className="font-bold text-slate-900">Sessões do Pós</p>
+              <p className="text-xs text-slate-500">{postSessions.length} sessão(ões) · {postSessions.filter((item) => item.status === 'ABERTA').length} aberta(s)</p>
             </div>
-          </article>
-        ))}
-      </div>
+            <span className="text-xl font-black text-slate-500">{expandedGroups.pos ? '−' : '+'}</span>
+          </button>
+          {expandedGroups.pos && <div className="grid gap-4 border-t border-sky-200 p-4 lg:grid-cols-2">
+            {postSessions.length ? postSessions.map(renderSessionCard) : <p className="text-sm text-slate-500">Nenhuma sessão de Pós registrada.</p>}
+          </div>}
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {circleGroups.map((group) => {
+            const isOpen = Boolean(expandedGroups[group.id]);
+            const openCount = group.sessions.filter((item: Session) => item.status === 'ABERTA').length;
+            return (
+              <div key={group.id} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <button type="button" onClick={() => toggleGroup(group.id)} className="flex w-full items-center justify-between gap-3 p-4 text-left">
+                  <div>
+                    <p className="font-bold text-slate-900">{group.label}</p>
+                    <p className="text-xs text-slate-500">{group.sessions.length} sessão(ões){group.doubleId ? ` · ${responsibleGroups.find((item) => item.id === group.id)?.doubleId || ''}` : ''} · {openCount} aberta(s)</p>
+                  </div>
+                  <span className="text-xl font-black text-slate-500">{isOpen ? '−' : '+'}</span>
+                </button>
+                {isOpen && <div className="grid gap-4 border-t border-slate-200 p-4 lg:grid-cols-2">
+                  {group.sessions.length ? group.sessions.map(renderSessionCard) : <p className="text-sm text-slate-500">Nenhuma sessão registrada para este casal.</p>}
+                </div>}
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="font-bold text-slate-900">Fila de conciliação do ADM</h2>
