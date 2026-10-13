@@ -11,6 +11,15 @@ export const mockEacScenario = Object.freeze({
     { id: 'dupla-b', circles: ['VERDE', 'VERMELHO'] },
     { id: 'dupla-c', circles: ['AMARELO', 'ROXO'] },
   ],
+  responsibleGroups: [
+    { id: 'tios-ana-bruno', label: 'Tios Ana e Bruno', doubleId: 'dupla-a', kind: 'TIOS' },
+    { id: 'tios-carla-diego', label: 'Tios Carla e Diego', doubleId: 'dupla-a', kind: 'TIOS' },
+    { id: 'tios-elisa-felipe', label: 'Tios Elisa e Felipe', doubleId: 'dupla-b', kind: 'TIOS' },
+    { id: 'tios-gisele-henrique', label: 'Tios Gisele e Henrique', doubleId: 'dupla-b', kind: 'TIOS' },
+    { id: 'tios-isabela-joao', label: 'Tios Isabela e João', doubleId: 'dupla-c', kind: 'TIOS' },
+    { id: 'tios-karina-lucas', label: 'Tios Karina e Lucas', doubleId: 'dupla-c', kind: 'TIOS' },
+    { id: 'pos-responsavel', label: 'Responsável Fictício do Pós', doubleId: null, kind: 'POS' },
+  ],
   people: [
     { id: 'mock-001', name: 'Pessoa Fictícia Um', roles: ['ENCONTRISTA'], circle: 'AZUL', phone: '21999990001' },
     { id: 'mock-002', name: 'Pessoa Fictícia Dois', roles: ['ENCONTREIRO'], circle: null, phone: '21999990002' },
@@ -21,9 +30,9 @@ export const mockEacScenario = Object.freeze({
     { id: 'mock-007', name: 'Pessoa Fictícia Sete', roles: ['ENCONTREIRO'], circle: null, phone: '21999990007' },
   ],
   sessions: [
-    { id: 'mock-session-1', type: 'REUNIAO_DUPLA_TIOS', doubleId: 'dupla-a', status: 'ABERTA', createdAt: '2026-10-13T18:00:00.000Z', openedAt: '2026-10-13T18:05:00.000Z' },
-    { id: 'mock-session-2', type: 'POS_ENCONTRO_GERAL', doubleId: null, status: 'ABERTA', createdAt: '2026-10-13T18:10:00.000Z', openedAt: '2026-10-13T18:15:00.000Z' },
-    { id: 'mock-session-3', type: 'REUNIAO_DUPLA_TIOS', doubleId: 'dupla-b', status: 'ENCERRADA', createdAt: '2026-10-06T18:00:00.000Z', openedAt: '2026-10-06T18:05:00.000Z', closedAt: '2026-10-06T20:00:00.000Z' },
+    { id: 'mock-session-1', type: 'REUNIAO_DUPLA_TIOS', doubleId: 'dupla-a', responsibleId: 'tios-ana-bruno', scheduledAt: '2026-10-13T19:00:00.000Z', status: 'ABERTA', createdAt: '2026-10-13T18:00:00.000Z', openedAt: '2026-10-13T18:05:00.000Z' },
+    { id: 'mock-session-2', type: 'POS_ENCONTRO_GERAL', doubleId: null, responsibleId: 'pos-responsavel', scheduledAt: '2026-10-13T19:30:00.000Z', status: 'ABERTA', createdAt: '2026-10-13T18:10:00.000Z', openedAt: '2026-10-13T18:15:00.000Z' },
+    { id: 'mock-session-3', type: 'REUNIAO_DUPLA_TIOS', doubleId: 'dupla-b', responsibleId: 'tios-elisa-felipe', scheduledAt: '2026-10-06T19:00:00.000Z', status: 'ENCERRADA', createdAt: '2026-10-06T18:00:00.000Z', openedAt: '2026-10-06T18:05:00.000Z', closedAt: '2026-10-06T20:00:00.000Z' },
   ],
 });
 export function validateMockEacScenario(fixture = mockEacScenario) {
@@ -39,8 +48,13 @@ export function validateMockEacScenario(fixture = mockEacScenario) {
   for (const pair of fixture.doubles) {
     if (pair.circles.length !== 2 || pair.circles.some(c => !circles.has(c))) failures.push('INVALID_PAIR_CIRCLES');
   }
+  const responsibleIds = new Set((fixture.responsibleGroups || []).map(r => r.id));
+  for (const responsible of fixture.responsibleGroups || []) {
+    if (responsible.kind === 'TIOS' && !fixture.doubles.some(pair => pair.id === responsible.doubleId)) failures.push('INVALID_RESPONSIBLE_DOUBLE');
+  }
   for (const session of fixture.sessions) {
     if (!['REUNIAO_DUPLA_TIOS','POS_ENCONTRO_GERAL'].includes(session.type)) failures.push('INVALID_SESSION_TYPE');
+    if (!responsibleIds.has(session.responsibleId)) failures.push('UNKNOWN_RESPONSIBLE');
     if (!['AGENDADA','ABERTA','ENCERRADA','CANCELADA'].includes(session.status)) failures.push('INVALID_SESSION_STATUS');
   }
   return { valid: failures.length === 0, failures };
