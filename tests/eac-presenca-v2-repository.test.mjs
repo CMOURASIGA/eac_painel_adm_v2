@@ -43,6 +43,8 @@ test('ambiguous identity becomes an idempotent pending request and only ADM reso
   state = closeSession(state, 'mock-session-2').state;
   const resolved = resolveRequest(state, state.requests[0].key, 'APPROVED');
   assert.equal(resolved.request.status, 'APPROVED');
+  assert.equal(resolved.state.records.length, 1);
+  assert.equal(resolved.state.records[0].origin, 'MOCK_ADMIN_RECONCILIATION');
 });
 
 test('unknown public name is retained as a pending request without automatic identity creation', () => {
