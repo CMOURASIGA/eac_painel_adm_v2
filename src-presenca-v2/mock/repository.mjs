@@ -25,11 +25,14 @@ export function listSessions(state) {
     const confirmed = state.records.filter((record) => record.sessionId === session.id).length;
     const pending = state.requests.filter((request) => request.sessionId === session.id && request.status === 'PENDING').length;
     const pair = state.scenario.doubles.find((item) => item.id === session.doubleId);
+    const responsible = (state.scenario.responsibleGroups || []).find((item) => item.id === session.responsibleId);
     return {
       ...session,
+      responsibleLabel: responsible?.label || '',
+      circlePairLabel: pair?.circles.join(' + ') || '',
       title: session.type === 'REUNIAO_DUPLA_TIOS'
-        ? `Reunião de tios · ${pair?.circles.join(' + ') || 'dupla'}`
-        : 'Pós-encontro geral · EAC 37',
+        ? `Reunião de tios · ${responsible?.label || 'responsáveis não definidos'}`
+        : `Pós-encontro geral · ${responsible?.label || 'responsável não definido'}`,
       eligibleCount: audience.length,
       confirmedCount: confirmed,
       pendingCount: pending,
@@ -48,12 +51,23 @@ function audit(state, type, actor, detail = {}) {
 export function createSession(state, input, actor = 'mock-admin') {
   const type = input?.type;
   if (!['REUNIAO_DUPLA_TIOS', 'POS_ENCONTRO_GERAL'].includes(type)) throw new Error('INVALID_SESSION_TYPE');
-  const doubleId = type === 'REUNIAO_DUPLA_TIOS' ? String(input?.doubleId || '') : null;
-  if (type === 'REUNIAO_DUPLA_TIOS' && !state.scenario.doubles.some((item) => item.id === doubleId)) throw new Error('UNKNOWN_DOUBLE');
+
+  const responsibleId = String(input?.responsibleId || '');
+  const responsible = (state.scenario.responsibleGroups || []).find((item) => item.id === responsibleId);
+  if (!responsible) throw new Error('UNKNOWN_RESPONSIBLE');
+
+  if (type === 'REUNIAO_DUPLA_TIOS' && responsible.kind !== 'TIOS') throw new Error('INVALID_RESPONSIBLE_FOR_SESSION');
+  if (type === 'POS_ENCONTRO_GERAL' && responsible.kind !== 'POS') throw new Error('INVALID_RESPONSIBLE_FOR_SESSION');
+
+  const doubleId = type === 'REUNIAO_DUPLA_TIOS' ? responsible.doubleId : null;
+  const scheduledAtRaw = String(input?.scheduledAt || '');
+  const scheduledAtMs = Date.parse(scheduledAtRaw);
+  if (!scheduledAtRaw || Number.isNaN(scheduledAtMs)) throw new Error('INVALID_SCHEDULED_AT');
+
   const id = `mock-session-${state.scenario.sessions.length + 1}`;
-  const session = { id, type, doubleId, status: 'AGENDADA', createdAt: now() };
+  const session = { id, type, doubleId, responsibleId, scheduledAt: new Date(scheduledAtMs).toISOString(), status: 'AGENDADA', createdAt: now() };
   const next = { ...state, scenario: { ...state.scenario, sessions: [...state.scenario.sessions, session] } };
-  return { state: audit(next, 'SESSION_CREATED', actor, { sessionId: id }), session };
+  return { state: audit(next, 'SESSION_CREATED', actor, { sessionId: id, responsibleId, scheduledAt: session.scheduledAt }), session };
 }
 
 export function openSession(state, sessionId, actor = 'mock-admin') {
@@ -146,15 +160,13 @@ export function publicSession(state, publicToken) {
 
 export function listResponsibleSessions(state, scope) {
   const normalizedScope = String(scope || '').trim().toLowerCase();
-  const validDouble = state.scenario.doubles.some((item) => item.id === normalizedScope);
-  const isPost = normalizedScope === 'pos';
-  if (!validDouble && !isPost) throw new Error('INVALID_RESPONSIBLE_SCOPE');
+  const responsible = (state.scenario.responsibleGroups || []).find((item) => item.id === normalizedScope);
+  if (!responsible) throw new Error('INVALID_RESPONSIBLE_SCOPE');
 
   return listSessions(state)
     .filter((session) => {
       if (!['ABERTA', 'ENCERRADA'].includes(session.status)) return false;
-      if (isPost) return session.type === 'POS_ENCONTRO_GERAL';
-      return session.type === 'REUNIAO_DUPLA_TIOS' && session.doubleId === normalizedScope;
+      return session.responsibleId === normalizedScope;
     })
     .sort((a, b) => {
       if (a.status !== b.status) return a.status === 'ABERTA' ? -1 : 1;
@@ -205,31 +217,20 @@ export function presenceAnalytics(state) {
     });
 
   const groups = [];
-  for (const pair of state.scenario.doubles) {
-    const groupSessions = closed.filter((session) => session.type === 'REUNIAO_DUPLA_TIOS' && session.doubleId === pair.id);
+  for (const responsible of state.scenario.responsibleGroups || []) {
+    const groupSessions = closed.filter((session) => session.responsibleId === responsible.id);
     const eligible = groupSessions.reduce((sum, session) => sum + session.eligibleCount, 0);
     const present = groupSessions.reduce((sum, session) => sum + eligibleKnownRecords.filter((record) => record.sessionId === session.id).length, 0);
     groups.push({
-      key: pair.id,
-      label: pair.circles.join(' + '),
+      key: responsible.id,
+      label: responsible.label,
+      kind: responsible.kind,
       sessions: groupSessions.length,
       eligible,
       present,
       rate: eligible > 0 ? Math.round((present / eligible) * 100) : 0,
     });
   }
-
-  const postSessions = closed.filter((session) => session.type === 'POS_ENCONTRO_GERAL');
-  const postEligible = postSessions.reduce((sum, session) => sum + session.eligibleCount, 0);
-  const postPresent = postSessions.reduce((sum, session) => sum + eligibleKnownRecords.filter((record) => record.sessionId === session.id).length, 0);
-  groups.push({
-    key: 'pos',
-    label: 'Pós-encontro geral',
-    sessions: postSessions.length,
-    eligible: postEligible,
-    present: postPresent,
-    rate: postEligible > 0 ? Math.round((postPresent / postEligible) * 100) : 0,
-  });
 
   const people = state.scenario.people.map((person) => {
     const eligibleSessions = closed.filter((session) => sessionAudience(state.scenario, session).some((candidate) => candidate.id === person.id));
@@ -271,4 +272,8 @@ export function presenceAnalytics(state) {
     people,
     sessionEvolution,
   };
+}
+
+export function listResponsibleGroups(state) {
+  return (state.scenario.responsibleGroups || []).map((item) => ({ ...item }));
 }
