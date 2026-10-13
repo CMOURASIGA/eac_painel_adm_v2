@@ -20,6 +20,21 @@ const statusStyle: Record<Session['status'], string> = {
   CANCELADA: 'bg-rose-100 text-rose-800',
 };
 
+const pendingReasonLabel: Record<string, string> = {
+  NO_ELIGIBLE_MATCH: 'Pessoa não localizada para esta sessão',
+  PHONE_MISMATCH: 'Telefone informado não confere',
+  MISSING_PHONE: 'Telefone não informado',
+  PHONE_SHARED: 'Telefone utilizado por mais de uma pessoa',
+};
+
+const formatPhone = (value: unknown) => {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  if (!digits) return 'Não informado';
+  if (digits.length === 11) return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return digits;
+};
+
 const call = async (action: string, data: any = {}) => {
   const result = await postComunicadosAction<any>(action, data);
   if (!result.success) throw new Error(result.error || 'Falha no ambiente MOCK.');
@@ -110,7 +125,26 @@ const MockPresenceAdminPage: React.FC = () => {
         {unresolved.length === 0 ? <p className="mt-4 text-sm text-slate-500">Não há pendências abertas.</p> : <div className="mt-4 space-y-3">{unresolved.map((request) => {
           const session = sessions.find((item) => item.id === request.sessionId);
           const canResolve = session?.status === 'ENCERRADA';
-          return <div key={request.key} className="flex flex-col gap-3 rounded-xl border border-slate-200 p-3 md:flex-row md:items-center md:justify-between"><div><p className="font-semibold text-slate-800">{request.reason}</p><p className="text-xs text-slate-500">Sessão: {request.sessionId} · chave idempotente: {request.key}</p></div><div className="flex gap-2"><button disabled={!canResolve || busy} onClick={() => void execute('PRESENCA_V2_RESOLVE_PENDING', { key: request.key, decision: 'APPROVED' }, 'Pendência aprovada pelo ADM no MOCK.')} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-40">Aprovar</button><button disabled={!canResolve || busy} onClick={() => void execute('PRESENCA_V2_RESOLVE_PENDING', { key: request.key, decision: 'REJECTED' }, 'Pendência rejeitada pelo ADM no MOCK.')} className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700 disabled:opacity-40">Rejeitar</button></div></div>;
+          const reasonLabel = pendingReasonLabel[request.reason] || 'Solicitação precisa de análise';
+          return (
+            <div key={request.key} className="rounded-xl border border-slate-200 p-4">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-slate-900">{reasonLabel}</p>
+                  <dl className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                    <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nome informado</dt><dd className="mt-0.5 font-semibold">{request.reportedName || 'Não informado'}</dd></div>
+                    <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Telefone informado</dt><dd className="mt-0.5 font-semibold">{formatPhone(request.reportedPhone)}</dd></div>
+                    <div className="sm:col-span-2"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sessão</dt><dd className="mt-0.5 font-semibold">{session?.title || 'Sessão não localizada'}</dd></div>
+                  </dl>
+                  {!canResolve && <p className="mt-3 text-xs font-semibold text-amber-700">A decisão ficará disponível após o encerramento da sessão.</p>}
+                </div>
+                <div className="flex shrink-0 flex-col gap-2 sm:flex-row md:flex-col lg:flex-row">
+                  <button disabled={!canResolve || busy} onClick={() => void execute('PRESENCA_V2_RESOLVE_PENDING', { key: request.key, decision: 'APPROVED' }, 'Presença confirmada pelo ADM no ambiente MOCK.')} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-40">Confirmar presença</button>
+                  <button disabled={!canResolve || busy} onClick={() => void execute('PRESENCA_V2_RESOLVE_PENDING', { key: request.key, decision: 'REJECTED' }, 'Solicitação descartada pelo ADM no ambiente MOCK.')} className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700 disabled:opacity-40">Descartar solicitação</button>
+                </div>
+              </div>
+            </div>
+          );
         })}</div>}
       </section>
     </section>
