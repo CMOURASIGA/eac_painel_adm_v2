@@ -76,15 +76,21 @@ const MockPresenceAdminPage: React.FC = () => {
   };
 
   const qrLink = (session: Session) => `${window.location.origin}/presenca/form?session=${encodeURIComponent(session.publicToken)}`;
+  const responsibleLink = (scope: string) => `${window.location.origin}/presenca/responsavel?scope=${encodeURIComponent(scope)}`;
   const unresolved = useMemo(() => pending.filter((item) => item.status === 'PENDING'), [pending]);
   const resolved = useMemo(() => pending.filter((item) => item.status === 'APPROVED' || item.status === 'REJECTED').slice().reverse(), [pending]);
 
   return (
     <section className="mx-auto max-w-6xl p-5 md:p-8">
       <div className="mb-6 rounded-2xl border border-sky-200 bg-sky-50 p-5">
-        <p className="text-xs font-black tracking-wider text-sky-800">PRESENÇA V2 · HOMOLOGAÇÃO</p>
-        <h1 className="mt-1 text-2xl font-black text-slate-900">Sessões, QR e conciliação</h1>
-        <p className="mt-2 max-w-3xl text-sm text-slate-700">Dados inteiramente fictícios. Uma dupla de tios abrange dois círculos; o QR pertence à sessão, nunca ao círculo isolado. O acesso passwordless dos tios será integrado somente após decisão e autorização próprias.</p>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-xs font-black tracking-wider text-sky-800">PRESENÇA V2 · HOMOLOGAÇÃO</p>
+            <h1 className="mt-1 text-2xl font-black text-slate-900">Gestão de sessões, QR e conciliação</h1>
+            <p className="mt-2 max-w-3xl text-sm text-slate-700">Esta é a tela administrativa. O QR operacional é exibido pelos tios de círculo ou pelo responsável do Pós em um acesso próprio. Aqui o ADM agenda, abre, encerra, cancela e concilia.</p>
+          </div>
+          <button type="button" onClick={() => { window.location.href = '/cadastro/presenca'; }} className="shrink-0 rounded-xl border border-sky-300 bg-white px-4 py-3 text-sm font-black text-sky-800">Ver indicadores</button>
+        </div>
       </div>
 
       {notice && <div className="mb-4 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">{notice}</div>}
@@ -106,6 +112,30 @@ const MockPresenceAdminPage: React.FC = () => {
           <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CREATE_SESSION', { type, doubleId }, 'Sessão agendada no MOCK.')} className="rounded-lg bg-[#044372] px-4 py-2 font-bold text-white disabled:opacity-50">Agendar sessão</button>
         </div>
       </div>
+
+      <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 className="font-bold text-slate-900">Acessos operacionais de homologação</h2>
+        <p className="mt-1 text-sm text-slate-600">Estes links simulam o acesso dos tios e do responsável do Pós. No fluxo real, o acesso será autenticado e vinculado ao escopo do responsável.</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ['dupla-a', 'AZUL + LARANJA'],
+            ['dupla-b', 'VERDE + VERMELHO'],
+            ['dupla-c', 'AMARELO + ROXO'],
+            ['pos', 'PÓS-ENCONTRO'],
+          ].map(([scope, label]) => (
+            <div key={scope} className="rounded-xl border border-slate-200 p-3">
+              <p className="text-sm font-bold text-slate-900">{label}</p>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard?.writeText(responsibleLink(scope)).then(() => setNotice(`Acesso ${label} copiado.`))}
+                className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700"
+              >
+                Copiar acesso
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
         {sessions.map((session) => (
