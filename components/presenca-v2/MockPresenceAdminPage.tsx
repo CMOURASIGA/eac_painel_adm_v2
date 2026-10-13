@@ -113,6 +113,7 @@ const MockPresenceAdminPage: React.FC = () => {
           return Date.parse(b.scheduledAt || b.openedAt || b.closedAt || b.createdAt || '1970-01-01') - Date.parse(a.scheduledAt || a.openedAt || a.closedAt || a.createdAt || '1970-01-01');
         }),
     }))
+    .filter((group) => sessionStatusFilter === 'TODOS' || group.sessions.length > 0)
     .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')), [responsibleGroups, sessions, sessionResponsibleFilter, sessionStatusFilter]);
 
   const toggleGroup = (key: string) => setExpandedGroups((current) => ({ ...current, [key]: !current[key] }));
