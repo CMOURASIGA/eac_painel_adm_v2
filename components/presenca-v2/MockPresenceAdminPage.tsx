@@ -44,6 +44,7 @@ const call = async (action: string, data: any = {}) => {
 const MockPresenceAdminPage: React.FC = () => {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [pending, setPending] = useState<any[]>([]);
+  const [records, setRecords] = useState<any[]>([]);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [type, setType] = useState<Session['type']>('REUNIAO_DUPLA_TIOS');
@@ -56,6 +57,7 @@ const MockPresenceAdminPage: React.FC = () => {
     ]);
     setSessions(Array.isArray(sessionsResult.sessions) ? sessionsResult.sessions : []);
     setPending(Array.isArray(pendingResult.requests) ? pendingResult.requests : []);
+    setRecords(Array.isArray(pendingResult.records) ? pendingResult.records : []);
   }, []);
 
   useEffect(() => { void refresh().catch((error) => setNotice(error.message)); }, [refresh]);
@@ -75,6 +77,7 @@ const MockPresenceAdminPage: React.FC = () => {
 
   const qrLink = (session: Session) => `${window.location.origin}/presenca/form?session=${encodeURIComponent(session.publicToken)}`;
   const unresolved = useMemo(() => pending.filter((item) => item.status === 'PENDING'), [pending]);
+  const resolved = useMemo(() => pending.filter((item) => item.status === 'APPROVED' || item.status === 'REJECTED').slice().reverse(), [pending]);
 
   return (
     <section className="mx-auto max-w-6xl p-5 md:p-8">
@@ -146,6 +149,50 @@ const MockPresenceAdminPage: React.FC = () => {
             </div>
           );
         })}</div>}
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="font-bold text-slate-900">Conciliações concluídas</h2>
+            <p className="mt-1 text-sm text-slate-600">Aqui ficam as decisões administrativas tomadas após o encerramento das sessões.</p>
+          </div>
+          <p className="text-xs font-semibold text-slate-500">{resolved.length} decisão(ões) registrada(s)</p>
+        </div>
+
+        {resolved.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-500">Nenhuma conciliação concluída ainda.</p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {resolved.map((request) => {
+              const session = sessions.find((item) => item.id === request.sessionId);
+              const isApproved = request.status === 'APPROVED';
+              const recorded = isApproved && records.some((record) =>
+                record.sessionId === request.sessionId &&
+                (request.personId ? record.personId === request.personId : record.requestKey === request.key)
+              );
+              return (
+                <div key={request.key} className="rounded-xl border border-slate-200 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="font-bold text-slate-900">{request.reportedName || 'Nome não informado'}</p>
+                      <p className="mt-1 text-sm text-slate-600">{session?.title || 'Sessão não localizada'}</p>
+                      <p className="mt-1 text-sm text-slate-600">Telefone informado: <strong>{formatPhone(request.reportedPhone)}</strong></p>
+                      <p className="mt-1 text-xs text-slate-500">Motivo original: {pendingReasonLabel[request.reason] || 'Solicitação para análise'}</p>
+                    </div>
+                    <div className="sm:text-right">
+                      <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${isApproved ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                        {isApproved ? 'PRESENÇA CONFIRMADA' : 'SOLICITAÇÃO DESCARTADA'}
+                      </span>
+                      {isApproved && <p className="mt-2 text-xs font-semibold text-emerald-700">{recorded ? 'Contabilizada nos confirmados da sessão.' : 'Aguardando contabilização.'}</p>}
+                      {!request.personId && isApproved && <p className="mt-1 text-xs text-slate-500">Sem criação automática de cadastro.</p>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
     </section>
   );
