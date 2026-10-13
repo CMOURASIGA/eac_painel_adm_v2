@@ -15,12 +15,12 @@ import {
 
 test('session state machine prevents reopening and permits a new session', () => {
   let state = createMockPresenceState();
-  const created = createSession(state, { type: 'REUNIAO_DUPLA_TIOS', doubleId: 'dupla-c' });
+  const created = createSession(state, { type: 'REUNIAO_DUPLA_TIOS', responsibleId: 'tios-isabela-joao', scheduledAt: '2026-10-20T19:00:00-03:00' });
   state = created.state;
   state = openSession(state, created.session.id).state;
   state = closeSession(state, created.session.id).state;
   assert.throws(() => openSession(state, created.session.id), /SESSION_NOT_SCHEDULED/);
-  const replacement = createSession(state, { type: 'REUNIAO_DUPLA_TIOS', doubleId: 'dupla-c' });
+  const replacement = createSession(state, { type: 'REUNIAO_DUPLA_TIOS', responsibleId: 'tios-isabela-joao', scheduledAt: '2026-10-20T19:00:00-03:00' });
   assert.equal(replacement.session.status, 'AGENDADA');
 });
 
@@ -69,12 +69,12 @@ test('only scheduled sessions can be cancelled and summaries preserve audience b
 
 test('responsible access shows only open and closed sessions within scope', () => {
   const state = createMockPresenceState();
-  const pair = listResponsibleSessions(state, 'dupla-a');
-  assert.ok(pair.every((session) => session.doubleId === 'dupla-a'));
+  const pair = listResponsibleSessions(state, 'tios-ana-bruno');
+  assert.ok(pair.every((session) => session.responsibleId === 'tios-ana-bruno'));
   assert.ok(pair.every((session) => ['ABERTA', 'ENCERRADA'].includes(session.status)));
   assert.equal(pair[0].status, 'ABERTA');
 
-  const post = listResponsibleSessions(state, 'pos');
+  const post = listResponsibleSessions(state, 'pos-responsavel');
   assert.ok(post.every((session) => session.type === 'POS_ENCONTRO_GERAL'));
   assert.ok(post.every((session) => ['ABERTA', 'ENCERRADA'].includes(session.status)));
 });
@@ -91,4 +91,14 @@ test('analytics separates operational confirmations from individual frequency', 
   assert.ok(analytics.summary.closedSessions >= 2);
   assert.ok(Array.isArray(analytics.groups));
   assert.ok(Array.isArray(analytics.people));
+});
+
+
+test('analytics groups closed sessions by responsible couple instead of color pair', () => {
+  const state = createMockPresenceState();
+  const analytics = presenceAnalytics(state);
+  const group = analytics.groups.find((item) => item.key === 'tios-elisa-felipe');
+  assert.equal(group.label, 'Tios Elisa e Felipe');
+  assert.equal(group.sessions, 1);
+  assert.equal(analytics.groups.some((item) => item.label === 'VERDE + VERMELHO'), false);
 });
