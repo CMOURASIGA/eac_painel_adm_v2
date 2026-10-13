@@ -231,25 +231,40 @@ const MockPresenceAdminPage: React.FC = () => {
           </div>}
         </div>
 
-        <div className="mt-4 space-y-3">
-          {circleGroups.map((group) => {
-            const isOpen = Boolean(expandedGroups[group.id]);
-            const openCount = group.sessions.filter((item: Session) => item.status === 'ABERTA').length;
-            return (
-              <div key={group.id} className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <button type="button" onClick={() => toggleGroup(group.id)} className="flex w-full items-center justify-between gap-3 p-4 text-left">
-                  <div>
-                    <p className="font-bold text-slate-900">{group.label}</p>
-                    <p className="text-xs text-slate-500">{group.sessions.length} sessão(ões){group.doubleId ? ` · ${responsibleGroups.find((item) => item.id === group.id)?.doubleId || ''}` : ''} · {openCount} aberta(s)</p>
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <button type="button" onClick={() => toggleGroup('circle-sessions')} className="flex w-full items-center justify-between gap-3 p-4 text-left">
+            <div>
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500">Círculos</p>
+              <p className="font-bold text-slate-900">Sessões dos tios de círculo</p>
+              <p className="text-xs text-slate-500">
+                {circleGroups.length} casal(is) · {circleGroups.reduce((sum, group) => sum + group.sessions.length, 0)} sessão(ões) · {circleGroups.reduce((sum, group) => sum + group.sessions.filter((item: Session) => item.status === 'ABERTA').length, 0)} aberta(s)
+              </p>
+            </div>
+            <span className="text-xl font-black text-slate-500">{expandedGroups['circle-sessions'] ? '−' : '+'}</span>
+          </button>
+
+          {expandedGroups['circle-sessions'] && (
+            <div className="space-y-3 border-t border-slate-200 p-4">
+              {circleGroups.map((group) => {
+                const isOpen = Boolean(expandedGroups[group.id]);
+                const openCount = group.sessions.filter((item: Session) => item.status === 'ABERTA').length;
+                return (
+                  <div key={group.id} className="rounded-2xl border border-slate-200 bg-white">
+                    <button type="button" onClick={() => toggleGroup(group.id)} className="flex w-full items-center justify-between gap-3 p-4 text-left">
+                      <div>
+                        <p className="font-bold text-slate-900">{group.label}</p>
+                        <p className="text-xs text-slate-500">{group.sessions.length} sessão(ões) · {openCount} aberta(s)</p>
+                      </div>
+                      <span className="text-xl font-black text-slate-500">{isOpen ? '−' : '+'}</span>
+                    </button>
+                    {isOpen && <div className="grid gap-4 border-t border-slate-200 p-4 lg:grid-cols-2">
+                      {group.sessions.length ? group.sessions.map(renderSessionCard) : <p className="text-sm text-slate-500">Nenhuma sessão registrada para este casal.</p>}
+                    </div>}
                   </div>
-                  <span className="text-xl font-black text-slate-500">{isOpen ? '−' : '+'}</span>
-                </button>
-                {isOpen && <div className="grid gap-4 border-t border-slate-200 p-4 lg:grid-cols-2">
-                  {group.sessions.length ? group.sessions.map(renderSessionCard) : <p className="text-sm text-slate-500">Nenhuma sessão registrada para este casal.</p>}
-                </div>}
-              </div>
-            );
-          })}
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
