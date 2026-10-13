@@ -142,3 +142,133 @@ export function publicSession(state, publicToken) {
     people: sessionAudience(state.scenario, session).map((person) => ({ id: person.id, name: person.name, circle: person.circle, roles: person.roles })),
   };
 }
+
+
+export function listResponsibleSessions(state, scope) {
+  const normalizedScope = String(scope || '').trim().toLowerCase();
+  const validDouble = state.scenario.doubles.some((item) => item.id === normalizedScope);
+  const isPost = normalizedScope === 'pos';
+  if (!validDouble && !isPost) throw new Error('INVALID_RESPONSIBLE_SCOPE');
+
+  return listSessions(state)
+    .filter((session) => {
+      if (!['ABERTA', 'ENCERRADA'].includes(session.status)) return false;
+      if (isPost) return session.type === 'POS_ENCONTRO_GERAL';
+      return session.type === 'REUNIAO_DUPLA_TIOS' && session.doubleId === normalizedScope;
+    })
+    .sort((a, b) => {
+      if (a.status !== b.status) return a.status === 'ABERTA' ? -1 : 1;
+      if (a.status === 'ABERTA') {
+        const aTime = Date.parse(a.openedAt || a.createdAt || '1970-01-01T00:00:00.000Z');
+        const bTime = Date.parse(b.openedAt || b.createdAt || '1970-01-01T00:00:00.000Z');
+        return aTime - bTime;
+      }
+      const aTime = Date.parse(a.closedAt || '1970-01-01T00:00:00.000Z');
+      const bTime = Date.parse(b.closedAt || '1970-01-01T00:00:00.000Z');
+      return bTime - aTime;
+    });
+}
+
+export function presenceAnalytics(state) {
+  const sessions = listSessions(state);
+  const closed = sessions.filter((session) => session.status === 'ENCERRADA');
+  const records = state.records ?? [];
+
+  const personKey = (record) => record.personId || `external:${record.requestKey || record.reportedName || 'unknown'}`;
+  const uniqueParticipants = new Set(records.map(personKey)).size;
+  const unlinkedConfirmedCount = records.filter((record) => !record.personId).length;
+
+  const eligibleKnownRecords = records.filter((record) => record.personId);
+  const totalClosedEligible = closed.reduce((sum, session) => sum + session.eligibleCount, 0);
+  const totalClosedKnownPresent = closed.reduce((sum, session) => (
+    sum + eligibleKnownRecords.filter((record) => record.sessionId === session.id).length
+  ), 0);
+  const averageAttendance = totalClosedEligible > 0
+    ? Math.round((totalClosedKnownPresent / totalClosedEligible) * 100)
+    : 0;
+
+  const sessionEvolution = closed
+    .slice()
+    .sort((a, b) => Date.parse(a.closedAt || '1970-01-01') - Date.parse(b.closedAt || '1970-01-01'))
+    .map((session) => {
+      const knownPresent = eligibleKnownRecords.filter((record) => record.sessionId === session.id).length;
+      return {
+        id: session.id,
+        title: session.title,
+        eligible: session.eligibleCount,
+        present: session.confirmedCount,
+        knownPresent,
+        unlinkedPresent: records.filter((record) => record.sessionId === session.id && !record.personId).length,
+        rate: session.eligibleCount > 0 ? Math.round((knownPresent / session.eligibleCount) * 100) : 0,
+        closedAt: session.closedAt || null,
+      };
+    });
+
+  const groups = [];
+  for (const pair of state.scenario.doubles) {
+    const groupSessions = closed.filter((session) => session.type === 'REUNIAO_DUPLA_TIOS' && session.doubleId === pair.id);
+    const eligible = groupSessions.reduce((sum, session) => sum + session.eligibleCount, 0);
+    const present = groupSessions.reduce((sum, session) => sum + eligibleKnownRecords.filter((record) => record.sessionId === session.id).length, 0);
+    groups.push({
+      key: pair.id,
+      label: pair.circles.join(' + '),
+      sessions: groupSessions.length,
+      eligible,
+      present,
+      rate: eligible > 0 ? Math.round((present / eligible) * 100) : 0,
+    });
+  }
+
+  const postSessions = closed.filter((session) => session.type === 'POS_ENCONTRO_GERAL');
+  const postEligible = postSessions.reduce((sum, session) => sum + session.eligibleCount, 0);
+  const postPresent = postSessions.reduce((sum, session) => sum + eligibleKnownRecords.filter((record) => record.sessionId === session.id).length, 0);
+  groups.push({
+    key: 'pos',
+    label: 'Pós-encontro geral',
+    sessions: postSessions.length,
+    eligible: postEligible,
+    present: postPresent,
+    rate: postEligible > 0 ? Math.round((postPresent / postEligible) * 100) : 0,
+  });
+
+  const people = state.scenario.people.map((person) => {
+    const eligibleSessions = closed.filter((session) => sessionAudience(state.scenario, session).some((candidate) => candidate.id === person.id));
+    const attendedIds = new Set(records.filter((record) => record.personId === person.id).map((record) => record.sessionId));
+    const present = eligibleSessions.filter((session) => attendedIds.has(session.id)).length;
+    const absences = eligibleSessions.length - present;
+
+    let consecutiveAbsences = 0;
+    for (const session of eligibleSessions.slice().sort((a, b) => Date.parse(b.closedAt || '1970-01-01') - Date.parse(a.closedAt || '1970-01-01'))) {
+      if (attendedIds.has(session.id)) break;
+      consecutiveAbsences += 1;
+    }
+
+    return {
+      id: person.id,
+      name: person.name,
+      circle: person.circle,
+      roles: person.roles,
+      eligibleSessions: eligibleSessions.length,
+      present,
+      absences,
+      consecutiveAbsences,
+      rate: eligibleSessions.length > 0 ? Math.round((present / eligibleSessions.length) * 100) : 0,
+      neverParticipated: eligibleSessions.length > 0 && present === 0,
+    };
+  }).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+
+  return {
+    summary: {
+      closedSessions: closed.length,
+      openSessions: sessions.filter((session) => session.status === 'ABERTA').length,
+      totalConfirmations: records.length,
+      uniqueParticipants,
+      averageAttendance,
+      unlinkedConfirmedCount,
+      neverParticipated: people.filter((person) => person.neverParticipated).length,
+    },
+    groups,
+    people,
+    sessionEvolution,
+  };
+}
