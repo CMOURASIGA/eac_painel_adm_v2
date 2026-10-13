@@ -21,9 +21,9 @@ export const mockEacScenario = Object.freeze({
     { id: 'mock-007', name: 'Pessoa Fictícia Sete', roles: ['ENCONTREIRO'], circle: null, phone: '21999990007' },
   ],
   sessions: [
-    { id: 'mock-session-1', type: 'REUNIAO_DUPLA_TIOS', doubleId: 'dupla-a', status: 'ABERTA' },
-    { id: 'mock-session-2', type: 'POS_ENCONTRO_GERAL', doubleId: null, status: 'ABERTA' },
-    { id: 'mock-session-3', type: 'REUNIAO_DUPLA_TIOS', doubleId: 'dupla-b', status: 'ENCERRADA' },
+    { id: 'mock-session-1', type: 'REUNIAO_DUPLA_TIOS', doubleId: 'dupla-a', status: 'ABERTA', createdAt: '2026-10-13T18:00:00.000Z', openedAt: '2026-10-13T18:05:00.000Z' },
+    { id: 'mock-session-2', type: 'POS_ENCONTRO_GERAL', doubleId: null, status: 'ABERTA', createdAt: '2026-10-13T18:10:00.000Z', openedAt: '2026-10-13T18:15:00.000Z' },
+    { id: 'mock-session-3', type: 'REUNIAO_DUPLA_TIOS', doubleId: 'dupla-b', status: 'ENCERRADA', createdAt: '2026-10-06T18:00:00.000Z', openedAt: '2026-10-06T18:05:00.000Z', closedAt: '2026-10-06T20:00:00.000Z' },
   ],
 });
 export function validateMockEacScenario(fixture = mockEacScenario) {
