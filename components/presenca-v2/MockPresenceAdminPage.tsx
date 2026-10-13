@@ -51,7 +51,9 @@ const MockPresenceAdminPage: React.FC = () => {
   const [responsibleGroups, setResponsibleGroups] = useState<any[]>([]);
   const [responsibleId, setResponsibleId] = useState('tios-ana-bruno');
   const [scheduledAt, setScheduledAt] = useState('2026-10-13T19:00');
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ pos: true });
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [sessionResponsibleFilter, setSessionResponsibleFilter] = useState('');
+  const [sessionStatusFilter, setSessionStatusFilter] = useState<'TODOS' | Session['status']>('TODOS');
 
   const refresh = useCallback(async () => {
     const [sessionsResult, pendingResult, responsibleResult] = await Promise.all([
@@ -97,10 +99,12 @@ const MockPresenceAdminPage: React.FC = () => {
 
   const circleGroups = useMemo(() => responsibleGroups
     .filter((item) => item.kind === 'TIOS')
+    .filter((item) => String(item.label || '').toLocaleLowerCase('pt-BR').includes(sessionResponsibleFilter.trim().toLocaleLowerCase('pt-BR')))
     .map((item) => ({
       ...item,
       sessions: sessions
         .filter((session: any) => session.type === 'REUNIAO_DUPLA_TIOS' && session.responsibleId === item.id)
+        .filter((session: any) => sessionStatusFilter === 'TODOS' || session.status === sessionStatusFilter)
         .slice()
         .sort((a: any, b: any) => {
           const rank: Record<string, number> = { ABERTA: 0, AGENDADA: 1, ENCERRADA: 2, CANCELADA: 3 };
@@ -109,7 +113,7 @@ const MockPresenceAdminPage: React.FC = () => {
           return Date.parse(b.scheduledAt || b.openedAt || b.closedAt || b.createdAt || '1970-01-01') - Date.parse(a.scheduledAt || a.openedAt || a.closedAt || a.createdAt || '1970-01-01');
         }),
     }))
-    .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')), [responsibleGroups, sessions]);
+    .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')), [responsibleGroups, sessions, sessionResponsibleFilter, sessionStatusFilter]);
 
   const toggleGroup = (key: string) => setExpandedGroups((current) => ({ ...current, [key]: !current[key] }));
 
@@ -245,6 +249,20 @@ const MockPresenceAdminPage: React.FC = () => {
 
           {expandedGroups['circle-sessions'] && (
             <div className="space-y-3 border-t border-slate-200 p-4">
+              <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+                <label className="grid gap-1 text-sm font-semibold text-slate-700">Localizar casal de tios
+                  <input value={sessionResponsibleFilter} onChange={(event) => setSessionResponsibleFilter(event.target.value)} placeholder="Digite parte do nome" className="rounded-xl border border-slate-300 px-3 py-3 text-base font-normal" />
+                </label>
+                <label className="grid gap-1 text-sm font-semibold text-slate-700">Status da sessão
+                  <select value={sessionStatusFilter} onChange={(event) => setSessionStatusFilter(event.target.value as any)} className="rounded-xl border border-slate-300 bg-white px-3 py-3">
+                    <option value="TODOS">Todos</option>
+                    <option value="ABERTA">Aberta</option>
+                    <option value="AGENDADA">Agendada</option>
+                    <option value="ENCERRADA">Encerrada</option>
+                    <option value="CANCELADA">Cancelada</option>
+                  </select>
+                </label>
+              </div>
               {circleGroups.map((group) => {
                 const isOpen = Boolean(expandedGroups[group.id]);
                 const openCount = group.sessions.filter((item: Session) => item.status === 'ABERTA').length;
