@@ -48,16 +48,20 @@ const MockPresenceAdminPage: React.FC = () => {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [type, setType] = useState<Session['type']>('REUNIAO_DUPLA_TIOS');
-  const [doubleId, setDoubleId] = useState('dupla-a');
+  const [responsibleGroups, setResponsibleGroups] = useState<any[]>([]);
+  const [responsibleId, setResponsibleId] = useState('tios-ana-bruno');
+  const [scheduledAt, setScheduledAt] = useState('2026-10-13T19:00');
 
   const refresh = useCallback(async () => {
-    const [sessionsResult, pendingResult] = await Promise.all([
+    const [sessionsResult, pendingResult, responsibleResult] = await Promise.all([
       call('PRESENCA_V2_LIST_SESSIONS'),
       call('PRESENCA_V2_LIST_PENDING'),
+      call('PRESENCA_V2_LIST_RESPONSIBLE_GROUPS'),
     ]);
     setSessions(Array.isArray(sessionsResult.sessions) ? sessionsResult.sessions : []);
     setPending(Array.isArray(pendingResult.requests) ? pendingResult.requests : []);
     setRecords(Array.isArray(pendingResult.records) ? pendingResult.records : []);
+    setResponsibleGroups(Array.isArray(responsibleResult.responsibleGroups) ? responsibleResult.responsibleGroups : []);
   }, []);
 
   useEffect(() => { void refresh().catch((error) => setNotice(error.message)); }, [refresh]);
@@ -104,12 +108,17 @@ const MockPresenceAdminPage: React.FC = () => {
               <option value="POS_ENCONTRO_GERAL">Pós-encontro geral</option>
             </select>
           </label>
-          {type === 'REUNIAO_DUPLA_TIOS' && <label className="grid flex-1 gap-1 text-sm font-semibold text-slate-700">Dupla
-            <select value={doubleId} onChange={(event) => setDoubleId(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2">
-              <option value="dupla-a">AZUL + LARANJA</option><option value="dupla-b">VERDE + VERMELHO</option><option value="dupla-c">AMARELO + ROXO</option>
+          <label className="grid flex-1 gap-1 text-sm font-semibold text-slate-700">Responsável
+            <select value={responsibleId} onChange={(event) => setResponsibleId(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2">
+              {responsibleGroups.filter((item) => type === 'REUNIAO_DUPLA_TIOS' ? item.kind === 'TIOS' : item.kind === 'POS').map((item) => (
+                <option key={item.id} value={item.id}>{item.label}</option>
+              ))}
             </select>
-          </label>}
-          <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CREATE_SESSION', { type, doubleId }, 'Sessão agendada no MOCK.')} className="rounded-lg bg-[#044372] px-4 py-2 font-bold text-white disabled:opacity-50">Agendar sessão</button>
+          </label>
+          <label className="grid flex-1 gap-1 text-sm font-semibold text-slate-700">Data e hora da reunião
+            <input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
+          </label>
+          <button disabled={busy || !responsibleId || !scheduledAt} onClick={() => void execute('PRESENCA_V2_CREATE_SESSION', { type, responsibleId, scheduledAt }, 'Sessão agendada no MOCK.')} className="rounded-lg bg-[#044372] px-4 py-2 font-bold text-white disabled:opacity-50">Agendar sessão</button>
         </div>
       </div>
 
@@ -117,12 +126,11 @@ const MockPresenceAdminPage: React.FC = () => {
         <h2 className="font-bold text-slate-900">Acessos operacionais de homologação</h2>
         <p className="mt-1 text-sm text-slate-600">Estes links simulam o acesso dos tios e do responsável do Pós. No fluxo real, o acesso será autenticado e vinculado ao escopo do responsável.</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            ['dupla-a', 'AZUL + LARANJA'],
-            ['dupla-b', 'VERDE + VERMELHO'],
-            ['dupla-c', 'AMARELO + ROXO'],
-            ['pos', 'PÓS-ENCONTRO'],
-          ].map(([scope, label]) => (
+          {responsibleGroups.map((item) => (
+            (() => {
+              const scope = item.id;
+              const label = item.label;
+              return (
             <div key={scope} className="rounded-xl border border-slate-200 p-3">
               <p className="text-sm font-bold text-slate-900">{label}</p>
               <button
@@ -133,6 +141,8 @@ const MockPresenceAdminPage: React.FC = () => {
                 Copiar acesso
               </button>
             </div>
+              );
+            })()
           ))}
         </div>
       </section>
