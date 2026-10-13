@@ -35,6 +35,8 @@ import GroupHubPage from './components/GroupHubPage.tsx';
 import { NAVIGATION_ROADMAP, NAVIGATION_GROUPS, isViewEnabledInRoadmap, groupHasAccess, visibleGroupItems } from './utils/navigationRoadmap.ts';
 import MockEnvironmentBanner from './components/MockEnvironmentBanner.tsx';
 import MockPresenceAdminPage from './components/presenca-v2/MockPresenceAdminPage.tsx';
+import MockPresenceAnalyticsPage from './components/presenca-v2/MockPresenceAnalyticsPage.tsx';
+import MockPresenceResponsiblePage from './components/presenca-v2/MockPresenceResponsiblePage.tsx';
 import MockPublicCheckinPage from './components/presenca-v2/MockPublicCheckinPage.tsx';
 import { isMockRuntime } from './services/mock/mockRuntime.ts';
 
@@ -57,6 +59,7 @@ const viewPathMap: Partial<Record<View, string>> = {
 const pathViewMap: Record<string, View> = {
   '/cadastro': 'members',
   '/cadastro/presenca': 'presence',
+  '/cadastro/presenca/sessoes': 'presence',
   '/prioritarios': 'inscricoes_prioritarias',
   '/visitacao': 'visitacao',
   '/inscricoes/revisao': 'inscricoes_review',
@@ -75,6 +78,7 @@ const publicFormPathMap = {
   inscricaoConfirmar: '/inscricao/confirmar',
   encontreiro: '/encontreiro/form',
   presenca: '/presenca/form',
+  presencaResponsavel: '/presenca/responsavel',
   visitacao: '/visitacao/form',
   banda: '/banda/form',
   bandaAcompanhamento: '/banda/acompanhamento',
@@ -123,6 +127,7 @@ const App: React.FC = () => {
       : pathname === publicFormPathMap.inscricaoConfirmar ? 'inscricao_confirmar'
       : pathname === publicFormPathMap.encontreiro ? 'encontreiro_form'
       : pathname === publicFormPathMap.presenca ? 'presenca_form'
+      : pathname === publicFormPathMap.presencaResponsavel ? 'presenca_responsavel'
       : pathname === publicFormPathMap.visitacao ? 'visitacao_form'
       : pathname === publicFormPathMap.banda ? 'banda_form'
       : pathname === publicFormPathMap.bandaAcompanhamento ? 'banda_acompanhamento'
@@ -574,6 +579,25 @@ const App: React.FC = () => {
     );
   }
 
+  if (queryParams.mode === 'presenca_responsavel') {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <MockEnvironmentBanner />
+        {isMockRuntime() ? (
+          <MockPresenceResponsiblePage />
+        ) : (
+          <main className="mx-auto max-w-xl p-6">
+            <section className="rounded-2xl bg-white p-6 shadow">
+              <h1 className="text-xl font-black text-slate-900">Acesso operacional indisponível</h1>
+              <p className="mt-2 text-sm text-slate-600">O acesso de tios e responsáveis será habilitado somente após a integração de autenticação e autorização.</p>
+            </section>
+          </main>
+        )}
+        {dialogNode}
+      </div>
+    );
+  }
+
   if (queryParams.mode === 'banda_form') {
     return (
       <div className="min-h-screen bg-slate-50">
@@ -650,7 +674,11 @@ const App: React.FC = () => {
         {currentView === 'encontreiros' && <EncontreiroPage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialFilters={pendingFilters} />}
         {currentView === 'encontros' && <SettingsPage settings={settings} onSave={(next) => { setSettings(next); localStorage.setItem('eac_settings', JSON.stringify(next)); }} focusEncontros />}
         {currentView === 'equipes' && <EncontreiroPage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialView="equipes" />}
-        {currentView === 'presence' && (isMockRuntime() ? <MockPresenceAdminPage /> : <PresencePage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialFilters={pendingFilters} />)}
+        {currentView === 'presence' && (
+          isMockRuntime()
+            ? (window.location.pathname.replace(/\/+$/, '') === '/cadastro/presenca/sessoes' ? <MockPresenceAdminPage /> : <MockPresenceAnalyticsPage />)
+            : <PresencePage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialFilters={pendingFilters} />
+        )}
         {currentView === 'dispatches' && <DispatchesPage dispatches={dispatches} onExecute={handleExecuteDispatch} onClearStatus={async (d) => { await callApiProxy('CLEAR_DISPATCH_STATUS', { type: d.type }); fetchSpreadsheetData(); }} operator={user.name} />}
         {currentView === 'calendar' && <CalendarPage googleWebAppUrl={effectiveGoogleWebAppUrl} user={user} />}
         {currentView === 'comunicados' && <ComunicadosPage comunicados={comunicados} onSave={async (c) => { await callApiProxy('SAVE_COMUNICADO', c); fetchSpreadsheetData(); }} onDelete={async (id) => { await callApiProxy('DELETE_COMUNICADO', { id }); fetchSpreadsheetData(); }} onSync={fetchSpreadsheetData} isLoading={isLoadingSheet} user={user} />}
