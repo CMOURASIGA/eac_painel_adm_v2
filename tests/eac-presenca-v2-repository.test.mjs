@@ -6,6 +6,8 @@ import {
   createMockPresenceState,
   createSession,
   listSessions,
+  listResponsibleSessions,
+  presenceAnalytics,
   openSession,
   resolveRequest,
   submitCheckin,
@@ -62,4 +64,31 @@ test('only scheduled sessions can be cancelled and summaries preserve audience b
   const sessions = listSessions(state);
   assert.equal(sessions.find((item) => item.id === 'mock-session-1').eligibleCount, 2);
   assert.equal(sessions.find((item) => item.id === 'mock-session-2').eligibleCount, 7);
+});
+
+
+test('responsible access shows only open and closed sessions within scope', () => {
+  const state = createMockPresenceState();
+  const pair = listResponsibleSessions(state, 'dupla-a');
+  assert.ok(pair.every((session) => session.doubleId === 'dupla-a'));
+  assert.ok(pair.every((session) => ['ABERTA', 'ENCERRADA'].includes(session.status)));
+  assert.equal(pair[0].status, 'ABERTA');
+
+  const post = listResponsibleSessions(state, 'pos');
+  assert.ok(post.every((session) => session.type === 'POS_ENCONTRO_GERAL'));
+  assert.ok(post.every((session) => ['ABERTA', 'ENCERRADA'].includes(session.status)));
+});
+
+test('analytics separates operational confirmations from individual frequency', () => {
+  let state = createMockPresenceState();
+  let pending = submitCheckin(state, 'mock-session-2', { name: 'Visitante Fictício', phone: '21999990123' });
+  state = pending.state;
+  state = closeSession(state, 'mock-session-2').state;
+  state = resolveRequest(state, state.requests[0].key, 'APPROVED').state;
+
+  const analytics = presenceAnalytics(state);
+  assert.equal(analytics.summary.unlinkedConfirmedCount, 1);
+  assert.ok(analytics.summary.closedSessions >= 2);
+  assert.ok(Array.isArray(analytics.groups));
+  assert.ok(Array.isArray(analytics.people));
 });
