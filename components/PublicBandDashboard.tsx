@@ -3,11 +3,46 @@ import { postComunicadosAction } from '../services/eacApiClient.ts';
 
 type BandItem = {
   id: string;
+  pessoa_id?: string | null;
+  cadastro_oficial_id?: string | null;
   nome: string;
   telefone_mascarado: string;
   status: string;
   origem: string;
   criado_em?: string | null;
+  cadastro_disponivel?: boolean;
+};
+
+type BandCadastroDetail = {
+  cadastro_disponivel: boolean;
+  interesse?: {
+    id: string;
+    nome: string;
+    telefone: string;
+    status: string;
+    origem: string;
+    criado_em?: string | null;
+  };
+  cadastro?: {
+    nome?: string;
+    nascimento?: string;
+    idade?: string;
+    sexo?: string;
+    telefone?: string;
+    email?: string;
+    endereco?: string;
+    bairro?: string;
+    responsavel_nome?: string;
+    responsavel_telefone?: string;
+    responsavel_email?: string;
+    tempo_paroquia?: string;
+    participa_grupo?: string;
+    motivacao?: string;
+    expectativas?: string;
+    pertence_porciuncula?: string;
+    autoriza_imagem?: string;
+    concorda_normas?: string;
+  };
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -26,6 +61,10 @@ const PublicBandDashboard: React.FC<{ token: string }> = ({ token }) => {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
+  const [selected, setSelected] = useState<BandItem | null>(null);
+  const [detail, setDetail] = useState<BandCadastroDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
 
   useEffect(() => {
     void (async () => {
@@ -45,6 +84,38 @@ const PublicBandDashboard: React.FC<{ token: string }> = ({ token }) => {
   }, [token, appliedQuery]);
 
   const activeItems = useMemo(() => items.filter((item) => item.status !== 'DESISTIU'), [items]);
+  const openCadastro = async (item: BandItem) => {
+    setSelected(item);
+    setDetail(null);
+    setDetailError('');
+    setDetailLoading(true);
+    const r = await postComunicadosAction<any>('GET_BANDA_RESPONSAVEL_CADASTRO', { token, interesse_id: item.id });
+    setDetailLoading(false);
+    if (!r.success) {
+      setDetailError(r.error || 'Não foi possível carregar os dados de cadastro.');
+      return;
+    }
+    const data: any = r.data;
+    if (data?.success === false) {
+      setDetailError(data?.error || 'Não foi possível carregar os dados de cadastro.');
+      return;
+    }
+    setDetail(data as BandCadastroDetail);
+  };
+
+  const closeCadastro = () => {
+    setSelected(null);
+    setDetail(null);
+    setDetailError('');
+    setDetailLoading(false);
+  };
+
+  const detailValue = (label: string, value: unknown) => (
+    <div className="min-w-0 rounded-xl bg-slate-50 p-3">
+      <p className="text-[10px] font-black uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-slate-800">{String(value || '').trim() || 'Não informado'}</p>
+    </div>
+  );
 
   if (loading) return <div className="min-h-screen grid place-items-center bg-slate-50"><p className="font-bold text-slate-500">Carregando inscrições...</p></div>;
   if (error) return <div className="min-h-screen grid place-items-center bg-slate-50 p-4"><div className="max-w-lg rounded-2xl border border-rose-200 bg-white p-7 text-center font-bold text-rose-700">{error}</div></div>;
@@ -130,19 +201,103 @@ const PublicBandDashboard: React.FC<{ token: string }> = ({ token }) => {
           </div>
           <div className="divide-y divide-slate-100">
             {activeItems.map((item) => (
-              <div key={item.id} className="grid gap-2 px-4 py-4 sm:grid-cols-[1fr_auto_auto] sm:items-center sm:gap-4 sm:px-5">
+              <div key={item.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[1fr_auto_auto_auto] sm:items-center sm:gap-4 sm:px-5">
                 <div>
                   <p className="font-bold text-slate-900">{item.nome}</p>
                   <p className="text-xs text-slate-400">{item.telefone_mascarado}</p>
                 </div>
                 <span className="text-xs font-bold text-slate-500">{item.criado_em ? new Date(item.criado_em).toLocaleDateString('pt-BR') : '-'}</span>
                 <span className="justify-self-start rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase text-slate-600 sm:justify-self-end">{STATUS_LABEL[item.status] || item.status}</span>
+                <button
+                  type="button"
+                  onClick={() => void openCadastro(item)}
+                  className="h-10 justify-self-start rounded-xl border border-blue-200 bg-blue-50 px-3 text-xs font-black text-blue-800 sm:justify-self-end"
+                >
+                  Ver cadastro
+                </button>
               </div>
             ))}
             {activeItems.length === 0 ? <p className="px-5 py-8 text-center text-sm text-slate-400">{appliedQuery ? 'Nenhum interessado encontrado para esta pesquisa.' : 'Nenhum interessado registrado.'}</p> : null}
           </div>
         </section>
       </div>
+
+      {selected ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 p-0 sm:items-center sm:p-4">
+          <section className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-t-[26px] bg-white shadow-2xl sm:rounded-[26px]">
+            <header className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-blue-600">Cadastro do adolescente</p>
+                <h2 className="mt-1 truncate text-xl font-black text-slate-900">{selected.nome}</h2>
+                <p className="mt-1 text-xs text-slate-500">Consulta disponível somente pelo link protegido dos responsáveis da banda.</p>
+              </div>
+              <button type="button" onClick={closeCadastro} className="h-10 shrink-0 rounded-xl border border-slate-300 px-3 text-sm font-black text-slate-700">Fechar</button>
+            </header>
+
+            <div className="space-y-5 p-5">
+              {detailLoading ? <p className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-500">Carregando cadastro...</p> : null}
+              {detailError ? <p className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">{detailError}</p> : null}
+
+              {!detailLoading && !detailError && detail ? (
+                detail.cadastro_disponivel && detail.cadastro ? (
+                  <>
+                    <section>
+                      <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">Dados pessoais</h3>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        {detailValue('Nome completo', detail.cadastro.nome)}
+                        {detailValue('Data de nascimento', detail.cadastro.nascimento)}
+                        {detailValue('Idade', detail.cadastro.idade)}
+                        {detailValue('Sexo', detail.cadastro.sexo)}
+                        {detailValue('Telefone / WhatsApp', detail.cadastro.telefone)}
+                        {detailValue('E-mail', detail.cadastro.email)}
+                        {detailValue('Endereço', detail.cadastro.endereco)}
+                        {detailValue('Bairro', detail.cadastro.bairro)}
+                      </div>
+                    </section>
+
+                    <section>
+                      <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">Responsável</h3>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        {detailValue('Nome do responsável', detail.cadastro.responsavel_nome)}
+                        {detailValue('Telefone do responsável', detail.cadastro.responsavel_telefone)}
+                        {detailValue('E-mail do responsável', detail.cadastro.responsavel_email)}
+                      </div>
+                    </section>
+
+                    <section>
+                      <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">Informações do cadastro</h3>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        {detailValue('Pertence à Porciúncula', detail.cadastro.pertence_porciuncula)}
+                        {detailValue('Tempo de participação na paróquia', detail.cadastro.tempo_paroquia)}
+                        {detailValue('Grupo / ministério', detail.cadastro.participa_grupo)}
+                        {detailValue('Autorização de imagem', detail.cadastro.autoriza_imagem)}
+                        {detailValue('Concorda com as normas', detail.cadastro.concorda_normas)}
+                      </div>
+                    </section>
+
+                    <section>
+                      <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">Interesse e expectativa</h3>
+                      <div className="mt-3 grid gap-3">
+                        {detailValue('Motivação', detail.cadastro.motivacao)}
+                        {detailValue('Expectativas', detail.cadastro.expectativas)}
+                      </div>
+                    </section>
+                  </>
+                ) : (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="font-black text-amber-900">Cadastro oficial não vinculado</p>
+                    <p className="mt-1 text-sm text-amber-800">Este interesse existe na Banda, mas ainda não possui vínculo com um cadastro oficial do adolescente.</p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      {detailValue('Nome informado', detail.interesse?.nome)}
+                      {detailValue('Telefone informado', detail.interesse?.telefone)}
+                    </div>
+                  </div>
+                )
+              ) : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 };
