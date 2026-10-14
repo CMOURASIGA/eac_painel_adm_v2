@@ -234,6 +234,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       'GET_BANDA_CANDIDATE_DETAIL',
       'SAVE_BANDA_INTEREST',
       'GET_BANDA_RESPONSAVEIS_DASHBOARD',
+      'GET_BANDA_RESPONSAVEL_CADASTRO',
       'GET_CONTEXT_HELP',
       'GET_ENCONTREIROS',
       'GET_ENCONTREIRO_PUBLIC_BY_TELEFONE',

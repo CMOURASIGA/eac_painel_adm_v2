@@ -4332,7 +4332,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
 
       const { data: rows, error } = await supabase
         .from('banda_interesses')
-        .select('id,nome_snapshot,telefone_snapshot,status,origem,criado_em');
+        .select('id,pessoa_id,cadastro_oficial_id,nome_snapshot,telefone_snapshot,status,origem,criado_em');
       if (error) throw error;
 
       const list = Array.isArray(rows) ? rows : [];
@@ -4363,11 +4363,14 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
         const digits = normalizeDigits(row?.telefone_snapshot);
         return {
           id: row.id,
+          pessoa_id: cleanText(row?.pessoa_id) || null,
+          cadastro_oficial_id: cleanText(row?.cadastro_oficial_id) || null,
           nome: cleanText(row?.nome_snapshot),
           telefone_mascarado: digits ? `•••• ${digits.slice(-4)}` : '-',
           status: cleanText(row?.status) || 'INSCRITO',
           origem: cleanText(row?.origem),
           criado_em: row?.criado_em || null,
+          cadastro_disponivel: Boolean(cleanText(row?.pessoa_id) || cleanText(row?.cadastro_oficial_id)),
         };
       });
 
@@ -4381,6 +4384,130 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
           items,
           query,
           cabeca_eac_url: cleanText(process.env.EAC_CABECA_URL) || 'https://eac-cabeca-musicas-christians-projects-4954426e.vercel.app',
+        },
+      };
+    }
+
+    if (ctx.action === 'GET_BANDA_RESPONSAVEL_CADASTRO') {
+      const token = cleanText(ctx.payload.token);
+      const interesseId = cleanText(ctx.payload.interesse_id);
+
+      const { data: config, error: configError } = await supabase
+        .from('configuracoes_formularios')
+        .select('banda_responsaveis_token')
+        .eq('id', 'geral')
+        .maybeSingle();
+      if (configError && !isMissingRelationError(configError)) throw configError;
+
+      const expected = cleanText((config as any)?.banda_responsaveis_token);
+      if (!token || !expected || token !== expected) {
+        return { ok: true, data: { success: false, error: 'Link de acompanhamento inválido.' } };
+      }
+      if (!interesseId) {
+        return { ok: true, data: { success: false, error: 'Inscrição da banda inválida.' } };
+      }
+
+      const interesseRes = await supabase
+        .from('banda_interesses')
+        .select('id,pessoa_id,cadastro_oficial_id,nome_snapshot,telefone_snapshot,status,origem,criado_em')
+        .eq('id', interesseId)
+        .maybeSingle();
+      if (interesseRes.error) throw interesseRes.error;
+      const interesse = interesseRes.data as any;
+      if (!interesse) {
+        return { ok: true, data: { success: false, error: 'Inscrição da banda não localizada.' } };
+      }
+
+      let cadastro: any = null;
+      const cadastroId = cleanText(interesse?.cadastro_oficial_id);
+      const pessoaId = cleanText(interesse?.pessoa_id);
+
+      if (cadastroId) {
+        const cadastroRes = await supabase.from('cadastro_oficial').select('*').eq('id', cadastroId).maybeSingle();
+        if (!cadastroRes.error) cadastro = cadastroRes.data;
+      }
+      if (!cadastro && pessoaId) {
+        const cadastroRes = await supabase.from('cadastro_oficial').select('*').eq('pessoa_id', pessoaId).eq('ativo', true).limit(1).maybeSingle();
+        if (!cadastroRes.error) cadastro = cadastroRes.data;
+      }
+
+      const resolvedPessoaId = cleanText(cadastro?.pessoa_id || pessoaId);
+      if (!resolvedPessoaId) {
+        return {
+          ok: true,
+          data: {
+            success: true,
+            cadastro_disponivel: false,
+            interesse: {
+              id: interesse.id,
+              nome: cleanText(interesse.nome_snapshot),
+              telefone: cleanText(interesse.telefone_snapshot),
+              status: cleanText(interesse.status) || 'INSCRITO',
+              origem: cleanText(interesse.origem),
+              criado_em: interesse.criado_em || null,
+            },
+          },
+        };
+      }
+
+      const pessoaRes = await supabase.from('pessoas').select('*').eq('id', resolvedPessoaId).maybeSingle();
+      if (pessoaRes.error) throw pessoaRes.error;
+      const pessoa = pessoaRes.data as any;
+
+      let adolescente: any = null;
+      try {
+        const adolescenteRes = await supabase.from('adolescentes').select('*').eq('pessoa_id', resolvedPessoaId).limit(1).maybeSingle();
+        if (!adolescenteRes.error) adolescente = adolescenteRes.data;
+      } catch {
+        adolescente = null;
+      }
+
+      let responsavel: any = null;
+      const responsavelId = cleanText(adolescente?.responsavel_id || cadastro?.responsavel_id);
+      if (responsavelId) {
+        try {
+          const responsavelRes = await supabase.from('responsaveis').select('*').eq('id', responsavelId).maybeSingle();
+          if (!responsavelRes.error) responsavel = responsavelRes.data;
+        } catch {
+          responsavel = null;
+        }
+      }
+
+      const membro = buildMemberRecord({ cadastro: cadastro || {}, pessoa: pessoa || {}, adolescente: adolescente || {}, responsavel: responsavel || {} });
+
+      return {
+        ok: true,
+        data: {
+          success: true,
+          cadastro_disponivel: true,
+          interesse: {
+            id: interesse.id,
+            nome: cleanText(interesse.nome_snapshot),
+            telefone: cleanText(interesse.telefone_snapshot),
+            status: cleanText(interesse.status) || 'INSCRITO',
+            origem: cleanText(interesse.origem),
+            criado_em: interesse.criado_em || null,
+          },
+          cadastro: {
+            nome: cleanText(membro.nome),
+            nascimento: cleanText(membro.nascimento),
+            idade: cleanText(membro.idade),
+            sexo: cleanText(membro.sexo),
+            telefone: cleanText(membro.telefone),
+            email: cleanText(membro.email),
+            endereco: cleanText(membro.endereco),
+            bairro: cleanText(membro.bairro),
+            responsavel_nome: cleanText(membro.responsavelNome),
+            responsavel_telefone: cleanText(membro.responsavelTel),
+            responsavel_email: cleanText(membro.responsavelEmail),
+            tempo_paroquia: cleanText(membro.tempoParoquia),
+            participa_grupo: cleanText(membro.participaGrupo),
+            motivacao: cleanText(membro.motivacao),
+            expectativas: cleanText(membro.expectativas),
+            pertence_porciuncula: cleanText(membro.pertencePorciuncula),
+            autoriza_imagem: cleanText(membro.autorizaImagem),
+            concorda_normas: cleanText(membro.concordaNormas),
+          },
         },
       };
     }
