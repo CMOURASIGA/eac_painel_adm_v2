@@ -572,7 +572,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-50">
         <MockEnvironmentBanner />
-        {isMockRuntime() ? <MockPublicCheckinPage /> : <PublicPresenceForm />}
+        <MockPublicCheckinPage />
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         {dialogNode}
       </div>
@@ -583,16 +583,7 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-50">
         <MockEnvironmentBanner />
-        {isMockRuntime() ? (
-          <MockPresenceResponsiblePage />
-        ) : (
-          <main className="mx-auto max-w-xl p-6">
-            <section className="rounded-2xl bg-white p-6 shadow">
-              <h1 className="text-xl font-black text-slate-900">Acesso operacional indisponível</h1>
-              <p className="mt-2 text-sm text-slate-600">O acesso de tios e responsáveis será habilitado somente após a integração de autenticação e autorização.</p>
-            </section>
-          </main>
-        )}
+        <MockPresenceResponsiblePage />
         {dialogNode}
       </div>
     );
@@ -675,9 +666,9 @@ const App: React.FC = () => {
         {currentView === 'encontros' && <SettingsPage settings={settings} onSave={(next) => { setSettings(next); localStorage.setItem('eac_settings', JSON.stringify(next)); }} focusEncontros />}
         {currentView === 'equipes' && <EncontreiroPage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialView="equipes" />}
         {currentView === 'presence' && (
-          isMockRuntime()
-            ? (window.location.pathname.replace(/\/+$/, '') === '/cadastro/presenca/sessoes' ? <MockPresenceAdminPage /> : <MockPresenceAnalyticsPage />)
-            : <PresencePage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialFilters={pendingFilters} />
+          window.location.pathname.replace(/\/+$/, '') === '/cadastro/presenca/sessoes'
+            ? <MockPresenceAdminPage />
+            : <MockPresenceAnalyticsPage />
         )}
         {currentView === 'dispatches' && <DispatchesPage dispatches={dispatches} onExecute={handleExecuteDispatch} onClearStatus={async (d) => { await callApiProxy('CLEAR_DISPATCH_STATUS', { type: d.type }); fetchSpreadsheetData(); }} operator={user.name} />}
         {currentView === 'calendar' && <CalendarPage googleWebAppUrl={effectiveGoogleWebAppUrl} user={user} />}
