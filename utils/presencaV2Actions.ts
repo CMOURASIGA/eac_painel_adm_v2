@@ -321,9 +321,18 @@ async function publicCheckin(supabase: AnySupabase,payload:any){
   }
 
   let reason='';
+  let phoneAddedToProfile=false;
   if(!person) reason='NO_ELIGIBLE_MATCH';
   else if(!enteredPhone) reason='MISSING_PHONE';
-  else if(enteredPhone!==person.phone) reason='PHONE_MISMATCH';
+  else if(!person.phone) {
+    const {error:updatePhoneError}=await supabase.from('pessoas')
+      .update({telefone:enteredPhone,telefone_normalizado:enteredPhone})
+      .eq('id',person.id)
+      .or('telefone.is.null,telefone.eq.');
+    if(updatePhoneError) throw updatePhoneError;
+    person.phone=enteredPhone;
+    phoneAddedToProfile=true;
+  } else if(enteredPhone!==person.phone) reason='PHONE_MISMATCH';
   else {
     const same=people.filter((p:any)=>p.phone&&p.phone===enteredPhone);
     if(same.length>1) reason='PHONE_SHARED';
@@ -334,8 +343,8 @@ async function publicCheckin(supabase: AnySupabase,payload:any){
     return {status:pending.already?'ALREADY_PENDING':'PENDING',reason};
   }
 
-  await insertPresence(supabase,session,person,enteredName,enteredPhone);
-  return {status:'CONFIRMED'};
+  await insertPresence(supabase,session,person,enteredName,enteredPhone,{phoneAddedToProfile});
+  return {status:'CONFIRMED',phoneAddedToProfile};
 }
 
 async function listPending(supabase:AnySupabase){
@@ -549,7 +558,13 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       if(error) throw error; const session=await ensureDueClose(supabase,data);
       if(!session) return {ok:true,data:{success:false,error:'Sessão não encontrada.'}};
       const people=await eligiblePeople(supabase,session);
-      return {ok:true,data:{success:true,session:{...(await decorateSession(supabase,session)),people:people.map((p:any)=>({id:p.id,name:p.name,circle:p.circle||''}))}}};
+      return {ok:true,data:{success:true,session:{...(await decorateSession(supabase,session)),people:people.map((p:any)=>({
+        id:p.id,
+        name:p.name,
+        circle:p.circle||'',
+        hasPhone:Boolean(p.phone),
+        phoneLast4:p.phone ? p.phone.slice(-4) : '',
+      }))}}};
     }
     if(action==='PRESENCA_V2_PUBLIC_CHECKIN'){
       return {ok:true,data:{success:true,result:await publicCheckin(supabase,payload)}};
