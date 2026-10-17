@@ -167,7 +167,7 @@ const MockPresenceAdminPage: React.FC = () => {
             <select value={type} onChange={(event) => {
               const nextType = event.target.value as Session['type'];
               setType(nextType);
-              const candidate = responsibleGroups.find((item) => nextType === 'REUNIAO_DUPLA_TIOS' ? item.kind === 'TIOS' : item.kind === 'POS');
+              const candidate = responsibleGroups.find((item) => item.active === true && (nextType === 'REUNIAO_DUPLA_TIOS' ? item.kind === 'TIOS' : item.kind === 'POS'));
               setResponsibleId(candidate?.id || '');
             }} className="rounded-lg border border-slate-300 bg-white px-3 py-2">
               <option value="REUNIAO_DUPLA_TIOS">Reunião de tios (dupla de círculos)</option>
@@ -176,8 +176,8 @@ const MockPresenceAdminPage: React.FC = () => {
           </label>
           <label className="grid flex-1 gap-1 text-sm font-semibold text-slate-700">Responsável
             <select value={responsibleId} onChange={(event) => setResponsibleId(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2">
-              {responsibleGroups.filter((item) => type === 'REUNIAO_DUPLA_TIOS' ? item.kind === 'TIOS' : item.kind === 'POS').map((item) => (
-                <option key={item.id} value={item.id}>{item.label}</option>
+              {responsibleGroups.filter((item) => item.active === true && (type === 'REUNIAO_DUPLA_TIOS' ? item.kind === 'TIOS' : item.kind === 'POS')).map((item) => (
+                <option key={item.id} value={item.id}>{item.label}{item.circlePairLabel ? ` · ${item.circlePairLabel}` : ''}</option>
               ))}
             </select>
           </label>
@@ -192,7 +192,7 @@ const MockPresenceAdminPage: React.FC = () => {
         <h2 className="font-bold text-slate-900">Acessos operacionais</h2>
         <p className="mt-1 text-sm text-slate-600">O Pós aparece primeiro. Os casais de tios ficam agrupados abaixo para evitar crescimento excessivo da tela.</p>
 
-        {responsibleGroups.filter((item) => item.kind === 'POS').map((item) => (
+        {responsibleGroups.filter((item) => item.kind === 'POS' && item.active === true).map((item) => (
           <div key={item.id} className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div><p className="text-xs font-black uppercase tracking-wide text-sky-700">Pós-encontro</p><p className="font-bold text-slate-900">{item.label}</p></div>
@@ -203,7 +203,7 @@ const MockPresenceAdminPage: React.FC = () => {
 
         <div className="mt-4 rounded-xl border border-slate-200">
           <button type="button" onClick={() => toggleGroup('access-circles')} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
-            <div><p className="font-bold text-slate-900">Acessos dos tios de círculo</p><p className="text-xs text-slate-500">{responsibleGroups.filter((item) => item.kind === 'TIOS').length} casal(is) configurado(s)</p></div>
+            <div><p className="font-bold text-slate-900">Acessos dos tios de círculo</p><p className="text-xs text-slate-500">{responsibleGroups.filter((item) => item.kind === 'TIOS' && item.active === true).length} casal(is) ativo(s)</p></div>
             <span className="text-lg font-black text-slate-500">{expandedGroups['access-circles'] ? '−' : '+'}</span>
           </button>
           {expandedGroups['access-circles'] && <div className="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-3">
