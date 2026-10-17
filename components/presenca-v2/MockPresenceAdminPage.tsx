@@ -207,7 +207,7 @@ const MockPresenceAdminPage: React.FC = () => {
             <span className="text-lg font-black text-slate-500">{expandedGroups['access-circles'] ? '−' : '+'}</span>
           </button>
           {expandedGroups['access-circles'] && <div className="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            {responsibleGroups.filter((item) => item.kind === 'TIOS').map((item) => (
+            {responsibleGroups.filter((item) => item.kind === 'TIOS' && item.active === true).map((item) => (
               <div key={item.id} className="rounded-xl border border-slate-200 p-3">
                 <p className="text-sm font-bold text-slate-900">{item.label}</p>
                 <button type="button" onClick={() => navigator.clipboard?.writeText(responsibleLink(item.accessToken || '')).then(() => setNotice(`Acesso ${item.label} copiado.`))} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">Copiar acesso</button>
