@@ -155,17 +155,33 @@ const MockPresenceAdminPage: React.FC = () => {
 
   const saveEditSession = async (session: Session) => {
     if (!editingScheduledAt || !editingResponsibleId) return;
-    await execute(
-      'PRESENCA_V2_UPDATE_SESSION',
-      {
+
+    setBusy(true);
+    setProcessingLabel('Salvando alterações da reunião...');
+    setNotice('');
+
+    try {
+      const result = await call('PRESENCA_V2_UPDATE_SESSION', {
         sessionId: session.id,
         responsibleId: editingResponsibleId,
         scheduledAt: toApiDateTime(editingScheduledAt),
-      },
-      'Reunião atualizada.',
-      'Salvando alterações da reunião...'
-    );
-    setEditingSessionId('');
+      });
+
+      const updated = result?.session;
+      if (updated?.id) {
+        setSessions((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
+      }
+
+      setEditingSessionId('');
+      setProcessingLabel('Atualizando a tela...');
+      await refresh();
+      setNotice('Reunião atualizada.');
+    } catch (error: any) {
+      setNotice(error?.message || 'Não foi possível atualizar a reunião.');
+    } finally {
+      setBusy(false);
+      setProcessingLabel('');
+    }
   };
 
   const deleteSession = async (session: Session) => {
