@@ -37,7 +37,7 @@ const formatPhone = (value: unknown) => {
 
 const call = async (action: string, data: any = {}) => {
   const result = await postComunicadosAction<any>(action, data);
-  if (!result.success) throw new Error(result.error || 'Falha no ambiente MOCK.');
+  if (!result.success) throw new Error(result.error || 'Falha na Presença V2.');
   return result.data as any;
 };
 
@@ -49,8 +49,8 @@ const MockPresenceAdminPage: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [type, setType] = useState<Session['type']>('REUNIAO_DUPLA_TIOS');
   const [responsibleGroups, setResponsibleGroups] = useState<any[]>([]);
-  const [responsibleId, setResponsibleId] = useState('tios-ana-bruno');
-  const [scheduledAt, setScheduledAt] = useState('2026-10-13T19:00');
+  const [responsibleId, setResponsibleId] = useState('');
+  const [scheduledAt, setScheduledAt] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [sessionResponsibleFilter, setSessionResponsibleFilter] = useState('');
   const [sessionStatusFilter, setSessionStatusFilter] = useState<'TODOS' | Session['status']>('TODOS');
@@ -83,7 +83,7 @@ const MockPresenceAdminPage: React.FC = () => {
   };
 
   const qrLink = (session: Session) => `${window.location.origin}/presenca/form?session=${encodeURIComponent(session.publicToken)}`;
-  const responsibleLink = (scope: string) => `${window.location.origin}/presenca/responsavel?scope=${encodeURIComponent(scope)}`;
+  const responsibleLink = (token: string) => `${window.location.origin}/presenca/responsavel?token=${encodeURIComponent(token)}`;
   const unresolved = useMemo(() => pending.filter((item) => item.status === 'PENDING'), [pending]);
   const resolved = useMemo(() => pending.filter((item) => item.status === 'APPROVED' || item.status === 'REJECTED').slice().reverse(), [pending]);
 
@@ -132,13 +132,13 @@ const MockPresenceAdminPage: React.FC = () => {
         <div className="rounded-lg bg-slate-50 p-2"><dt className="text-xs text-slate-500">Confirmados</dt><dd className="font-black">{session.confirmedCount}</dd></div>
         <div className="rounded-lg bg-slate-50 p-2"><dt className="text-xs text-slate-500">Pendentes</dt><dd className="font-black">{session.pendingCount}</dd></div>
       </dl>
-      <p className="mt-4 break-all rounded-lg bg-slate-50 p-2 text-xs text-slate-600">QR público simulado: {qrLink(session)}</p>
+      <p className="mt-4 break-all rounded-lg bg-slate-50 p-2 text-xs text-slate-600">QR público: {qrLink(session)}</p>
       <div className="mt-4 flex flex-wrap gap-2">
         {session.status === 'AGENDADA' && <>
           <button disabled={busy} onClick={() => void execute('PRESENCA_V2_OPEN_SESSION', { sessionId: session.id }, 'Sessão aberta.')} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white">Abrir sessão</button>
-          <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CANCEL_SESSION', { sessionId: session.id }, 'Sessão cancelada no MOCK.')} className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700">Cancelar</button>
+          <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CANCEL_SESSION', { sessionId: session.id }, 'Sessão cancelada.')} className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700">Cancelar</button>
         </>}
-        {session.status === 'ABERTA' && <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CLOSE_SESSION', { sessionId: session.id }, 'Sessão encerrada. Ela não pode ser reaberta.')} className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white">Encerrar sessão</button>}
+        {session.status === 'ABERTA' && <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CLOSE_SESSION', { sessionId: session.id }, 'Sessão encerrada pelo ADM.')} className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white">Encerrar sessão</button>}
         <button type="button" onClick={() => navigator.clipboard?.writeText(qrLink(session)).then(() => setNotice('Link do QR público copiado.'))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">Copiar link</button>
       </div>
     </article>
@@ -149,7 +149,7 @@ const MockPresenceAdminPage: React.FC = () => {
       <div className="mb-6 rounded-2xl border border-sky-200 bg-sky-50 p-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
-            <p className="text-xs font-black tracking-wider text-sky-800">PRESENÇA V2 · HOMOLOGAÇÃO</p>
+            <p className="text-xs font-black tracking-wider text-sky-800">PRESENÇA V2 · HOMOLOGAÇÃO REAL</p>
             <h1 className="mt-1 text-2xl font-black text-slate-900">Gestão de sessões, QR e conciliação</h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-700">Esta é a tela administrativa. O QR operacional é exibido pelos tios de círculo ou pelo responsável do Pós em um acesso próprio. Aqui o ADM agenda, abre, encerra, cancela e concilia.</p>
           </div>
@@ -183,19 +183,19 @@ const MockPresenceAdminPage: React.FC = () => {
           <label className="grid flex-1 gap-1 text-sm font-semibold text-slate-700">Data e hora da reunião
             <input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
           </label>
-          <button disabled={busy || !responsibleId || !scheduledAt} onClick={() => void execute('PRESENCA_V2_CREATE_SESSION', { type, responsibleId, scheduledAt }, 'Sessão agendada no MOCK.')} className="rounded-lg bg-[#044372] px-4 py-2 font-bold text-white disabled:opacity-50">Agendar sessão</button>
+          <button disabled={busy || !responsibleId || !scheduledAt} onClick={() => void execute('PRESENCA_V2_CREATE_SESSION', { type, responsibleId, scheduledAt }, 'Sessão agendada.')} className="rounded-lg bg-[#044372] px-4 py-2 font-bold text-white disabled:opacity-50">Agendar sessão</button>
         </div>
       </div>
 
       <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="font-bold text-slate-900">Acessos operacionais de homologação</h2>
+        <h2 className="font-bold text-slate-900">Acessos operacionais</h2>
         <p className="mt-1 text-sm text-slate-600">O Pós aparece primeiro. Os casais de tios ficam agrupados abaixo para evitar crescimento excessivo da tela.</p>
 
         {responsibleGroups.filter((item) => item.kind === 'POS').map((item) => (
           <div key={item.id} className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div><p className="text-xs font-black uppercase tracking-wide text-sky-700">Pós-encontro</p><p className="font-bold text-slate-900">{item.label}</p></div>
-              <button type="button" onClick={() => navigator.clipboard?.writeText(responsibleLink(item.id)).then(() => setNotice(`Acesso ${item.label} copiado.`))} className="rounded-lg border border-sky-300 bg-white px-3 py-2 text-sm font-bold text-sky-800">Copiar acesso</button>
+              <button type="button" onClick={() => navigator.clipboard?.writeText(responsibleLink(item.accessToken || '')).then(() => setNotice(`Acesso ${item.label} copiado.`))} className="rounded-lg border border-sky-300 bg-white px-3 py-2 text-sm font-bold text-sky-800">Copiar acesso</button>
             </div>
           </div>
         ))}
@@ -209,7 +209,7 @@ const MockPresenceAdminPage: React.FC = () => {
             {responsibleGroups.filter((item) => item.kind === 'TIOS').map((item) => (
               <div key={item.id} className="rounded-xl border border-slate-200 p-3">
                 <p className="text-sm font-bold text-slate-900">{item.label}</p>
-                <button type="button" onClick={() => navigator.clipboard?.writeText(responsibleLink(item.id)).then(() => setNotice(`Acesso ${item.label} copiado.`))} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">Copiar acesso</button>
+                <button type="button" onClick={() => navigator.clipboard?.writeText(responsibleLink(item.accessToken || '')).then(() => setNotice(`Acesso ${item.label} copiado.`))} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">Copiar acesso</button>
               </div>
             ))}
           </div>}
