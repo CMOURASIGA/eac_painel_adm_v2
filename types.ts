@@ -18,6 +18,7 @@ export type View =
   | 'encontros'
   | 'equipes'
   | 'presence'
+  | 'presence_sessions'
   | 'dispatches'
   | 'calendar'
   | 'comunicados'
