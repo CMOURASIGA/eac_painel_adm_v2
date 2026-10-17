@@ -156,7 +156,16 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
       for (const p of data || []) {
         const pid=clean(p.id);
         const current=people.get(pid) || {};
-        people.set(pid,{...current,id:pid,name:clean(p.nome_completo),phone:phoneNorm(p.telefone_normalizado||p.telefone),circle:current.circle||circle||''});
+        const incomingCircle=clean(circle);
+        const existingCircles=clean(current.circle).split(' | ').map((x:string)=>x.trim()).filter(Boolean);
+        if(incomingCircle && !existingCircles.includes(incomingCircle)) existingCircles.push(incomingCircle);
+        people.set(pid,{
+          ...current,
+          id:pid,
+          name:clean(p.nome_completo),
+          phone:phoneNorm(p.telefone_normalizado||p.telefone),
+          circle:existingCircles.join(' | '),
+        });
       }
     }
   };
@@ -182,13 +191,26 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
       }
     }
   } else {
-    const { data: circles, error: ce } = await supabase.from('eac_circulos_historicos').select('id').in('edicao',[35,36,37]);
+    const { data: circles, error: ce } = await supabase.from('eac_circulos_historicos').select('id,edicao,cor').in('edicao',[35,36,37]);
     if (ce) throw ce;
-    const circleIds=(circles||[]).map((c:any)=>c.id);
+    const circleMap=new Map<string,string>((circles||[]).map((circle:any)=>[clean(circle.id), `EAC ${circle.edicao} · ${circle.cor}`]));
+    const circleIds=Array.from(circleMap.keys());
     if (circleIds.length) {
-      const { data: members, error: me } = await supabase.from('eac_circulo_membros_historicos').select('pessoa_id').in('circulo_id',circleIds).not('pessoa_id','is',null);
+      const { data: members, error: me } = await supabase.from('eac_circulo_membros_historicos')
+        .select('pessoa_id,circulo_id')
+        .in('circulo_id',circleIds)
+        .not('pessoa_id','is',null);
       if (me) throw me;
-      await addPeople((members||[]).map((m:any)=>clean(m.pessoa_id)));
+      const byCircle=new Map<string,string[]>();
+      for(const member of members||[]){
+        const cid=clean(member.circulo_id);
+        const ids=byCircle.get(cid)||[];
+        ids.push(clean(member.pessoa_id));
+        byCircle.set(cid,ids);
+      }
+      for(const [cid,ids] of byCircle.entries()) {
+        await addPeople(ids,circleMap.get(cid)||'');
+      }
     }
     const { data: enc, error: ee } = await supabase.from('encontreiros').select('pessoa_id').eq('classificacao','ADOLESCENTE').eq('status','DISPONIVEL').not('pessoa_id','is',null);
     if (ee) throw ee;
@@ -564,6 +586,7 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
         circle:p.circle||'',
         hasPhone:Boolean(p.phone),
         phoneLast4:p.phone ? p.phone.slice(-4) : '',
+        phone:p.phone || '',
       }))}}};
     }
     if(action==='PRESENCA_V2_PUBLIC_CHECKIN'){
