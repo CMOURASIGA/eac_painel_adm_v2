@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { postComunicadosAction } from '../../services/eacApiClient.ts';
 
+type Encounter = {
+  id: string;
+  nome?: string;
+  numero?: number | string;
+  status?: string;
+};
+
 type Session = {
   id: string;
   title: string;
@@ -21,7 +28,7 @@ const statusStyle: Record<Session['status'], string> = {
 };
 
 const pendingReasonLabel: Record<string, string> = {
-  NO_ELIGIBLE_MATCH: 'Pessoa não localizada para esta sessão',
+  NO_ELIGIBLE_MATCH: 'Pessoa não localizada para esta reunião',
   PHONE_MISMATCH: 'Telefone informado não confere',
   MISSING_PHONE: 'Telefone não informado',
   PHONE_SHARED: 'Telefone utilizado por mais de uma pessoa',
@@ -50,21 +57,31 @@ const MockPresenceAdminPage: React.FC = () => {
   const [type, setType] = useState<Session['type']>('REUNIAO_DUPLA_TIOS');
   const [responsibleGroups, setResponsibleGroups] = useState<any[]>([]);
   const [responsibleId, setResponsibleId] = useState('');
+  const [encounters, setEncounters] = useState<Encounter[]>([]);
+  const [encounterId, setEncounterId] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [sessionResponsibleFilter, setSessionResponsibleFilter] = useState('');
   const [sessionStatusFilter, setSessionStatusFilter] = useState<'TODOS' | Session['status']>('TODOS');
 
   const refresh = useCallback(async () => {
-    const [sessionsResult, pendingResult, responsibleResult] = await Promise.all([
+    const [sessionsResult, pendingResult, responsibleResult, encountersResponse] = await Promise.all([
       call('PRESENCA_V2_LIST_SESSIONS'),
       call('PRESENCA_V2_LIST_PENDING'),
       call('PRESENCA_V2_LIST_RESPONSIBLE_GROUPS'),
+      fetch('/api/encontros/abertos', { cache: 'no-store' }).then(async (response) => {
+        const body = await response.json();
+        if (!response.ok || !body?.success) throw new Error(body?.message || body?.error || 'Não foi possível carregar os encontros.');
+        return body;
+      }),
     ]);
     setSessions(Array.isArray(sessionsResult.sessions) ? sessionsResult.sessions : []);
     setPending(Array.isArray(pendingResult.requests) ? pendingResult.requests : []);
     setRecords(Array.isArray(pendingResult.records) ? pendingResult.records : []);
     setResponsibleGroups(Array.isArray(responsibleResult.responsibleGroups) ? responsibleResult.responsibleGroups : []);
+    const loadedEncounters = Array.isArray(encountersResponse.encontros) ? encountersResponse.encontros : [];
+    setEncounters(loadedEncounters);
+    setEncounterId((current) => current || loadedEncounters[0]?.id || '');
   }, []);
 
   useEffect(() => { void refresh().catch((error) => setNotice(error.message)); }, [refresh]);
@@ -135,11 +152,11 @@ const MockPresenceAdminPage: React.FC = () => {
       <p className="mt-4 break-all rounded-lg bg-slate-50 p-2 text-xs text-slate-600">QR público: {qrLink(session)}</p>
       <div className="mt-4 flex flex-wrap gap-2">
         {session.status === 'AGENDADA' && <>
-          <button disabled={busy} onClick={() => void execute('PRESENCA_V2_OPEN_SESSION', { sessionId: session.id }, 'Sessão aberta.')} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white">Abrir sessão</button>
-          <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CANCEL_SESSION', { sessionId: session.id }, 'Sessão cancelada.')} className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700">Cancelar</button>
+          <button disabled={busy} onClick={() => void execute('PRESENCA_V2_OPEN_SESSION', { sessionId: session.id }, 'Reunião aberta.')} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white">Abrir reunião</button>
+          <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CANCEL_SESSION', { sessionId: session.id }, 'Reunião cancelada.')} className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700">Cancelar</button>
         </>}
-        {session.status === 'ABERTA' && <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CLOSE_SESSION', { sessionId: session.id }, 'Sessão encerrada pelo ADM.')} className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white">Encerrar sessão</button>}
-        {session.status === 'ENCERRADA' && <button disabled={busy} onClick={() => void execute('PRESENCA_V2_REOPEN_SESSION_ADMIN', { sessionId: session.id }, 'Sessão reaberta pelo ADM. O mesmo QR voltou a aceitar check-in.')} className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-bold text-sky-800">Reabrir pelo ADM</button>}
+        {session.status === 'ABERTA' && <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CLOSE_SESSION', { sessionId: session.id }, 'Reunião encerrada pelo ADM.')} className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white">Encerrar reunião</button>}
+        {session.status === 'ENCERRADA' && <button disabled={busy} onClick={() => void execute('PRESENCA_V2_REOPEN_SESSION_ADMIN', { sessionId: session.id }, 'Reunião reaberta pelo ADM. O mesmo QR voltou a aceitar check-in.')} className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-bold text-sky-800">Reabrir pelo ADM</button>}
         <button type="button" onClick={() => navigator.clipboard?.writeText(qrLink(session)).then(() => setNotice('Link do QR público copiado.'))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">Copiar link</button>
       </div>
     </article>
@@ -151,7 +168,7 @@ const MockPresenceAdminPage: React.FC = () => {
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-xs font-black tracking-wider text-sky-800">PRESENÇA V2 · HOMOLOGAÇÃO REAL</p>
-            <h1 className="mt-1 text-2xl font-black text-slate-900">Gestão de sessões, QR e conciliação</h1>
+            <h1 className="mt-1 text-2xl font-black text-slate-900">Gestão de reuniões, QR e conciliação</h1>
             <p className="mt-2 max-w-3xl text-sm text-slate-700">Esta é a tela administrativa. O QR operacional é exibido pelos tios de círculo ou pelo responsável do Pós em um acesso próprio. Aqui o ADM agenda, abre, encerra, cancela e concilia.</p>
           </div>
           <button type="button" onClick={() => { window.location.href = '/cadastro/presenca'; }} className="shrink-0 rounded-xl border border-sky-300 bg-white px-4 py-3 text-sm font-black text-sky-800">Ver indicadores</button>
@@ -161,7 +178,7 @@ const MockPresenceAdminPage: React.FC = () => {
       {notice && <div className="mb-4 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">{notice}</div>}
 
       <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="font-bold text-slate-900">Criar nova sessão</h2>
+        <h2 className="font-bold text-slate-900">Criar nova reunião</h2>
         <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-end">
           <label className="grid flex-1 gap-1 text-sm font-semibold text-slate-700">Tipo
             <select value={type} onChange={(event) => {
@@ -181,10 +198,18 @@ const MockPresenceAdminPage: React.FC = () => {
               ))}
             </select>
           </label>
+          {type === 'POS_ENCONTRO_GERAL' && <label className="grid flex-1 gap-1 text-sm font-semibold text-slate-700">Encontro
+            <select value={encounterId} onChange={(event) => setEncounterId(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2">
+              <option value="">Selecione o encontro</option>
+              {encounters.map((item) => (
+                <option key={item.id} value={item.id}>{item.numero ? `${item.numero}º EAC` : item.nome || item.id}{item.status ? ` · ${item.status}` : ''}</option>
+              ))}
+            </select>
+          </label>}
           <label className="grid flex-1 gap-1 text-sm font-semibold text-slate-700">Data e hora da reunião
             <input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
           </label>
-          <button disabled={busy || !responsibleId || !scheduledAt} onClick={() => void execute('PRESENCA_V2_CREATE_SESSION', { type, responsibleId, scheduledAt }, 'Sessão agendada.')} className="rounded-lg bg-[#044372] px-4 py-2 font-bold text-white disabled:opacity-50">Agendar sessão</button>
+          <button disabled={busy || !responsibleId || !scheduledAt || (type === 'POS_ENCONTRO_GERAL' && !encounterId)} onClick={() => void execute('PRESENCA_V2_CREATE_SESSION', { type, responsibleId, encounterId: type === 'POS_ENCONTRO_GERAL' ? encounterId : undefined, scheduledAt }, 'Reunião agendada.')} className="rounded-lg bg-[#044372] px-4 py-2 font-bold text-white disabled:opacity-50">Agendar reunião</button>
         </div>
       </div>
 
@@ -219,7 +244,7 @@ const MockPresenceAdminPage: React.FC = () => {
 
       <section className="mb-6">
         <div className="mb-3">
-          <h2 className="text-lg font-black text-slate-900">Acompanhamento das sessões</h2>
+          <h2 className="text-lg font-black text-slate-900">Acompanhamento das reuniões</h2>
           <p className="text-sm text-slate-600">Pós-encontro em primeiro lugar; reuniões dos círculos agrupadas por casal de tios.</p>
         </div>
 
@@ -227,13 +252,13 @@ const MockPresenceAdminPage: React.FC = () => {
           <button type="button" onClick={() => toggleGroup('pos')} className="flex w-full items-center justify-between gap-3 p-4 text-left">
             <div>
               <p className="text-xs font-black uppercase tracking-wide text-sky-700">Pós-encontro</p>
-              <p className="font-bold text-slate-900">Sessões do Pós</p>
-              <p className="text-xs text-slate-500">{postSessions.length} sessão(ões) · {postSessions.filter((item) => item.status === 'ABERTA').length} aberta(s)</p>
+              <p className="font-bold text-slate-900">Reuniões do Pós</p>
+              <p className="text-xs text-slate-500">{postSessions.length} reunião(ões) · {postSessions.filter((item) => item.status === 'ABERTA').length} aberta(s)</p>
             </div>
             <span className="text-xl font-black text-slate-500">{expandedGroups.pos ? '−' : '+'}</span>
           </button>
           {expandedGroups.pos && <div className="grid gap-4 border-t border-sky-200 p-4 lg:grid-cols-2">
-            {postSessions.length ? postSessions.map(renderSessionCard) : <p className="text-sm text-slate-500">Nenhuma sessão de Pós registrada.</p>}
+            {postSessions.length ? postSessions.map(renderSessionCard) : <p className="text-sm text-slate-500">Nenhuma reunião de Pós registrada.</p>}
           </div>}
         </div>
 
@@ -241,9 +266,9 @@ const MockPresenceAdminPage: React.FC = () => {
           <button type="button" onClick={() => toggleGroup('circle-sessions')} className="flex w-full items-center justify-between gap-3 p-4 text-left">
             <div>
               <p className="text-xs font-black uppercase tracking-wide text-slate-500">Círculos</p>
-              <p className="font-bold text-slate-900">Sessões dos tios de círculo</p>
+              <p className="font-bold text-slate-900">Reuniões dos tios de círculo</p>
               <p className="text-xs text-slate-500">
-                {circleGroups.length} casal(is) · {circleGroups.reduce((sum, group) => sum + group.sessions.length, 0)} sessão(ões) · {circleGroups.reduce((sum, group) => sum + group.sessions.filter((item: Session) => item.status === 'ABERTA').length, 0)} aberta(s)
+                {circleGroups.length} casal(is) · {circleGroups.reduce((sum, group) => sum + group.sessions.length, 0)} reunião(ões) · {circleGroups.reduce((sum, group) => sum + group.sessions.filter((item: Session) => item.status === 'ABERTA').length, 0)} aberta(s)
               </p>
             </div>
             <span className="text-xl font-black text-slate-500">{expandedGroups['circle-sessions'] ? '−' : '+'}</span>
@@ -255,7 +280,7 @@ const MockPresenceAdminPage: React.FC = () => {
                 <label className="grid gap-1 text-sm font-semibold text-slate-700">Localizar casal de tios
                   <input value={sessionResponsibleFilter} onChange={(event) => setSessionResponsibleFilter(event.target.value)} placeholder="Digite parte do nome" className="rounded-xl border border-slate-300 px-3 py-3 text-base font-normal" />
                 </label>
-                <label className="grid gap-1 text-sm font-semibold text-slate-700">Status da sessão
+                <label className="grid gap-1 text-sm font-semibold text-slate-700">Status da reunião
                   <select value={sessionStatusFilter} onChange={(event) => setSessionStatusFilter(event.target.value as any)} className="rounded-xl border border-slate-300 bg-white px-3 py-3">
                     <option value="TODOS">Todos</option>
                     <option value="ABERTA">Aberta</option>
@@ -273,12 +298,12 @@ const MockPresenceAdminPage: React.FC = () => {
                     <button type="button" onClick={() => toggleGroup(group.id)} className="flex w-full items-center justify-between gap-3 p-4 text-left">
                       <div>
                         <p className="font-bold text-slate-900">{group.label}</p>
-                        <p className="text-xs text-slate-500">{group.sessions.length} sessão(ões) · {openCount} aberta(s)</p>
+                        <p className="text-xs text-slate-500">{group.sessions.length} reunião(ões) · {openCount} aberta(s)</p>
                       </div>
                       <span className="text-xl font-black text-slate-500">{isOpen ? '−' : '+'}</span>
                     </button>
                     {isOpen && <div className="grid gap-4 border-t border-slate-200 p-4 lg:grid-cols-2">
-                      {group.sessions.length ? group.sessions.map(renderSessionCard) : <p className="text-sm text-slate-500">Nenhuma sessão registrada para este casal.</p>}
+                      {group.sessions.length ? group.sessions.map(renderSessionCard) : <p className="text-sm text-slate-500">Nenhuma reunião registrada para este casal.</p>}
                     </div>}
                   </div>
                 );
@@ -290,7 +315,7 @@ const MockPresenceAdminPage: React.FC = () => {
 
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="font-bold text-slate-900">Fila de conciliação do ADM</h2>
-        <p className="mt-1 text-sm text-slate-600">Solicitações ambíguas não alteram cadastro nem presença oficial automaticamente. Só podem ser resolvidas após o encerramento da sessão.</p>
+        <p className="mt-1 text-sm text-slate-600">Solicitações ambíguas não alteram cadastro nem presença oficial automaticamente. Só podem ser resolvidas após o encerramento da reunião.</p>
         {unresolved.length === 0 ? <p className="mt-4 text-sm text-slate-500">Não há pendências abertas.</p> : <div className="mt-4 space-y-3">{unresolved.map((request) => {
           const session = sessions.find((item) => item.id === request.sessionId);
           const canResolve = session?.status === 'ENCERRADA';
@@ -303,9 +328,9 @@ const MockPresenceAdminPage: React.FC = () => {
                   <dl className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
                     <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nome informado</dt><dd className="mt-0.5 font-semibold">{request.reportedName || 'Não informado'}</dd></div>
                     <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Telefone informado</dt><dd className="mt-0.5 font-semibold">{formatPhone(request.reportedPhone)}</dd></div>
-                    <div className="sm:col-span-2"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Sessão</dt><dd className="mt-0.5 font-semibold">{session?.title || 'Sessão não localizada'}</dd></div>
+                    <div className="sm:col-span-2"><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reunião</dt><dd className="mt-0.5 font-semibold">{session?.title || 'Reunião não localizada'}</dd></div>
                   </dl>
-                  {!canResolve && <p className="mt-3 text-xs font-semibold text-amber-700">A decisão ficará disponível após o encerramento da sessão.</p>}
+                  {!canResolve && <p className="mt-3 text-xs font-semibold text-amber-700">A decisão ficará disponível após o encerramento da reunião.</p>}
                 </div>
                 <div className="flex shrink-0 flex-col gap-2 sm:flex-row md:flex-col lg:flex-row">
                   <button disabled={!canResolve || busy} onClick={() => void execute('PRESENCA_V2_RESOLVE_PENDING', { key: request.key, decision: 'APPROVED' }, 'Presença confirmada pelo ADM no ambiente MOCK.')} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-40">Confirmar presença</button>
@@ -321,7 +346,7 @@ const MockPresenceAdminPage: React.FC = () => {
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="font-bold text-slate-900">Conciliações concluídas</h2>
-            <p className="mt-1 text-sm text-slate-600">Aqui ficam as decisões administrativas tomadas após o encerramento das sessões.</p>
+            <p className="mt-1 text-sm text-slate-600">Aqui ficam as decisões administrativas tomadas após o encerramento das reuniões.</p>
           </div>
           <p className="text-xs font-semibold text-slate-500">{resolved.length} decisão(ões) registrada(s)</p>
         </div>
@@ -342,7 +367,7 @@ const MockPresenceAdminPage: React.FC = () => {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="font-bold text-slate-900">{request.reportedName || 'Nome não informado'}</p>
-                      <p className="mt-1 text-sm text-slate-600">{session?.title || 'Sessão não localizada'}</p>
+                      <p className="mt-1 text-sm text-slate-600">{session?.title || 'Reunião não localizada'}</p>
                       <p className="mt-1 text-sm text-slate-600">Telefone informado: <strong>{formatPhone(request.reportedPhone)}</strong></p>
                       <p className="mt-1 text-xs text-slate-500">Motivo original: {pendingReasonLabel[request.reason] || 'Solicitação para análise'}</p>
                     </div>
@@ -350,7 +375,7 @@ const MockPresenceAdminPage: React.FC = () => {
                       <span className={`inline-flex rounded-full px-3 py-1 text-xs font-black ${isApproved ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
                         {isApproved ? 'PRESENÇA CONFIRMADA' : 'SOLICITAÇÃO DESCARTADA'}
                       </span>
-                      {isApproved && <p className="mt-2 text-xs font-semibold text-emerald-700">{recorded ? 'Contabilizada nos confirmados da sessão.' : 'Aguardando contabilização.'}</p>}
+                      {isApproved && <p className="mt-2 text-xs font-semibold text-emerald-700">{recorded ? 'Contabilizada nos confirmados da reunião.' : 'Aguardando contabilização.'}</p>}
                       {!request.personId && isApproved && <p className="mt-1 text-xs text-slate-500">Sem criação automática de cadastro.</p>}
                     </div>
                   </div>
