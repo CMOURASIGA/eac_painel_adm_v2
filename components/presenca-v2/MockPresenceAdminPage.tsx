@@ -54,6 +54,9 @@ const MockPresenceAdminPage: React.FC = () => {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [sessionResponsibleFilter, setSessionResponsibleFilter] = useState('');
   const [sessionStatusFilter, setSessionStatusFilter] = useState<'TODOS' | Session['status']>('TODOS');
+  const [editingSessionId, setEditingSessionId] = useState('');
+  const [editingScheduledAt, setEditingScheduledAt] = useState('');
+  const [editingResponsibleId, setEditingResponsibleId] = useState('');
 
   const refresh = useCallback(async () => {
     const [sessionsResult, pendingResult, responsibleResult] = await Promise.all([
@@ -129,6 +132,41 @@ const MockPresenceAdminPage: React.FC = () => {
 
   const toggleGroup = (key: string) => setExpandedGroups((current) => ({ ...current, [key]: !current[key] }));
 
+  const toApiDateTime = (value: string) => value ? new Date(value).toISOString() : '';
+
+  const toLocalInputValue = (value: string) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+  };
+
+  const startEditSession = (session: Session) => {
+    setEditingSessionId(session.id);
+    setEditingScheduledAt(toLocalInputValue((session as any).scheduledAt || ''));
+    setEditingResponsibleId((session as any).responsibleId || '');
+  };
+
+  const saveEditSession = async (session: Session) => {
+    if (!editingScheduledAt || !editingResponsibleId) return;
+    await execute(
+      'PRESENCA_V2_UPDATE_SESSION',
+      {
+        sessionId: session.id,
+        responsibleId: editingResponsibleId,
+        scheduledAt: toApiDateTime(editingScheduledAt),
+      },
+      'Reunião atualizada.'
+    );
+    setEditingSessionId('');
+  };
+
+  const deleteSession = async (session: Session) => {
+    if (!window.confirm('Excluir definitivamente esta reunião? Esta ação não poderá ser desfeita.')) return;
+    await execute('PRESENCA_V2_DELETE_SESSION', { sessionId: session.id }, 'Reunião excluída.');
+  };
+
   const renderSessionCard = (session: Session) => (
     <article key={session.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -143,13 +181,36 @@ const MockPresenceAdminPage: React.FC = () => {
         <div className="rounded-lg bg-slate-50 p-2"><dt className="text-xs text-slate-500">Confirmados</dt><dd className="font-black">{session.confirmedCount}</dd></div>
         <div className="rounded-lg bg-slate-50 p-2"><dt className="text-xs text-slate-500">Pendentes</dt><dd className="font-black">{session.pendingCount}</dd></div>
       </dl>
+      {editingSessionId === session.id && session.status === 'AGENDADA' && (
+        <div className="mt-4 grid gap-3 rounded-xl border border-sky-200 bg-sky-50 p-3 md:grid-cols-2">
+          <label className="grid gap-1 text-xs font-bold text-slate-700">Responsável
+            <select value={editingResponsibleId} onChange={(event) => setEditingResponsibleId(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+              {responsibleGroups
+                .filter((item) => session.type === 'REUNIAO_DUPLA_TIOS' ? isSelectableTiosGroup(item) : item.kind === 'POS' && item.active === true)
+                .slice()
+                .sort(responsibleGroupOrder)
+                .map((item) => <option key={item.id} value={item.id}>{item.label}{item.circlePairLabel ? ` · ${item.circlePairLabel}` : ''}</option>)}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-bold text-slate-700">Data e hora
+            <input type="datetime-local" value={editingScheduledAt} onChange={(event) => setEditingScheduledAt(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+          </label>
+          <div className="flex gap-2 md:col-span-2">
+            <button disabled={busy || !editingScheduledAt || !editingResponsibleId} onClick={() => void saveEditSession(session)} className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-50">Salvar alterações</button>
+            <button type="button" onClick={() => setEditingSessionId('')} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">Fechar edição</button>
+          </div>
+        </div>
+      )}
       <p className="mt-4 break-all rounded-lg bg-slate-50 p-2 text-xs text-slate-600">QR público: {qrLink(session)}</p>
       <div className="mt-4 flex flex-wrap gap-2">
         {session.status === 'AGENDADA' && <>
           <button disabled={busy} onClick={() => void execute('PRESENCA_V2_OPEN_SESSION', { sessionId: session.id }, 'Reunião aberta.')} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white">Abrir reunião</button>
+          <button disabled={busy} onClick={() => startEditSession(session)} className="rounded-lg border border-sky-300 px-3 py-2 text-sm font-bold text-sky-800">Editar</button>
           <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CANCEL_SESSION', { sessionId: session.id }, 'Reunião cancelada.')} className="rounded-lg border border-rose-300 px-3 py-2 text-sm font-bold text-rose-700">Cancelar</button>
+          <button disabled={busy} onClick={() => void deleteSession(session)} className="rounded-lg border border-rose-500 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-800">Excluir</button>
         </>}
         {session.status === 'ABERTA' && <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CLOSE_SESSION', { sessionId: session.id }, 'Reunião encerrada pelo ADM.')} className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white">Encerrar reunião</button>}
+        {session.status === 'CANCELADA' && <button disabled={busy} onClick={() => void deleteSession(session)} className="rounded-lg border border-rose-500 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-800">Excluir</button>}
         {session.status === 'ENCERRADA' && <button disabled={busy} onClick={() => void execute('PRESENCA_V2_REOPEN_SESSION_ADMIN', { sessionId: session.id }, 'Reunião reaberta pelo ADM. O mesmo QR voltou a aceitar check-in.')} className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-bold text-sky-800">Reabrir pelo ADM</button>}
         <button type="button" onClick={() => navigator.clipboard?.writeText(qrLink(session)).then(() => setNotice('Link do QR público copiado.'))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">Copiar link</button>
       </div>
@@ -195,7 +256,7 @@ const MockPresenceAdminPage: React.FC = () => {
           <label className="grid flex-1 gap-1 text-sm font-semibold text-slate-700">Data e hora da reunião
             <input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
           </label>
-          <button disabled={busy || !responsibleId || !scheduledAt} onClick={() => void execute('PRESENCA_V2_CREATE_SESSION', { type, responsibleId, scheduledAt }, 'Reunião agendada.')} className="rounded-lg bg-[#044372] px-4 py-2 font-bold text-white disabled:opacity-50">Agendar reunião</button>
+          <button disabled={busy || !responsibleId || !scheduledAt} onClick={() => void execute('PRESENCA_V2_CREATE_SESSION', { type, responsibleId, scheduledAt: toApiDateTime(scheduledAt) }, 'Reunião agendada.')} className="rounded-lg bg-[#044372] px-4 py-2 font-bold text-white disabled:opacity-50">Agendar reunião</button>
         </div>
       </div>
 
