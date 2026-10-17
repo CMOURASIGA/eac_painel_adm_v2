@@ -51,7 +51,7 @@ const MockPublicCheckinPage: React.FC = () => {
   }, [session, query]);
   const selected = useMemo(() => (session?.people || []).find((person: any) => person.id === selectedId), [session, selectedId]);
   const selectedPhoneHint = selected?.hasPhone
-    ? `Telefone cadastrado terminando em ${selected.phoneLast4}. Digite o número para confirmar.`
+    ? 'O telefone cadastrado foi preenchido abaixo. Confira e, se estiver incorreto, faça a correção antes de confirmar.'
     : 'Não há telefone cadastrado para esta pessoa. Informe o número e, após a confirmação, ele será incluído no cadastro.';
 
   const submit = async (event: React.FormEvent) => {
@@ -92,8 +92,8 @@ const MockPublicCheckinPage: React.FC = () => {
       <header className="bg-[#044372] p-7 text-white"><p className="text-xs font-black tracking-wider text-sky-200">CHECK-IN</p><h1 className="mt-1 text-2xl font-black">{session.title}</h1><p className="mt-2 text-sm text-sky-100">Confirme apenas sua própria presença.</p></header>
       <form onSubmit={submit} className="space-y-5 p-6">
         <p className="text-sm text-slate-600">Não há escolha de evento nesta tela: o QR já identifica a sessão aberta.</p>
-        <label className="grid gap-1 text-sm font-bold text-slate-700">Digite parte do seu nome<input value={query} onChange={(event) => { setQuery(event.target.value); setSelectedId(''); }} autoComplete="off" className="rounded-xl border border-slate-300 px-3 py-3 text-base font-normal" /></label>
-        {query && !selectedId && <div className="rounded-xl border border-slate-200">{matches.map((person: any) => <button type="button" key={person.id} onClick={() => { setSelectedId(person.id); setQuery(person.name); }} className="block w-full border-b border-slate-100 px-3 py-3 text-left text-sm last:border-0 hover:bg-slate-50">
+        <label className="grid gap-1 text-sm font-bold text-slate-700">Digite parte do seu nome<input value={query} onChange={(event) => { setQuery(event.target.value); setSelectedId(''); setPhone(''); }} autoComplete="off" className="rounded-xl border border-slate-300 px-3 py-3 text-base font-normal" /></label>
+        {query && !selectedId && <div className="rounded-xl border border-slate-200">{matches.map((person: any) => <button type="button" key={person.id} onClick={() => { setSelectedId(person.id); setQuery(person.name); setPhone(person.phone || ''); }} className="block w-full border-b border-slate-100 px-3 py-3 text-left text-sm last:border-0 hover:bg-slate-50">
           <span className="block font-semibold text-slate-800">{person.name}</span>
           {(person.circle || person.hasPhone || person.duplicateCount > 1) && <span className="mt-0.5 block text-xs text-slate-500">
             {person.circle ? `Círculo ${person.circle}` : 'Sem círculo identificado'}
@@ -107,10 +107,10 @@ const MockPublicCheckinPage: React.FC = () => {
         </div>}
         <label className="grid gap-1 text-sm font-bold text-slate-700">Confirme seu telefone<input value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="numeric" placeholder="Somente números" className="rounded-xl border border-slate-300 px-3 py-3 text-base font-normal" /></label>
         <p className="text-xs text-slate-500">{selected?.hasPhone
-          ? 'O telefone informado é comparado com o cadastro. Divergência ou número compartilhado gera solicitação pendente.'
+          ? 'O telefone atual veio preenchido do cadastro. Se você alterar o número, a mudança será enviada para validação administrativa antes de substituir o cadastro.'
           : selected
-            ? 'Como o cadastro está sem telefone, o número informado será incluído somente após a confirmação desta presença.'
-            : 'Selecione seu nome para verificar a situação do telefone cadastrado.'}</p>
+            ? 'Como o cadastro está sem telefone, o número informado será incluído após a confirmação desta presença.'
+            : 'Selecione seu nome para carregar o telefone cadastrado e o círculo correspondente.'}</p>
         <button disabled={busy || !query.trim()} className="w-full rounded-xl bg-[#044372] px-4 py-3 font-black text-white disabled:opacity-50">{busy ? 'Enviando…' : selected ? 'Confirmar presença' : 'Enviar para análise'}</button>
         {message && <p className="rounded-xl bg-slate-100 p-3 text-sm font-semibold text-slate-700">{message}</p>}
       </form>
