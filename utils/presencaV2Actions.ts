@@ -420,6 +420,59 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       await audit(supabase,data.id,'SESSION_CREATED','ADM',group.id,{});
       return {ok:true,data:{success:true,session:await decorateSession(supabase,{...data,public_token_hash:hash(raw)}),source:'supabase'}};
     }
+    if(action==='PRESENCA_V2_UPDATE_SESSION'){
+      const id=clean(payload.sessionId);
+      const session=await sessionRaw(supabase,id);
+      if(!session) return {ok:true,data:{success:false,error:'Reunião não encontrada.'}};
+      if(session.status!=='AGENDADA') return {ok:true,data:{success:false,error:'Somente reuniões agendadas podem ser editadas.'}};
+
+      const group=await getGroup(supabase,clean(payload.responsibleId));
+      if(!group) return {ok:true,data:{success:false,error:'Responsável inválido.'}};
+      if(session.tipo==='REUNIAO_DUPLA_TIOS'&&group.tipo!=='TIOS') return {ok:true,data:{success:false,error:'Grupo incompatível com reunião de círculos.'}};
+      if(session.tipo==='POS_ENCONTRO_GERAL'&&group.tipo!=='POS') return {ok:true,data:{success:false,error:'Grupo incompatível com Pós-encontro.'}};
+
+      const scheduledAt=clean(payload.scheduledAt);
+      if(!scheduledAt) return {ok:true,data:{success:false,error:'Informe a data e hora da reunião.'}};
+      const title=session.tipo==='POS_ENCONTRO_GERAL'?'Pós-encontro':`Reunião de círculos · ${group.nome_exibicao}`;
+      const t=nowIso();
+      const {data,error}=await supabase.from('presenca_sessoes')
+        .update({
+          responsavel_grupo_id:group.id,
+          titulo:title,
+          agendada_para:scheduledAt,
+          atualizado_em:t,
+        })
+        .eq('id',id)
+        .eq('status','AGENDADA')
+        .select('*')
+        .maybeSingle();
+      if(error) throw error;
+      if(!data) return {ok:true,data:{success:false,error:'A reunião não está mais disponível para edição.'}};
+      await audit(supabase,id,'SESSION_UPDATED','ADM',group.id,{scheduledAt});
+      return {ok:true,data:{success:true,session:await decorateSession(supabase,data)}};
+    }
+    if(action==='PRESENCA_V2_DELETE_SESSION'){
+      const id=clean(payload.sessionId);
+      const session=await sessionRaw(supabase,id);
+      if(!session) return {ok:true,data:{success:false,error:'Reunião não encontrada.'}};
+      if(!['AGENDADA','CANCELADA'].includes(session.status)) return {ok:true,data:{success:false,error:'Somente reuniões agendadas ou canceladas podem ser excluídas.'}};
+
+      const [{count:presenceCount,error:presenceError},{count:pendingCount,error:pendingError}] = await Promise.all([
+        supabase.from('presencas').select('id',{count:'exact',head:true}).eq('sessao_id',id),
+        supabase.from('presenca_pendencias').select('id',{count:'exact',head:true}).eq('sessao_id',id),
+      ]);
+      if(presenceError) throw presenceError;
+      if(pendingError) throw pendingError;
+      if(Number(presenceCount||0)>0 || Number(pendingCount||0)>0) {
+        return {ok:true,data:{success:false,error:'A reunião possui presença ou pendência vinculada e não pode ser excluída.'}};
+      }
+
+      const {error:eventError}=await supabase.from('presenca_sessao_eventos').delete().eq('sessao_id',id);
+      if(eventError) throw eventError;
+      const {error:deleteError}=await supabase.from('presenca_sessoes').delete().eq('id',id);
+      if(deleteError) throw deleteError;
+      return {ok:true,data:{success:true,deletedId:id}};
+    }
     if(action==='PRESENCA_V2_OPEN_SESSION'){
       const id=clean(payload.sessionId); const opened=nowIso();
       const {data,error}=await supabase.from('presenca_sessoes').update({status:'ABERTA',aberta_em:opened,atualizado_em:opened}).eq('id',id).eq('status','AGENDADA').select('*').maybeSingle();
