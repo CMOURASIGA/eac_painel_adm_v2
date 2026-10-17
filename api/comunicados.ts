@@ -251,6 +251,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       'PRESENCA_V2_REQUEST_CLOSE',
       'PRESENCA_V2_CANCEL_CLOSE',
       'PRESENCA_V2_REOPEN_SESSION',
+      'PRESENCA_V2_REOPEN_SESSION_ADMIN',
       'PRESENCA_V2_PUBLIC_CHECKIN',
       'PRESENCA_V2_LIST_PENDING',
       'PRESENCA_V2_RESOLVE_PENDING',
