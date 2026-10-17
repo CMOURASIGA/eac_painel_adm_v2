@@ -78,7 +78,6 @@ async function getGroupByToken(supabase: AnySupabase, rawToken: string) {
   const { data, error } = await supabase.from('presenca_responsaveis_grupos')
     .select('*')
     .eq('access_token_hash', expected)
-    .eq('ativo', true)
     .maybeSingle();
   if (error) throw error;
   return data;
@@ -89,7 +88,7 @@ async function ensureResponsibleToken(supabase: AnySupabase, group: any) {
   const expectedHash = hash(raw);
   if (clean(group.access_token_hash) !== expectedHash) {
     const { error } = await supabase.from('presenca_responsaveis_grupos')
-      .update({ access_token_hash: expectedHash, token_atualizado_em: nowIso(), atualizado_em: nowIso() })
+      .update({ access_token_hash: expectedHash })
       .eq('id', group.id);
     if (error) throw error;
   }
@@ -108,7 +107,6 @@ async function loadHistoricalCircleLabels(supabase: AnySupabase, ids: string[]) 
 async function listGroups(supabase: AnySupabase) {
   const { data: groups, error } = await supabase.from('presenca_responsaveis_grupos')
     .select('*')
-    .eq('ativo', true)
     .order('nome_exibicao', { ascending: true });
   if (error) throw error;
   const out: any[] = [];
@@ -406,9 +404,9 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
     }
     if(action==='PRESENCA_V2_CREATE_SESSION'){
       const group=await getGroup(supabase,clean(payload.responsibleId));
-      if(!group||group.ativo!==true) return {ok:true,data:{success:false,error:'Responsável inválido ou inativo.'}};
+      if(!group) return {ok:true,data:{success:false,error:'Responsável inválido.'}};
       const type=clean(payload.type);
-      if(type==='REUNIAO_DUPLA_TIOS'&&group.tipo!=='TIOS') return {ok:true,data:{success:false,error:'Grupo incompatível com reunião de círculos.'}};
+      if(type==='REUNIAO_DUPLA_TIOS'&&!['TIOS','HISTORICO_CIRCULO'].includes(group.tipo)) return {ok:true,data:{success:false,error:'Grupo incompatível com reunião de círculos.'}};
       if(type==='POS_ENCONTRO_GERAL'&&group.tipo!=='POS') return {ok:true,data:{success:false,error:'Grupo incompatível com Pós-encontro.'}};
       const title=type==='POS_ENCONTRO_GERAL'?'Pós-encontro':`Reunião de círculos · ${group.nome_exibicao}`;
       const body:any={encontro_id:group.encontro_id,responsavel_grupo_id:group.id,tipo:type,titulo:title,agendada_para:payload.scheduledAt,status:'AGENDADA'};
@@ -439,6 +437,24 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       const {data,error}=await supabase.from('presenca_sessoes').update({status:'ENCERRADA',encerrada_em:t,encerrada_origem:'ADM',encerramento_solicitado_em:null,encerramento_programado_em:null,atualizado_em:t}).eq('id',id).eq('status','ABERTA').select('*').maybeSingle();
       if(error) throw error; if(!data) return {ok:true,data:{success:false,error:'Sessão não está aberta.'}};
       await audit(supabase,id,'CLOSED_ADMIN','ADM',data.responsavel_grupo_id,{});
+      return {ok:true,data:{success:true,session:await decorateSession(supabase,data)}};
+    }
+    if(action==='PRESENCA_V2_REOPEN_SESSION_ADMIN'){
+      const session=await sessionRaw(supabase,clean(payload.sessionId));
+      if(!session||session.status!=='ENCERRADA') return {ok:true,data:{success:false,error:'Somente sessões encerradas podem ser reabertas pelo ADM.'}};
+      const t=nowIso();
+      const {data,error}=await supabase.from('presenca_sessoes').update({
+        status:'ABERTA',
+        encerrada_em:null,
+        encerrada_origem:null,
+        total_reaberturas:Number(session.total_reaberturas||0)+1,
+        ultima_reabertura_em:t,
+        encerramento_solicitado_em:null,
+        encerramento_programado_em:null,
+        atualizado_em:t
+      }).eq('id',session.id).select('*').maybeSingle();
+      if(error) throw error;
+      await audit(supabase,session.id,'REOPENED_ADMIN','ADM',session.responsavel_grupo_id,{});
       return {ok:true,data:{success:true,session:await decorateSession(supabase,data)}};
     }
     if(action==='PRESENCA_V2_REQUEST_CLOSE'){
