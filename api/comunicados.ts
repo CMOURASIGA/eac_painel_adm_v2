@@ -245,6 +245,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       'PRESENCA_V2_GET_ANALYTICS',
       'PRESENCA_V2_GET_PUBLIC_SESSION',
       'PRESENCA_V2_CREATE_SESSION',
+      'PRESENCA_V2_UPDATE_SESSION',
+      'PRESENCA_V2_DELETE_SESSION',
       'PRESENCA_V2_OPEN_SESSION',
       'PRESENCA_V2_CANCEL_SESSION',
       'PRESENCA_V2_CLOSE_SESSION',
