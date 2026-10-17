@@ -43,6 +43,7 @@ import { isMockRuntime } from './services/mock/mockRuntime.ts';
 const viewPathMap: Partial<Record<View, string>> = {
   members: '/cadastro',
   presence: '/cadastro/presenca',
+  presence_sessions: '/cadastro/presenca/sessoes',
   inscricoes_prioritarias: '/prioritarios',
   visitacao: '/visitacao',
   inscricoes_review: '/inscricoes/revisao',
@@ -59,7 +60,7 @@ const viewPathMap: Partial<Record<View, string>> = {
 const pathViewMap: Record<string, View> = {
   '/cadastro': 'members',
   '/cadastro/presenca': 'presence',
-  '/cadastro/presenca/sessoes': 'presence',
+  '/cadastro/presenca/sessoes': 'presence_sessions',
   '/prioritarios': 'inscricoes_prioritarias',
   '/visitacao': 'visitacao',
   '/inscricoes/revisao': 'inscricoes_review',
@@ -367,7 +368,7 @@ const App: React.FC = () => {
       showToast('Seu usuário não possui acesso ao módulo Equipes.', 'error');
       return;
     }
-    if (currentView === 'presence' && !allowed.includes('presence')) {
+    if ((currentView === 'presence' || currentView === 'presence_sessions') && !allowed.includes('presence')) {
       setCurrentView('dashboard');
       showToast('Seu usuÃ¡rio nÃ£o possui acesso ao mÃ³dulo Controle de PresenÃ§a.', 'error');
       return;
@@ -665,11 +666,8 @@ const App: React.FC = () => {
         {currentView === 'encontreiros' && <EncontreiroPage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialFilters={pendingFilters} />}
         {currentView === 'encontros' && <SettingsPage settings={settings} onSave={(next) => { setSettings(next); localStorage.setItem('eac_settings', JSON.stringify(next)); }} focusEncontros />}
         {currentView === 'equipes' && <EncontreiroPage user={user} googleWebAppUrl={effectiveGoogleWebAppUrl} initialView="equipes" />}
-        {currentView === 'presence' && (
-          window.location.pathname.replace(/\/+$/, '') === '/cadastro/presenca/sessoes'
-            ? <MockPresenceAdminPage />
-            : <MockPresenceAnalyticsPage />
-        )}
+        {currentView === 'presence' && <MockPresenceAnalyticsPage />}
+        {currentView === 'presence_sessions' && <MockPresenceAdminPage />}
         {currentView === 'dispatches' && <DispatchesPage dispatches={dispatches} onExecute={handleExecuteDispatch} onClearStatus={async (d) => { await callApiProxy('CLEAR_DISPATCH_STATUS', { type: d.type }); fetchSpreadsheetData(); }} operator={user.name} />}
         {currentView === 'calendar' && <CalendarPage googleWebAppUrl={effectiveGoogleWebAppUrl} user={user} />}
         {currentView === 'comunicados' && <ComunicadosPage comunicados={comunicados} onSave={async (c) => { await callApiProxy('SAVE_COMUNICADO', c); fetchSpreadsheetData(); }} onDelete={async (id) => { await callApiProxy('DELETE_COMUNICADO', { id }); fetchSpreadsheetData(); }} onSync={fetchSpreadsheetData} isLoading={isLoadingSheet} user={user} />}
