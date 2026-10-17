@@ -98,7 +98,7 @@ const MockPresenceAdminPage: React.FC = () => {
     }), [sessions]);
 
   const circleGroups = useMemo(() => responsibleGroups
-    .filter((item) => item.kind === 'TIOS')
+    .filter(isSelectableTiosGroup)
     .filter((item) => String(item.label || '').toLocaleLowerCase('pt-BR').includes(sessionResponsibleFilter.trim().toLocaleLowerCase('pt-BR')))
     .map((item) => ({
       ...item,
@@ -114,7 +114,18 @@ const MockPresenceAdminPage: React.FC = () => {
         }),
     }))
     .filter((group) => sessionStatusFilter === 'TODOS' || group.sessions.length > 0)
-    .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR')), [responsibleGroups, sessions, sessionResponsibleFilter, sessionStatusFilter]);
+    .sort(responsibleGroupOrder), [responsibleGroups, sessions, sessionResponsibleFilter, sessionStatusFilter]);
+
+  const isSelectableTiosGroup = (item: any) =>
+    item?.kind === 'TIOS'
+    && !String(item?.code || '').includes('-HIST-');
+
+  const responsibleGroupOrder = (a: any, b: any) => {
+    const editionA = Number(String(a?.code || '').match(/^EAC(\d+)-/)?.[1] || 999);
+    const editionB = Number(String(b?.code || '').match(/^EAC(\d+)-/)?.[1] || 999);
+    if (editionA !== editionB) return editionA - editionB;
+    return String(a?.label || '').localeCompare(String(b?.label || ''), 'pt-BR');
+  };
 
   const toggleGroup = (key: string) => setExpandedGroups((current) => ({ ...current, [key]: !current[key] }));
 
@@ -167,7 +178,7 @@ const MockPresenceAdminPage: React.FC = () => {
             <select value={type} onChange={(event) => {
               const nextType = event.target.value as Session['type'];
               setType(nextType);
-              const candidate = responsibleGroups.find((item) => nextType === 'REUNIAO_DUPLA_TIOS' ? item.kind === 'TIOS' : item.kind === 'POS' && item.active === true);
+              const candidate = responsibleGroups.find((item) => nextType === 'REUNIAO_DUPLA_TIOS' ? isSelectableTiosGroup(item) : item.kind === 'POS' && item.active === true);
               setResponsibleId(candidate?.id || '');
             }} className="rounded-lg border border-slate-300 bg-white px-3 py-2">
               <option value="REUNIAO_DUPLA_TIOS">Reunião de tios (dupla de círculos)</option>
@@ -176,7 +187,7 @@ const MockPresenceAdminPage: React.FC = () => {
           </label>
           <label className="grid flex-1 gap-1 text-sm font-semibold text-slate-700">Responsável
             <select value={responsibleId} onChange={(event) => setResponsibleId(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2">
-              {responsibleGroups.filter((item) => type === 'REUNIAO_DUPLA_TIOS' ? item.kind === 'TIOS' : item.kind === 'POS' && item.active === true).map((item) => (
+              {responsibleGroups.filter((item) => type === 'REUNIAO_DUPLA_TIOS' ? isSelectableTiosGroup(item) : item.kind === 'POS' && item.active === true).slice().sort(responsibleGroupOrder).map((item) => (
                 <option key={item.id} value={item.id}>{item.label}{item.circlePairLabel ? ` · ${item.circlePairLabel}` : ''}</option>
               ))}
             </select>
@@ -203,11 +214,11 @@ const MockPresenceAdminPage: React.FC = () => {
 
         <div className="mt-4 rounded-xl border border-slate-200">
           <button type="button" onClick={() => toggleGroup('access-circles')} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
-            <div><p className="font-bold text-slate-900">Acessos dos tios de círculo</p><p className="text-xs text-slate-500">{responsibleGroups.filter((item) => item.kind === 'TIOS').length} responsável(is) configurado(s)</p></div>
+            <div><p className="font-bold text-slate-900">Acessos dos tios de círculo</p><p className="text-xs text-slate-500">{responsibleGroups.filter(isSelectableTiosGroup).length} casal(is) configurado(s)</p></div>
             <span className="text-lg font-black text-slate-500">{expandedGroups['access-circles'] ? '−' : '+'}</span>
           </button>
           {expandedGroups['access-circles'] && <div className="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            {responsibleGroups.filter((item) => item.kind === 'TIOS').map((item) => (
+            {responsibleGroups.filter(isSelectableTiosGroup).slice().sort(responsibleGroupOrder).map((item) => (
               <div key={item.id} className="rounded-xl border border-slate-200 p-3">
                 <p className="text-sm font-bold text-slate-900">{item.label}</p>
                 <button type="button" onClick={() => navigator.clipboard?.writeText(responsibleLink(item.accessToken || '')).then(() => setNotice(`Acesso ${item.label} copiado.`))} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">Copiar acesso</button>
