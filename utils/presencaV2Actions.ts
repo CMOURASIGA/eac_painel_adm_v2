@@ -10,6 +10,13 @@ const digits = (v: any) => clean(v).replace(/\D/g, '');
 const nowIso = () => new Date().toISOString();
 const hash = (v: string) => createHash('sha256').update(v, 'utf8').digest('hex');
 
+const normalizedNameKey = (v: any) =>
+  clean(v)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+
 function phoneNorm(v: any) {
   const d = digits(v);
   if (!d) return '';
@@ -228,7 +235,37 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
     for(const a of adolescents||[]){const p=people.get(a.pessoa_id); if(p&&!p.adolescenteId)p.adolescenteId=a.id;}
     for(const e of workers||[]){const p=people.get(e.pessoa_id); if(p&&!p.encontreiroId)p.encontreiroId=e.id;}
   }
-  return Array.from(people.values()).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+  const deduped = new Map<string, any>();
+  for (const person of people.values()) {
+    const exactPhone = phoneNorm(person.phone);
+    const key = exactPhone
+      ? `${normalizedNameKey(person.name)}|${exactPhone}`
+      : `${normalizedNameKey(person.name)}|id:${person.id}`;
+
+    const current = deduped.get(key);
+    if (!current) {
+      deduped.set(key, person);
+      continue;
+    }
+
+    const currentCircles = clean(current.circle).split(' | ').map((x:string)=>x.trim()).filter(Boolean);
+    const incomingCircles = clean(person.circle).split(' | ').map((x:string)=>x.trim()).filter(Boolean);
+    for (const circle of incomingCircles) {
+      if (!currentCircles.includes(circle)) currentCircles.push(circle);
+    }
+
+    const preferIncoming = !clean(current.circle) && Boolean(clean(person.circle));
+    deduped.set(key, {
+      ...(preferIncoming ? person : current),
+      circle: currentCircles.join(' | '),
+      duplicatePersonIds: Array.from(new Set([
+        ...(Array.isArray(current.duplicatePersonIds) ? current.duplicatePersonIds : [current.id]),
+        ...(Array.isArray(person.duplicatePersonIds) ? person.duplicatePersonIds : [person.id]),
+      ])),
+    });
+  }
+
+  return Array.from(deduped.values()).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
 }
 
 async function decorateSession(supabase: AnySupabase, row: any) {
