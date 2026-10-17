@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import qrcode from 'qrcode-generator';
 import { postComunicadosAction } from '../../services/eacApiClient.ts';
 
 type Session = {
@@ -48,6 +49,8 @@ const MockPresenceAdminPage: React.FC = () => {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [processingLabel, setProcessingLabel] = useState('');
+  const [copiedSessionId, setCopiedSessionId] = useState('');
+  const [qrSessionId, setQrSessionId] = useState('');
   const [type, setType] = useState<Session['type']>('REUNIAO_DUPLA_TIOS');
   const [responsibleGroups, setResponsibleGroups] = useState<any[]>([]);
   const [responsibleId, setResponsibleId] = useState('');
@@ -189,6 +192,25 @@ const MockPresenceAdminPage: React.FC = () => {
     await execute('PRESENCA_V2_DELETE_SESSION', { sessionId: session.id }, 'Reunião excluída.', 'Excluindo reunião...');
   };
 
+  const copyPublicLink = async (session: Session) => {
+    const link = qrLink(session);
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedSessionId(session.id);
+      setNotice('Link público copiado para a área de transferência.');
+      window.setTimeout(() => setCopiedSessionId((current) => current === session.id ? '' : current), 2500);
+    } catch {
+      setNotice('Não foi possível copiar automaticamente. Selecione o link exibido no card.');
+    }
+  };
+
+  const qrDataUrl = (session: Session) => {
+    const qr = qrcode(0, 'M');
+    qr.addData(qrLink(session));
+    qr.make();
+    return qr.createDataURL(7, 4);
+  };
+
   const renderSessionCard = (session: Session) => (
     <article key={session.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -224,6 +246,13 @@ const MockPresenceAdminPage: React.FC = () => {
         </div>
       )}
       <p className="mt-4 break-all rounded-lg bg-slate-50 p-2 text-xs text-slate-600">QR público: {qrLink(session)}</p>
+      {qrSessionId === session.id && (
+        <div className="mt-3 flex flex-col items-center gap-3 rounded-xl border border-sky-200 bg-white p-4 sm:items-start">
+          <p className="text-sm font-bold text-slate-900">QR Code da reunião</p>
+          <img src={qrDataUrl(session)} alt={`QR Code da reunião ${session.title}`} className="h-56 w-56 rounded-lg border border-slate-200 bg-white p-2" />
+          <p className="max-w-md text-xs text-slate-500">Exiba este QR aos adolescentes. Ele abre diretamente o check-in desta reunião.</p>
+        </div>
+      )}
       <div className="mt-4 flex flex-wrap gap-2">
         {session.status === 'AGENDADA' && <>
           <button disabled={busy} onClick={() => void execute('PRESENCA_V2_OPEN_SESSION', { sessionId: session.id }, 'Reunião aberta.')} className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white">Abrir reunião</button>
@@ -234,7 +263,12 @@ const MockPresenceAdminPage: React.FC = () => {
         {session.status === 'ABERTA' && <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CLOSE_SESSION', { sessionId: session.id }, 'Reunião encerrada pelo ADM.')} className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white">Encerrar reunião</button>}
         {session.status === 'CANCELADA' && <button disabled={busy} onClick={() => void deleteSession(session)} className="rounded-lg border border-rose-500 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-800">{busy ? 'Processando...' : 'Excluir'}</button>}
         {session.status === 'ENCERRADA' && <button disabled={busy} onClick={() => void execute('PRESENCA_V2_REOPEN_SESSION_ADMIN', { sessionId: session.id }, 'Reunião reaberta pelo ADM. O mesmo QR voltou a aceitar check-in.')} className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-bold text-sky-800">Reabrir pelo ADM</button>}
-        <button type="button" onClick={() => navigator.clipboard?.writeText(qrLink(session)).then(() => setNotice('Link do QR público copiado.'))} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">Copiar link</button>
+        <button type="button" onClick={() => void copyPublicLink(session)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">
+          {copiedSessionId === session.id ? '✓ Link copiado' : 'Copiar link'}
+        </button>
+        <button type="button" onClick={() => setQrSessionId((current) => current === session.id ? '' : session.id)} className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-bold text-sky-800">
+          {qrSessionId === session.id ? 'Ocultar QR Code' : 'Ver QR Code'}
+        </button>
       </div>
     </article>
   );
