@@ -87,6 +87,17 @@ const MockPresenceAdminPage: React.FC = () => {
   const unresolved = useMemo(() => pending.filter((item) => item.status === 'PENDING'), [pending]);
   const resolved = useMemo(() => pending.filter((item) => item.status === 'APPROVED' || item.status === 'REJECTED').slice().reverse(), [pending]);
 
+  const isSelectableTiosGroup = (item: any) =>
+    item?.kind === 'TIOS'
+    && !String(item?.code || '').includes('-HIST-');
+
+  const responsibleGroupOrder = (a: any, b: any) => {
+    const editionA = Number(String(a?.code || '').match(/^EAC(\d+)-/)?.[1] || 999);
+    const editionB = Number(String(b?.code || '').match(/^EAC(\d+)-/)?.[1] || 999);
+    if (editionA !== editionB) return editionA - editionB;
+    return String(a?.label || '').localeCompare(String(b?.label || ''), 'pt-BR');
+  };
+
   const postSessions = useMemo(() => sessions
     .filter((session) => session.type === 'POS_ENCONTRO_GERAL')
     .slice()
@@ -115,17 +126,6 @@ const MockPresenceAdminPage: React.FC = () => {
     }))
     .filter((group) => sessionStatusFilter === 'TODOS' || group.sessions.length > 0)
     .sort(responsibleGroupOrder), [responsibleGroups, sessions, sessionResponsibleFilter, sessionStatusFilter]);
-
-  const isSelectableTiosGroup = (item: any) =>
-    item?.kind === 'TIOS'
-    && !String(item?.code || '').includes('-HIST-');
-
-  const responsibleGroupOrder = (a: any, b: any) => {
-    const editionA = Number(String(a?.code || '').match(/^EAC(\d+)-/)?.[1] || 999);
-    const editionB = Number(String(b?.code || '').match(/^EAC(\d+)-/)?.[1] || 999);
-    if (editionA !== editionB) return editionA - editionB;
-    return String(a?.label || '').localeCompare(String(b?.label || ''), 'pt-BR');
-  };
 
   const toggleGroup = (key: string) => setExpandedGroups((current) => ({ ...current, [key]: !current[key] }));
 
