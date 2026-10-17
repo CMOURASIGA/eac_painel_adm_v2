@@ -57,6 +57,7 @@ async function ensureDueClose(supabase: AnySupabase, session: any) {
 async function audit(supabase: AnySupabase, sessaoId: string, event: string, actor: 'ADM'|'RESPONSAVEL'|'SYSTEM', groupId?: string | null, detalhes: any = {}) {
   const payload: any = {
     sessao_id: sessaoId,
+    tipo: event,
     tipo_evento: event,
     ator_tipo: actor,
     detalhes: detalhes || {},
