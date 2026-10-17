@@ -1,13 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { postComunicadosAction } from '../../services/eacApiClient.ts';
 
-type Encounter = {
-  id: string;
-  nome?: string;
-  numero?: number | string;
-  status?: string;
-};
-
 type Session = {
   id: string;
   title: string;
@@ -57,31 +50,21 @@ const MockPresenceAdminPage: React.FC = () => {
   const [type, setType] = useState<Session['type']>('REUNIAO_DUPLA_TIOS');
   const [responsibleGroups, setResponsibleGroups] = useState<any[]>([]);
   const [responsibleId, setResponsibleId] = useState('');
-  const [encounters, setEncounters] = useState<Encounter[]>([]);
-  const [encounterId, setEncounterId] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [sessionResponsibleFilter, setSessionResponsibleFilter] = useState('');
   const [sessionStatusFilter, setSessionStatusFilter] = useState<'TODOS' | Session['status']>('TODOS');
 
   const refresh = useCallback(async () => {
-    const [sessionsResult, pendingResult, responsibleResult, encountersResponse] = await Promise.all([
+    const [sessionsResult, pendingResult, responsibleResult] = await Promise.all([
       call('PRESENCA_V2_LIST_SESSIONS'),
       call('PRESENCA_V2_LIST_PENDING'),
       call('PRESENCA_V2_LIST_RESPONSIBLE_GROUPS'),
-      fetch('/api/encontros/abertos', { cache: 'no-store' }).then(async (response) => {
-        const body = await response.json();
-        if (!response.ok || !body?.success) throw new Error(body?.message || body?.error || 'Não foi possível carregar os encontros.');
-        return body;
-      }),
     ]);
     setSessions(Array.isArray(sessionsResult.sessions) ? sessionsResult.sessions : []);
     setPending(Array.isArray(pendingResult.requests) ? pendingResult.requests : []);
     setRecords(Array.isArray(pendingResult.records) ? pendingResult.records : []);
     setResponsibleGroups(Array.isArray(responsibleResult.responsibleGroups) ? responsibleResult.responsibleGroups : []);
-    const loadedEncounters = Array.isArray(encountersResponse.encontros) ? encountersResponse.encontros : [];
-    setEncounters(loadedEncounters);
-    setEncounterId((current) => current || loadedEncounters[0]?.id || '');
   }, []);
 
   useEffect(() => { void refresh().catch((error) => setNotice(error.message)); }, [refresh]);
@@ -184,7 +167,7 @@ const MockPresenceAdminPage: React.FC = () => {
             <select value={type} onChange={(event) => {
               const nextType = event.target.value as Session['type'];
               setType(nextType);
-              const candidate = responsibleGroups.find((item) => item.active === true && (nextType === 'REUNIAO_DUPLA_TIOS' ? item.kind === 'TIOS' : item.kind === 'POS'));
+              const candidate = responsibleGroups.find((item) => nextType === 'REUNIAO_DUPLA_TIOS' ? item.kind === 'TIOS' : item.kind === 'POS' && item.active === true);
               setResponsibleId(candidate?.id || '');
             }} className="rounded-lg border border-slate-300 bg-white px-3 py-2">
               <option value="REUNIAO_DUPLA_TIOS">Reunião de tios (dupla de círculos)</option>
@@ -193,23 +176,15 @@ const MockPresenceAdminPage: React.FC = () => {
           </label>
           <label className="grid flex-1 gap-1 text-sm font-semibold text-slate-700">Responsável
             <select value={responsibleId} onChange={(event) => setResponsibleId(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2">
-              {responsibleGroups.filter((item) => item.active === true && (type === 'REUNIAO_DUPLA_TIOS' ? item.kind === 'TIOS' : item.kind === 'POS')).map((item) => (
+              {responsibleGroups.filter((item) => type === 'REUNIAO_DUPLA_TIOS' ? item.kind === 'TIOS' : item.kind === 'POS' && item.active === true).map((item) => (
                 <option key={item.id} value={item.id}>{item.label}{item.circlePairLabel ? ` · ${item.circlePairLabel}` : ''}</option>
               ))}
             </select>
           </label>
-          {type === 'POS_ENCONTRO_GERAL' && <label className="grid flex-1 gap-1 text-sm font-semibold text-slate-700">Encontro
-            <select value={encounterId} onChange={(event) => setEncounterId(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2">
-              <option value="">Selecione o encontro</option>
-              {encounters.map((item) => (
-                <option key={item.id} value={item.id}>{item.numero ? `${item.numero}º EAC` : item.nome || item.id}{item.status ? ` · ${item.status}` : ''}</option>
-              ))}
-            </select>
-          </label>}
           <label className="grid flex-1 gap-1 text-sm font-semibold text-slate-700">Data e hora da reunião
             <input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2" />
           </label>
-          <button disabled={busy || !responsibleId || !scheduledAt || (type === 'POS_ENCONTRO_GERAL' && !encounterId)} onClick={() => void execute('PRESENCA_V2_CREATE_SESSION', { type, responsibleId, encounterId: type === 'POS_ENCONTRO_GERAL' ? encounterId : undefined, scheduledAt }, 'Reunião agendada.')} className="rounded-lg bg-[#044372] px-4 py-2 font-bold text-white disabled:opacity-50">Agendar reunião</button>
+          <button disabled={busy || !responsibleId || !scheduledAt} onClick={() => void execute('PRESENCA_V2_CREATE_SESSION', { type, responsibleId, scheduledAt }, 'Reunião agendada.')} className="rounded-lg bg-[#044372] px-4 py-2 font-bold text-white disabled:opacity-50">Agendar reunião</button>
         </div>
       </div>
 
@@ -228,11 +203,11 @@ const MockPresenceAdminPage: React.FC = () => {
 
         <div className="mt-4 rounded-xl border border-slate-200">
           <button type="button" onClick={() => toggleGroup('access-circles')} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
-            <div><p className="font-bold text-slate-900">Acessos dos tios de círculo</p><p className="text-xs text-slate-500">{responsibleGroups.filter((item) => item.kind === 'TIOS' && item.active === true).length} casal(is) ativo(s)</p></div>
+            <div><p className="font-bold text-slate-900">Acessos dos tios de círculo</p><p className="text-xs text-slate-500">{responsibleGroups.filter((item) => item.kind === 'TIOS').length} responsável(is) configurado(s)</p></div>
             <span className="text-lg font-black text-slate-500">{expandedGroups['access-circles'] ? '−' : '+'}</span>
           </button>
           {expandedGroups['access-circles'] && <div className="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            {responsibleGroups.filter((item) => item.kind === 'TIOS' && item.active === true).map((item) => (
+            {responsibleGroups.filter((item) => item.kind === 'TIOS').map((item) => (
               <div key={item.id} className="rounded-xl border border-slate-200 p-3">
                 <p className="text-sm font-bold text-slate-900">{item.label}</p>
                 <button type="button" onClick={() => navigator.clipboard?.writeText(responsibleLink(item.accessToken || '')).then(() => setNotice(`Acesso ${item.label} copiado.`))} className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">Copiar acesso</button>
