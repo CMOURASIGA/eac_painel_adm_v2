@@ -406,27 +406,11 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       const group=await getGroup(supabase,clean(payload.responsibleId));
       if(!group) return {ok:true,data:{success:false,error:'Responsável inválido.'}};
       const type=clean(payload.type);
-      if(group.ativo!==true) return {ok:true,data:{success:false,error:'Responsável inativo para novas reuniões.'}};
-      if(type==='REUNIAO_DUPLA_TIOS'&&group.tipo!=='TIOS') return {ok:true,data:{success:false,error:'Grupo incompatível com reunião de círculos.'}};
+      if(type==='REUNIAO_DUPLA_TIOS'&&!['TIOS','HISTORICO_CIRCULO'].includes(group.tipo)) return {ok:true,data:{success:false,error:'Grupo incompatível com reunião de círculos.'}};
       if(type==='POS_ENCONTRO_GERAL'&&group.tipo!=='POS') return {ok:true,data:{success:false,error:'Grupo incompatível com Pós-encontro.'}};
 
-      let encontroId=clean(group.encontro_id);
-      if(type==='POS_ENCONTRO_GERAL'){
-        encontroId=clean(payload.encounterId);
-        if(!encontroId) return {ok:true,data:{success:false,error:'Selecione o encontro da reunião de Pós.'}};
-        const encontroTable=clean(process.env.EAC_SUPABASE_TABLE_ENCONTROS)||'encontros';
-        const {data:encontro,error:encontroError}=await supabase.from(encontroTable)
-          .select('id,status')
-          .eq('id',encontroId)
-          .maybeSingle();
-        if(encontroError) throw encontroError;
-        if(!encontro) return {ok:true,data:{success:false,error:'Encontro informado não foi localizado.'}};
-        if(!['ATIVO','PLANEJADO'].includes(clean(encontro.status).toUpperCase())) return {ok:true,data:{success:false,error:'Encontro indisponível para novas reuniões.'}};
-      }
-      if(!encontroId) return {ok:true,data:{success:false,error:'Encontro da reunião não foi definido.'}};
-
       const title=type==='POS_ENCONTRO_GERAL'?'Pós-encontro':`Reunião de círculos · ${group.nome_exibicao}`;
-      const body:any={encontro_id:encontroId,responsavel_grupo_id:group.id,tipo:type,titulo:title,agendada_para:payload.scheduledAt,status:'AGENDADA'};
+      const body:any={encontro_id:null,responsavel_grupo_id:group.id,tipo:type,titulo:title,agendada_para:payload.scheduledAt,status:'AGENDADA'};
       const {data,error}=await supabase.from('presenca_sessoes').insert(body).select('*').maybeSingle();
       if(error) throw error;
       const raw=tokenFor('session',data.id);
