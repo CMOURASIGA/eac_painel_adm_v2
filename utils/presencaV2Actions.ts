@@ -126,7 +126,7 @@ async function listGroups(supabase: AnySupabase) {
     out.push({
       id: group.id,
       code: group.codigo,
-      kind: group.tipo === 'POS' ? 'POS' : 'TIOS',
+      kind: group.tipo === 'POS' ? 'POS' : group.tipo === 'TIOS' ? 'TIOS' : 'HISTORICO',
       label: group.nome_exibicao,
       active: group.ativo === true,
       members: (members || []).filter((m:any)=>m.ativo !== false).map((m:any)=>({ id:m.id, name:m.nome_snapshot, role:m.papel_snapshot, pessoaId:m.pessoa_id })),
@@ -406,7 +406,7 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       const group=await getGroup(supabase,clean(payload.responsibleId));
       if(!group) return {ok:true,data:{success:false,error:'Responsável inválido.'}};
       const type=clean(payload.type);
-      if(type==='REUNIAO_DUPLA_TIOS'&&!['TIOS','HISTORICO_CIRCULO'].includes(group.tipo)) return {ok:true,data:{success:false,error:'Grupo incompatível com reunião de círculos.'}};
+      if(type==='REUNIAO_DUPLA_TIOS'&&group.tipo!=='TIOS') return {ok:true,data:{success:false,error:'Grupo incompatível com reunião de círculos.'}};
       if(type==='POS_ENCONTRO_GERAL'&&group.tipo!=='POS') return {ok:true,data:{success:false,error:'Grupo incompatível com Pós-encontro.'}};
 
       const title=type==='POS_ENCONTRO_GERAL'?'Pós-encontro':`Reunião de círculos · ${group.nome_exibicao}`;
