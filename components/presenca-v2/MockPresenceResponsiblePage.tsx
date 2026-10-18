@@ -114,6 +114,33 @@ const PresenceResponsiblePage: React.FC = () => {
     }
   };
 
+  const exportAdolescents = async () => {
+    setBusy('export-adolescents');
+    try {
+      const data=await call('PRESENCA_V2_RESPONSIBLE_EXPORT_ADOLESCENTS',{token});
+      const rows=Array.isArray(data.rows)?data.rows:[];
+      const escapeCsv=(value:any)=>`"${String(value??'').replace(/"/g,'""')}"`;
+      const csv=[
+        ['nome','telefone_normalizado'].map(escapeCsv).join(';'),
+        ...rows.map((row:any)=>[row.nome,row.telefone_normalizado].map(escapeCsv).join(';'))
+      ].join('\r\n');
+      const blob=new Blob(['\ufeff',csv],{type:'text/csv;charset=utf-8;'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url;
+      a.download=`adolescentes-${new Date().toISOString().slice(0,10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setNotice(`Exportação concluída: ${rows.length} adolescente(s).`);
+    } catch (error:any) {
+      setNotice(error?.message||'Não foi possível exportar a lista de adolescentes.');
+    } finally {
+      setBusy('');
+    }
+  };
+
   const loadAttendance = async (sessionId: string) => {
     setBusy(`attendance:${sessionId}`);
     try {
@@ -211,6 +238,20 @@ const PresenceResponsiblePage: React.FC = () => {
           <h1 className="mt-1 text-2xl font-black sm:text-3xl">{responsibleLabel || 'Carregando responsável…'}</h1>
           <p className="mt-2 max-w-3xl text-sm text-sky-100">Aqui aparecem as reuniões agendadas, abertas e encerradas do seu escopo. O mesmo QR é preservado em caso de reabertura.</p>
         </header>
+
+        {responsibleKind === 'POS' && (
+          <div className="mt-5 rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-black text-slate-900">Lista geral de adolescentes</h2>
+                <p className="mt-1 text-sm text-slate-600">Exporte quando precisar a relação atual de adolescentes com nome e telefone normalizado.</p>
+              </div>
+              <button type="button" disabled={busy==='export-adolescents'} onClick={()=>void exportAdolescents()} className="shrink-0 rounded-xl bg-violet-700 px-4 py-3 font-black text-white disabled:opacity-50">
+                {busy==='export-adolescents'?'Gerando...':'Exportar CSV'}
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Agendadas</p><p className="mt-1 text-2xl font-black text-sky-700">{scheduledSessions.length}</p></div>
