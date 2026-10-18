@@ -5,7 +5,7 @@ import QrDisplay from './QrDisplay.tsx';
 type Session = {
   id: string;
   title: string;
-  status: 'ABERTA' | 'ENCERRADA';
+  status: 'AGENDADA' | 'ABERTA' | 'ENCERRADA';
   eligibleCount: number;
   confirmedCount: number;
   pendingCount: number;
@@ -76,6 +76,7 @@ const PresenceResponsiblePage: React.FC = () => {
     }
   };
 
+  const scheduledSessions = useMemo(() => sessions.filter((item) => item.status === 'AGENDADA'), [sessions]);
   const openSessions = useMemo(() => sessions.filter((item) => item.status === 'ABERTA'), [sessions]);
   const closedSessions = useMemo(() => sessions.filter((item) => item.status === 'ENCERRADA'), [sessions]);
   const checkinUrl = (session: Session) => `${window.location.origin}/presenca/form?session=${encodeURIComponent(session.publicToken)}`;
@@ -102,13 +103,14 @@ const PresenceResponsiblePage: React.FC = () => {
         <header className="rounded-3xl bg-[#044372] p-6 text-white shadow-lg sm:p-8">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-200">Presença · acesso operacional</p>
           <h1 className="mt-1 text-2xl font-black sm:text-3xl">{responsibleLabel || 'Carregando responsável…'}</h1>
-          <p className="mt-2 max-w-3xl text-sm text-sky-100">Aqui aparecem somente reuniões abertas e encerradas do seu escopo. O mesmo QR é preservado em caso de reabertura.</p>
+          <p className="mt-2 max-w-3xl text-sm text-sky-100">Aqui aparecem as reuniões agendadas, abertas e encerradas do seu escopo. O mesmo QR é preservado em caso de reabertura.</p>
         </header>
 
-        <div className="mt-5 grid grid-cols-3 gap-3">
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Agendadas</p><p className="mt-1 text-2xl font-black text-sky-700">{scheduledSessions.length}</p></div>
           <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Abertas</p><p className="mt-1 text-2xl font-black text-emerald-700">{openSessions.length}</p></div>
           <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Encerradas</p><p className="mt-1 text-2xl font-black text-slate-900">{closedSessions.length}</p></div>
-          <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Confirmados</p><p className="mt-1 text-2xl font-black text-sky-700">{openSessions.reduce((sum, item) => sum + item.confirmedCount, 0)}</p></div>
+          <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Confirmados</p><p className="mt-1 text-2xl font-black text-sky-700">{sessions.reduce((sum, item) => sum + item.confirmedCount, 0)}</p></div>
         </div>
 
         {notice && <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-800">{notice}</div>}
@@ -116,6 +118,34 @@ const PresenceResponsiblePage: React.FC = () => {
 
         {!loading && (
           <div className="mt-6 space-y-6">
+            <section>
+              <div>
+                <h2 className="text-xl font-black text-slate-900">Reuniões agendadas</h2>
+                <p className="text-sm text-slate-600">Próximas reuniões previstas para este responsável.</p>
+              </div>
+              {scheduledSessions.length === 0 ? <p className="mt-3 rounded-2xl bg-white p-5 text-sm text-slate-500 shadow-sm">Nenhuma reunião agendada neste escopo.</p> : (
+                <div className="mt-3 grid gap-4 md:grid-cols-2">
+                  {scheduledSessions.map((session) => (
+                    <article key={session.id} className="rounded-3xl border border-sky-200 bg-white p-5 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-black text-slate-900">{session.title}</h3>
+                          <p className="mt-1 text-xs text-slate-500">Prevista para {formatDateTime(session.scheduledAt)}</p>
+                        </div>
+                        <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-black text-sky-800">AGENDADA</span>
+                      </div>
+                      <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                        <div className="rounded-xl bg-slate-50 p-2"><p className="text-[11px] text-slate-500">Elegíveis</p><p className="font-black">{session.eligibleCount}</p></div>
+                        <div className="rounded-xl bg-slate-50 p-2"><p className="text-[11px] text-slate-500">Confirmados</p><p className="font-black">{session.confirmedCount}</p></div>
+                        <div className="rounded-xl bg-slate-50 p-2"><p className="text-[11px] text-slate-500">Pendentes</p><p className="font-black">{session.pendingCount}</p></div>
+                      </div>
+                      <p className="mt-4 text-xs font-semibold text-slate-500">O QR e o registro de presença ficam disponíveis quando o ADM abrir a reunião.</p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
             <section>
               <div className="flex items-center justify-between gap-3">
                 <div><h2 className="text-xl font-black text-slate-900">Reuniões abertas</h2><p className="text-sm text-slate-600">Exiba o QR e encerre quando a reunião terminar.</p></div>
