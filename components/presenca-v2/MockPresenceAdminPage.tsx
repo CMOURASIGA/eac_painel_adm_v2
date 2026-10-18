@@ -74,7 +74,30 @@ const MockPresenceAdminPage: React.FC = () => {
     setResponsibleGroups(Array.isArray(responsibleResult.responsibleGroups) ? responsibleResult.responsibleGroups : []);
   }, []);
 
-  useEffect(() => { void refresh().catch((error) => setNotice(error.message)); }, [refresh]);
+  useEffect(() => {
+    void refresh().catch((error) => setNotice(error.message));
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void refresh().catch((error) => setNotice(error.message));
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        void refresh().catch(() => undefined);
+      }
+    }, 10000);
+
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [refresh]);
 
   const execute = async (action: string, data: any, message: string, processingMessage = 'Processando...') => {
     setBusy(true);
