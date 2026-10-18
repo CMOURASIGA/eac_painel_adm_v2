@@ -577,7 +577,103 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       const group=await getGroupByToken(supabase,token);
       if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
       const sessions=(await listSessions(supabase,group.id)).filter((s:any)=>s.status==='AGENDADA'||s.status==='ABERTA'||s.status==='ENCERRADA');
-      return {ok:true,data:{success:true,responsible:{id:group.id,label:group.nome_exibicao},sessions,source:'supabase'}};
+      return {ok:true,data:{success:true,responsible:{id:group.id,label:group.nome_exibicao,kind:group.tipo==='TIOS'?'TIOS':group.tipo==='POS'?'POS':'HISTORICO'},sessions,source:'supabase'}};
+    }
+    if(action==='PRESENCA_V2_RESPONSIBLE_ATTENDANCE_LIST'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+      if(group.tipo!=='TIOS') return {ok:true,data:{success:false,error:'A chamada por checklist está disponível somente para Tios de Círculo.'}};
+
+      const session=await sessionRaw(supabase,clean(payload.sessionId));
+      if(!session||session.responsavel_grupo_id!==group.id) return {ok:true,data:{success:false,error:'Reunião fora do escopo deste responsável.'}};
+      if(!['ABERTA','ENCERRADA'].includes(session.status)) return {ok:true,data:{success:false,error:'A chamada só fica disponível após a abertura da reunião.'}};
+
+      const people=await eligiblePeople(supabase,session);
+      const eligibleIds=people.map((person:any)=>clean(person.id)).filter(Boolean);
+      const confirmedIds=new Set<string>();
+      if(eligibleIds.length){
+        for(let i=0;i<eligibleIds.length;i+=200){
+          const chunk=eligibleIds.slice(i,i+200);
+          const {data:confirmed,error}=await supabase.from('presencas')
+            .select('pessoa_id')
+            .eq('sessao_id',session.id)
+            .in('pessoa_id',chunk);
+          if(error) throw error;
+          for(const row of confirmed||[]) if(row.pessoa_id) confirmedIds.add(clean(row.pessoa_id));
+        }
+      }
+
+      return {ok:true,data:{success:true,session:await decorateSession(supabase,session),people:people.map((person:any)=>({
+        id:person.id,
+        name:person.name,
+        circle:person.circle||'',
+        phoneMissing:!person.phone,
+        present:confirmedIds.has(person.id),
+      }))}};
+    }
+    if(action==='PRESENCA_V2_RESPONSIBLE_CONFIRM_ATTENDANCE'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+      if(group.tipo!=='TIOS') return {ok:true,data:{success:false,error:'A chamada por checklist está disponível somente para Tios de Círculo.'}};
+
+      const session=await sessionRaw(supabase,clean(payload.sessionId));
+      if(!session||session.responsavel_grupo_id!==group.id) return {ok:true,data:{success:false,error:'Reunião fora do escopo deste responsável.'}};
+      if(session.status!=='ABERTA') return {ok:true,data:{success:false,error:'A chamada só pode ser confirmada enquanto a reunião estiver aberta.'}};
+
+      const people=await eligiblePeople(supabase,session);
+      const peopleById=new Map<string,any>(people.map((person:any)=>[clean(person.id),person]));
+      const requested=Array.isArray(payload.personIds)?payload.personIds.map((id:any)=>clean(id)).filter(Boolean):[];
+      const selectedIds=Array.from(new Set<string>(requested));
+      if(selectedIds.some((id)=>!peopleById.has(id))) return {ok:true,data:{success:false,error:'A lista contém adolescente fora do escopo desta reunião.'}};
+
+      const eligibleIds=Array.from(peopleById.keys());
+      const selectedSet=new Set(selectedIds);
+      const existingIds=new Set<string>();
+
+      if(eligibleIds.length){
+        for(let i=0;i<eligibleIds.length;i+=200){
+          const chunk=eligibleIds.slice(i,i+200);
+          const {data:existing,error}=await supabase.from('presencas')
+            .select('id,pessoa_id')
+            .eq('sessao_id',session.id)
+            .in('pessoa_id',chunk);
+          if(error) throw error;
+          for(const row of existing||[]) if(row.pessoa_id) existingIds.add(clean(row.pessoa_id));
+        }
+      }
+
+      const toRemove=eligibleIds.filter((id)=>existingIds.has(id)&&!selectedSet.has(id));
+      if(toRemove.length){
+        for(let i=0;i<toRemove.length;i+=200){
+          const chunk=toRemove.slice(i,i+200);
+          const {error}=await supabase.from('presencas')
+            .delete()
+            .eq('sessao_id',session.id)
+            .in('pessoa_id',chunk);
+          if(error) throw error;
+        }
+      }
+
+      const toAdd=selectedIds.filter((id)=>!existingIds.has(id));
+      for(const id of toAdd){
+        const person=peopleById.get(id);
+        await insertPresence(supabase,session,person,person?.name||'',person?.phone||'',{
+          canal:'CHECKLIST_RESPONSAVEL',
+          responsavelGrupoId:group.id,
+        });
+      }
+
+      await audit(supabase,session.id,'ATTENDANCE_CHECKLIST_CONFIRMED','RESPONSAVEL',group.id,{
+        present:selectedIds.length,
+        absent:Math.max(0,eligibleIds.length-selectedIds.length),
+        eligible:eligibleIds.length,
+        added:toAdd.length,
+        removed:toRemove.length,
+      });
+
+      return {ok:true,data:{success:true,present:selectedIds.length,absent:Math.max(0,eligibleIds.length-selectedIds.length),eligible:eligibleIds.length}};
     }
     if(action==='PRESENCA_V2_RESPONSIBLE_CREATE_SESSION'){
       const token=clean(payload.token);
