@@ -56,7 +56,7 @@ const MockPublicCheckinPage: React.FC = () => {
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!selected && !query.trim()) return setMessage('Informe seu nome para continuar.');
+    if (!selected) return setMessage('Selecione seu nome na lista para continuar.');
     setBusy(true); setMessage('');
     try {
       const data = await action('PRESENCA_V2_PUBLIC_CHECKIN', { sessionId: session.id, personId: selected?.id || null, name: selected?.name || query, phone });
@@ -74,6 +74,9 @@ const MockPublicCheckinPage: React.FC = () => {
       } else if (status === 'ALREADY_PRESENT') {
         setMessage('Sua presença já foi registrada nesta sessão.');
         setResultBanner({ title: 'Presença já confirmada', detail: 'Já existe um registro seu para esta reunião.', tone: 'success' });
+      } else if (status === 'NOT_ELIGIBLE') {
+        setMessage('Seu nome não está entre os participantes habilitados para esta reunião. Procure o responsável.');
+        setResultBanner(null);
       } else if (status === 'PENDING' || status === 'ALREADY_PENDING') {
         setMessage('Recebemos seu registro. A equipe administrativa fará a validação após o encerramento.');
         setResultBanner({ title: 'Registro de presença recebido', detail: 'Seu envio foi gravado e ficou aguardando validação administrativa.', tone: 'pending' });
@@ -100,7 +103,7 @@ const MockPublicCheckinPage: React.FC = () => {
             {person.hasPhone ? ` · telefone final ${person.phoneLast4}` : ' · sem telefone cadastrado'}
             {person.duplicateCount > 1 ? ` · cadastro duplicado detectado (${person.duplicateCount})` : ''}
           </span>}
-        </button>)}{matches.length === 0 && <p className="p-3 text-sm text-slate-500">Nome não encontrado. Sua solicitação será enviada para análise, sem criar cadastro automaticamente.</p>}</div>}
+        </button>)}{matches.length === 0 && <p className="p-3 text-sm text-slate-500">Nome não encontrado entre os participantes habilitados para esta reunião. Procure o responsável.</p>}</div>}
         {selected && <div className="rounded-xl bg-sky-50 p-3 text-sm text-sky-900">
           <div>Identidade selecionada: <strong>{selected.name}</strong>{selected.circle ? ` · círculo ${selected.circle}` : ''}</div>
           <div className={`mt-2 rounded-lg px-3 py-2 text-xs font-semibold ${selected.hasPhone ? 'bg-white/70 text-sky-900' : 'bg-amber-50 text-amber-800'}`}>{selectedPhoneHint}</div>
@@ -111,7 +114,7 @@ const MockPublicCheckinPage: React.FC = () => {
           : selected
             ? 'Como o cadastro está sem telefone, o número informado será incluído após a confirmação desta presença.'
             : 'Selecione seu nome para carregar o telefone cadastrado e o círculo correspondente.'}</p>
-        <button disabled={busy || !query.trim()} className="w-full rounded-xl bg-[#044372] px-4 py-3 font-black text-white disabled:opacity-50">{busy ? 'Enviando…' : selected ? 'Confirmar presença' : 'Enviar para análise'}</button>
+        <button disabled={busy || !selected} className="w-full rounded-xl bg-[#044372] px-4 py-3 font-black text-white disabled:opacity-50">{busy ? 'Enviando…' : selected ? 'Confirmar presença' : 'Selecione seu nome'}</button>
         {message && <p className="rounded-xl bg-slate-100 p-3 text-sm font-semibold text-slate-700">{message}</p>}
       </form>
     </section>
