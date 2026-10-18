@@ -579,6 +579,36 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       const sessions=(await listSessions(supabase,group.id)).filter((s:any)=>s.status==='AGENDADA'||s.status==='ABERTA'||s.status==='ENCERRADA');
       return {ok:true,data:{success:true,responsible:{id:group.id,label:group.nome_exibicao,kind:group.tipo==='TIOS'?'TIOS':group.tipo==='POS'?'POS':'HISTORICO'},sessions,source:'supabase'}};
     }
+    if(action==='PRESENCA_V2_RESPONSIBLE_EXPORT_ADOLESCENTS'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+      if(group.tipo!=='POS') return {ok:true,data:{success:false,error:'A exportação geral de adolescentes está disponível somente para o responsável do Pós.'}};
+
+      const {data:adolescents,error:adolescentsError}=await supabase.from('adolescentes')
+        .select('pessoa_id')
+        .not('pessoa_id','is',null);
+      if(adolescentsError) throw adolescentsError;
+
+      const ids=Array.from(new Set((adolescents||[]).map((row:any)=>clean(row.pessoa_id)).filter(Boolean)));
+      const rows:any[]=[];
+      for(let i=0;i<ids.length;i+=200){
+        const chunk=ids.slice(i,i+200);
+        const {data:people,error:peopleError}=await supabase.from('pessoas')
+          .select('id,nome_completo,telefone_normalizado')
+          .in('id',chunk);
+        if(peopleError) throw peopleError;
+        for(const person of people||[]){
+          rows.push({
+            nome:clean(person.nome_completo),
+            telefone_normalizado:clean(person.telefone_normalizado),
+          });
+        }
+      }
+
+      rows.sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
+      return {ok:true,data:{success:true,rows,total:rows.length,generatedAt:nowIso(),source:'supabase'}};
+    }
     if(action==='PRESENCA_V2_RESPONSIBLE_ATTENDANCE_LIST'){
       const token=clean(payload.token);
       const group=await getGroupByToken(supabase,token);
