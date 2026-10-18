@@ -57,12 +57,18 @@ const MockPublicCheckinPage: React.FC = () => {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!selected) return setMessage('Selecione seu nome na lista para continuar.');
+    if (selected.alreadyPresent) return setMessage('Sua presença já foi confirmada nesta reunião.');
     setBusy(true); setMessage('');
     try {
       const data = await action('PRESENCA_V2_PUBLIC_CHECKIN', { sessionId: session.id, personId: selected?.id || null, name: selected?.name || query, phone });
       const status = data.result?.status;
       if (status === 'CONFIRMED') {
         const phoneAdded = Boolean(data.result?.phoneAddedToProfile);
+        setSession((current:any) => current ? ({
+          ...current,
+          people:(current.people||[]).map((person:any) => person.id === selected?.id ? {...person,alreadyPresent:true} : person),
+          confirmedCount:Number(current.confirmedCount||0)+1,
+        }) : current);
         setMessage(phoneAdded ? 'Presença confirmada e telefone incluído no cadastro.' : 'Presença confirmada nesta reunião.');
         setResultBanner({
           title: 'Presença confirmada',
@@ -72,8 +78,12 @@ const MockPublicCheckinPage: React.FC = () => {
           tone: 'success'
         });
       } else if (status === 'ALREADY_PRESENT') {
-        setMessage('Sua presença já foi registrada nesta sessão.');
-        setResultBanner({ title: 'Presença já confirmada', detail: 'Já existe um registro seu para esta reunião.', tone: 'success' });
+        setSession((current:any) => current ? ({
+          ...current,
+          people:(current.people||[]).map((person:any) => person.id === selected?.id ? {...person,alreadyPresent:true} : person),
+        }) : current);
+        setMessage('Sua presença já foi confirmada nesta reunião.');
+        setResultBanner({ title: 'Presença já confirmada', detail: 'Já existe um registro seu para esta reunião. Não é necessário registrar novamente.', tone: 'success' });
       } else if (status === 'NOT_ELIGIBLE') {
         setMessage('Seu nome não está entre os participantes habilitados para esta reunião. Procure o responsável.');
         setResultBanner(null);
@@ -96,17 +106,20 @@ const MockPublicCheckinPage: React.FC = () => {
       <form onSubmit={submit} className="space-y-5 p-6">
         <p className="text-sm text-slate-600">Não há escolha de evento nesta tela: o QR já identifica a sessão aberta.</p>
         <label className="grid gap-1 text-sm font-bold text-slate-700">Digite parte do seu nome<input value={query} onChange={(event) => { setQuery(event.target.value); setSelectedId(''); setPhone(''); }} autoComplete="off" className="rounded-xl border border-slate-300 px-3 py-3 text-base font-normal" /></label>
-        {query && !selectedId && <div className="rounded-xl border border-slate-200">{matches.map((person: any) => <button type="button" key={person.id} onClick={() => { setSelectedId(person.id); setQuery(person.name); setPhone(person.phone || ''); }} className="block w-full border-b border-slate-100 px-3 py-3 text-left text-sm last:border-0 hover:bg-slate-50">
+        {query && !selectedId && <div className="rounded-xl border border-slate-200">{matches.map((person: any) => <button type="button" key={person.id} disabled={person.alreadyPresent} onClick={() => { setSelectedId(person.id); setQuery(person.name); setPhone(person.phone || ''); }} className={`block w-full border-b border-slate-100 px-3 py-3 text-left text-sm last:border-0 ${person.alreadyPresent ? 'cursor-not-allowed bg-emerald-50 opacity-80' : 'hover:bg-slate-50'}`}>
           <span className="block font-semibold text-slate-800">{person.name}</span>
           {(person.circle || person.hasPhone || person.duplicateCount > 1) && <span className="mt-0.5 block text-xs text-slate-500">
             {person.circle ? `Círculo ${person.circle}` : 'Sem círculo identificado'}
             {person.hasPhone ? ` · telefone final ${person.phoneLast4}` : ' · sem telefone cadastrado'}
             {person.duplicateCount > 1 ? ` · cadastro duplicado detectado (${person.duplicateCount})` : ''}
+            {person.alreadyPresent ? ' · presença já confirmada' : ''}
           </span>}
         </button>)}{matches.length === 0 && <p className="p-3 text-sm text-slate-500">Nome não encontrado entre os participantes habilitados para esta reunião. Procure o responsável.</p>}</div>}
         {selected && <div className="rounded-xl bg-sky-50 p-3 text-sm text-sky-900">
           <div>Identidade selecionada: <strong>{selected.name}</strong>{selected.circle ? ` · círculo ${selected.circle}` : ''}</div>
-          <div className={`mt-2 rounded-lg px-3 py-2 text-xs font-semibold ${selected.hasPhone ? 'bg-white/70 text-sky-900' : 'bg-amber-50 text-amber-800'}`}>{selectedPhoneHint}</div>
+          {selected.alreadyPresent
+            ? <div className="mt-2 rounded-lg bg-emerald-100 px-3 py-2 text-xs font-bold text-emerald-800">Presença já confirmada nesta reunião.</div>
+            : <div className={`mt-2 rounded-lg px-3 py-2 text-xs font-semibold ${selected.hasPhone ? 'bg-white/70 text-sky-900' : 'bg-amber-50 text-amber-800'}`}>{selectedPhoneHint}</div>}
         </div>}
         <label className="grid gap-1 text-sm font-bold text-slate-700">Confirme seu telefone<input value={phone} onChange={(event) => setPhone(event.target.value)} inputMode="numeric" placeholder="Somente números" className="rounded-xl border border-slate-300 px-3 py-3 text-base font-normal" /></label>
         <p className="text-xs text-slate-500">{selected?.hasPhone
@@ -114,7 +127,7 @@ const MockPublicCheckinPage: React.FC = () => {
           : selected
             ? 'Como o cadastro está sem telefone, o número informado será incluído após a confirmação desta presença.'
             : 'Selecione seu nome para carregar o telefone cadastrado e o círculo correspondente.'}</p>
-        <button disabled={busy || !selected} className="w-full rounded-xl bg-[#044372] px-4 py-3 font-black text-white disabled:opacity-50">{busy ? 'Enviando…' : selected ? 'Confirmar presença' : 'Selecione seu nome'}</button>
+        <button disabled={busy || !selected || Boolean(selected?.alreadyPresent)} className="w-full rounded-xl bg-[#044372] px-4 py-3 font-black text-white disabled:opacity-50">{busy ? 'Enviando…' : selected?.alreadyPresent ? 'Presença já confirmada' : selected ? 'Confirmar presença' : 'Selecione seu nome'}</button>
         {message && <p className="rounded-xl bg-slate-100 p-3 text-sm font-semibold text-slate-700">{message}</p>}
       </form>
     </section>
