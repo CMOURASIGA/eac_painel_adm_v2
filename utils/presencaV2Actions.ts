@@ -443,24 +443,122 @@ async function listPending(supabase:AnySupabase){
 }
 
 async function analytics(supabase:AnySupabase){
-  const sessions=await listSessions(supabase);
-  const closed=sessions.filter((s:any)=>s.status==='ENCERRADA');
-  const {data:records,error}=await supabase.from('presencas').select('sessao_id,pessoa_id').not('sessao_id','is',null);
+  const sessions=(await listSessions(supabase))
+    .filter((s:any)=>s.status==='ENCERRADA')
+    .sort((a:any,b:any)=>Date.parse(a.scheduledAt||'')-Date.parse(b.scheduledAt||''));
+
+  const {data:records,error}=await supabase.from('presencas')
+    .select('id,sessao_id,pessoa_id,circulo_informado')
+    .not('sessao_id','is',null);
   if(error) throw error;
-  const unique=new Set((records||[]).map((r:any)=>r.pessoa_id).filter(Boolean));
-  const totalEligible=closed.reduce((n:number,s:any)=>n+s.eligibleCount,0);
-  const totalPresent=closed.reduce((n:number,s:any)=>n+s.confirmedCount,0);
+
+  const recordsBySession=new Map<string,any[]>();
+  for(const record of records||[]){
+    const sid=clean(record.sessao_id);
+    const list=recordsBySession.get(sid)||[];
+    list.push(record);
+    recordsBySession.set(sid,list);
+  }
+
+  const peopleStats=new Map<string,any>();
+  const groupStats=new Map<string,any>();
+  const evolution:any[]=[];
+  const confirmedUnique=new Set<string>();
+  let totalEligible=0;
+  let totalPresent=0;
+  let unlinkedConfirmedCount=0;
+
+  for(const session of sessions){
+    const eligible=await eligiblePeople(supabase,session);
+    const confirmed=recordsBySession.get(session.id)||[];
+    const confirmedIds=new Set<string>(confirmed.map((r:any)=>clean(r.pessoa_id)).filter(Boolean));
+
+    for(const pid of confirmedIds) confirmedUnique.add(pid);
+    unlinkedConfirmedCount += confirmed.filter((r:any)=>!clean(r.pessoa_id)).length;
+
+    const knownPresent=eligible.filter((person:any)=>confirmedIds.has(person.id)).length;
+    totalEligible += eligible.length;
+    totalPresent += knownPresent;
+
+    const sessionRate=eligible.length ? (knownPresent*100/eligible.length) : 0;
+    evolution.push({
+      id:session.id,
+      title:session.title,
+      responsibleLabel:session.responsibleLabel,
+      scheduledAt:session.scheduledAt,
+      rate:sessionRate,
+      knownPresent,
+      eligible:eligible.length,
+      unlinkedPresent:confirmed.filter((r:any)=>!clean(r.pessoa_id)).length,
+    });
+
+    const group=await getGroup(supabase,session.responsibleId);
+    if(group){
+      const current=groupStats.get(group.id)||{
+        key:group.id,
+        kind:group.tipo==='POS'?'POS':'TIOS',
+        label:group.nome_exibicao||session.responsibleLabel||'Responsável',
+        sessions:0,
+        present:0,
+        eligible:0,
+      };
+      current.sessions+=1;
+      current.present+=knownPresent;
+      current.eligible+=eligible.length;
+      current.rate=current.eligible ? (current.present*100/current.eligible) : 0;
+      groupStats.set(group.id,current);
+    }
+
+    for(const person of eligible){
+      const current=peopleStats.get(person.id)||{
+        id:person.id,
+        name:person.name,
+        circle:person.circle||'',
+        eligibleSessions:0,
+        present:0,
+        absences:0,
+        consecutiveAbsences:0,
+        rate:0,
+      };
+
+      current.name=person.name||current.name;
+      if(person.circle){
+        const circles=clean(current.circle).split(' | ').map((x:string)=>x.trim()).filter(Boolean);
+        for(const item of clean(person.circle).split(' | ').map((x:string)=>x.trim()).filter(Boolean)){
+          if(!circles.includes(item)) circles.push(item);
+        }
+        current.circle=circles.join(' | ');
+      }
+
+      current.eligibleSessions+=1;
+      if(confirmedIds.has(person.id)){
+        current.present+=1;
+        current.consecutiveAbsences=0;
+      }else{
+        current.absences+=1;
+        current.consecutiveAbsences+=1;
+      }
+      current.rate=current.eligibleSessions ? (current.present*100/current.eligibleSessions) : 0;
+      peopleStats.set(person.id,current);
+    }
+  }
+
+  const people=Array.from(peopleStats.values())
+    .sort((a:any,b:any)=>String(a.name).localeCompare(String(b.name),'pt-BR'));
+
   return {
     summary:{
-      closedSessions:closed.length,
-      uniqueParticipants:unique.size,
-      averageAttendance:totalEligible?Math.round(totalPresent*100/totalEligible):0,
-      neverParticipated:0,
-      unlinkedConfirmedCount:(records||[]).filter((r:any)=>!r.pessoa_id).length,
+      closedSessions:sessions.length,
+      uniqueParticipants:confirmedUnique.size,
+      confirmedPresences:totalPresent,
+      averageAttendance:totalEligible ? (totalPresent*100/totalEligible) : 0,
+      neverParticipated:people.filter((p:any)=>p.eligibleSessions>0&&p.present===0).length,
+      unlinkedConfirmedCount,
     },
-    groups:[],
-    sessionEvolution:closed.map((s:any)=>({id:s.id,title:s.title,rate:s.eligibleCount?Math.round(s.confirmedCount*100/s.eligibleCount):0,knownPresent:s.confirmedCount,eligible:s.eligibleCount,unlinkedPresent:0})),
-    people:[],
+    groups:Array.from(groupStats.values())
+      .sort((a:any,b:any)=>String(a.label).localeCompare(String(b.label),'pt-BR')),
+    sessionEvolution:evolution,
+    people,
   };
 }
 
