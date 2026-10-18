@@ -13,7 +13,7 @@ const MockPresenceAnalyticsPage: React.FC = () => {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [responsibleFilter, setResponsibleFilter] = useState('');
   const [peopleFilter, setPeopleFilter] = useState('');
-  const [peopleStatus, setPeopleStatus] = useState<'TODOS' | 'COM_FALTAS' | 'SEM_PRESENCA' | 'FREQUENTES'>('TODOS');
+  const [peopleStatus, setPeopleStatus] = useState<'TODOS' | 'COM_PRESENCA' | 'COM_FALTAS' | 'SEM_PRESENCA' | 'FREQUENTES'>('TODOS');
 
   const formatRate = (value: unknown) => {
     const rate = Number(value || 0);
@@ -52,10 +52,19 @@ const MockPresenceAnalyticsPage: React.FC = () => {
     const matchesText = String(person.name || '').toLocaleLowerCase('pt-BR').includes(peopleFilter.trim().toLocaleLowerCase('pt-BR'))
       || String(person.circle || '').toLocaleLowerCase('pt-BR').includes(peopleFilter.trim().toLocaleLowerCase('pt-BR'));
     if (!matchesText) return false;
+    if (peopleStatus === 'COM_PRESENCA') return Number(person.present || 0) > 0;
     if (peopleStatus === 'COM_FALTAS') return Number(person.absences || 0) > 0;
     if (peopleStatus === 'SEM_PRESENCA') return Number(person.eligibleSessions || 0) > 0 && Number(person.present || 0) === 0;
     if (peopleStatus === 'FREQUENTES') return Number(person.eligibleSessions || 0) > 0 && Number(person.rate || 0) >= 75;
     return true;
+  }).sort((a: any, b: any) => {
+    if (peopleStatus === 'COM_PRESENCA') {
+      const byPresent = Number(b.present || 0) - Number(a.present || 0);
+      if (byPresent !== 0) return byPresent;
+      const byRate = Number(b.rate || 0) - Number(a.rate || 0);
+      if (byRate !== 0) return byRate;
+    }
+    return String(a.name || '').localeCompare(String(b.name || ''), 'pt-BR');
   });
 
   const toggleSection = (key: string) => setOpenSections((current) => ({ ...current, [key]: !current[key] }));
@@ -167,6 +176,7 @@ const MockPresenceAnalyticsPage: React.FC = () => {
                 <label className="grid gap-1 text-sm font-semibold text-slate-700">Situação
                   <select value={peopleStatus} onChange={(event) => setPeopleStatus(event.target.value as any)} className="rounded-xl border border-slate-300 bg-white px-3 py-3">
                     <option value="TODOS">Todos</option>
+                    <option value="COM_PRESENCA">Com presença · mais presentes primeiro</option>
                     <option value="COM_FALTAS">Com faltas</option>
                     <option value="SEM_PRESENCA">Sem nenhuma presença</option>
                     <option value="FREQUENTES">Frequência ≥ 75%</option>
