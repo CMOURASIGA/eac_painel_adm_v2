@@ -154,29 +154,20 @@ async function sessionRaw(supabase: AnySupabase, id: string) {
 
 async function eligiblePeople(supabase: AnySupabase, session: any) {
   const people = new Map<string, any>();
+  const circlesByPerson = new Map<string, Set<string>>();
+  const ids = new Set<string>();
   const sessionType=clean(session?.tipo||session?.type);
   const responsibleGroupId=clean(session?.responsavel_grupo_id||session?.responsibleId);
-  const addPeople = async (ids: string[], circle?: string) => {
-    const unique = Array.from(new Set(ids.filter(Boolean)));
-    for (let i=0;i<unique.length;i+=200) {
-      const chunk=unique.slice(i,i+200);
-      const { data, error } = await supabase.from('pessoas').select('id,nome_completo,telefone,telefone_normalizado').in('id', chunk);
-      if (error) throw error;
-      for (const p of data || []) {
-        const pid=clean(p.id);
-        const current=people.get(pid) || {};
-        const incomingCircle=clean(circle);
-        const existingCircles=clean(current.circle).split(' | ').map((x:string)=>x.trim()).filter(Boolean);
-        if(incomingCircle && !existingCircles.includes(incomingCircle)) existingCircles.push(incomingCircle);
-        people.set(pid,{
-          ...current,
-          id:pid,
-          name:clean(p.nome_completo),
-          phone:phoneNorm(p.telefone_normalizado||p.telefone),
-          circle:existingCircles.join(' | '),
-        });
-      }
-    }
+
+  const collect = (personId: string, circle?: string) => {
+    const pid=clean(personId);
+    if(!pid) return;
+    ids.add(pid);
+    const label=clean(circle);
+    if(!label) return;
+    const labels=circlesByPerson.get(pid)||new Set<string>();
+    labels.add(label);
+    circlesByPerson.set(pid,labels);
   };
 
   if (sessionType === 'REUNIAO_DUPLA_TIOS') {
@@ -184,59 +175,100 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
       .select('circulo_historico_id,circulo_id')
       .eq('grupo_id', responsibleGroupId);
     if (error) throw error;
-    for (const link of links || []) {
-      if (link.circulo_historico_id) {
-        const { data: circle } = await supabase.from('eac_circulos_historicos').select('edicao,cor').eq('id', link.circulo_historico_id).maybeSingle();
-        const { data: members, error: me } = await supabase.from('eac_circulo_membros_historicos')
-          .select('pessoa_id')
-          .eq('circulo_id', link.circulo_historico_id)
-          .not('pessoa_id','is',null);
-        if (me) throw me;
-        await addPeople((members||[]).map((m:any)=>clean(m.pessoa_id)), circle ? `EAC ${circle.edicao} · ${circle.cor}` : '');
-      } else if (link.circulo_id) {
-        const { data: members, error: me } = await supabase.from('circulo_participantes').select('pessoa_id').eq('circulo_id',link.circulo_id).not('pessoa_id','is',null);
-        if (me) throw me;
-        await addPeople((members||[]).map((m:any)=>clean(m.pessoa_id)));
-      }
+
+    const historicalIds=Array.from(new Set((links||[]).map((x:any)=>clean(x.circulo_historico_id)).filter(Boolean)));
+    const currentIds=Array.from(new Set((links||[]).map((x:any)=>clean(x.circulo_id)).filter(Boolean)));
+
+    const [historicalCirclesResult,historicalMembersResult,currentMembersResult]=await Promise.all([
+      historicalIds.length
+        ? supabase.from('eac_circulos_historicos').select('id,edicao,cor').in('id',historicalIds)
+        : Promise.resolve({data:[],error:null}),
+      historicalIds.length
+        ? supabase.from('eac_circulo_membros_historicos').select('pessoa_id,circulo_id').in('circulo_id',historicalIds).not('pessoa_id','is',null)
+        : Promise.resolve({data:[],error:null}),
+      currentIds.length
+        ? supabase.from('circulo_participantes').select('pessoa_id,circulo_id').in('circulo_id',currentIds).not('pessoa_id','is',null)
+        : Promise.resolve({data:[],error:null}),
+    ]);
+    if(historicalCirclesResult.error) throw historicalCirclesResult.error;
+    if(historicalMembersResult.error) throw historicalMembersResult.error;
+    if(currentMembersResult.error) throw currentMembersResult.error;
+
+    const historicalLabels=new Map<string,string>((historicalCirclesResult.data||[]).map((circle:any)=>[
+      clean(circle.id),
+      `EAC ${circle.edicao} · ${circle.cor}`
+    ]));
+
+    for(const member of historicalMembersResult.data||[]){
+      collect(member.pessoa_id,historicalLabels.get(clean(member.circulo_id))||'');
+    }
+    for(const member of currentMembersResult.data||[]){
+      collect(member.pessoa_id);
     }
   } else {
-    const { data: circles, error: ce } = await supabase.from('eac_circulos_historicos').select('id,edicao,cor').in('edicao',[35,36,37]);
+    const [{ data: circles, error: ce }, { data: enc, error: ee }] = await Promise.all([
+      supabase.from('eac_circulos_historicos').select('id,edicao,cor').in('edicao',[35,36,37]),
+      supabase.from('encontreiros').select('pessoa_id').eq('classificacao','ADOLESCENTE').eq('status','DISPONIVEL').not('pessoa_id','is',null),
+    ]);
     if (ce) throw ce;
-    const circleMap=new Map<string,string>((circles||[]).map((circle:any)=>[clean(circle.id), `EAC ${circle.edicao} · ${circle.cor}`]));
+    if (ee) throw ee;
+
+    const circleMap=new Map<string,string>((circles||[]).map((circle:any)=>[
+      clean(circle.id),
+      `EAC ${circle.edicao} · ${circle.cor}`
+    ]));
     const circleIds=Array.from(circleMap.keys());
-    if (circleIds.length) {
-      const { data: members, error: me } = await supabase.from('eac_circulo_membros_historicos')
+
+    if(circleIds.length){
+      const {data:members,error:me}=await supabase.from('eac_circulo_membros_historicos')
         .select('pessoa_id,circulo_id')
         .in('circulo_id',circleIds)
         .not('pessoa_id','is',null);
-      if (me) throw me;
-      const byCircle=new Map<string,string[]>();
+      if(me) throw me;
       for(const member of members||[]){
-        const cid=clean(member.circulo_id);
-        const ids=byCircle.get(cid)||[];
-        ids.push(clean(member.pessoa_id));
-        byCircle.set(cid,ids);
-      }
-      for(const [cid,ids] of byCircle.entries()) {
-        await addPeople(ids,circleMap.get(cid)||'');
+        collect(member.pessoa_id,circleMap.get(clean(member.circulo_id))||'');
       }
     }
-    const { data: enc, error: ee } = await supabase.from('encontreiros').select('pessoa_id').eq('classificacao','ADOLESCENTE').eq('status','DISPONIVEL').not('pessoa_id','is',null);
-    if (ee) throw ee;
-    await addPeople((enc||[]).map((m:any)=>clean(m.pessoa_id)));
+
+    for(const worker of enc||[]) collect(worker.pessoa_id);
   }
 
-  const ids=Array.from(people.keys());
-  for(let i=0;i<ids.length;i+=200){
-    const chunk=ids.slice(i,i+200);
-    const [{data: adolescents,error:ae},{data: workers,error:we}] = await Promise.all([
+  const allIds=Array.from(ids);
+  for(let i=0;i<allIds.length;i+=200){
+    const chunk=allIds.slice(i,i+200);
+    const {data,error}=await supabase.from('pessoas')
+      .select('id,nome_completo,telefone,telefone_normalizado')
+      .in('id',chunk);
+    if(error) throw error;
+    for(const p of data||[]){
+      const pid=clean(p.id);
+      people.set(pid,{
+        id:pid,
+        name:clean(p.nome_completo),
+        phone:phoneNorm(p.telefone_normalizado||p.telefone),
+        circle:Array.from(circlesByPerson.get(pid)||[]).join(' | '),
+      });
+    }
+  }
+
+  for(let i=0;i<allIds.length;i+=200){
+    const chunk=allIds.slice(i,i+200);
+    const [{data:adolescents,error:ae},{data:workers,error:we}] = await Promise.all([
       supabase.from('adolescentes').select('id,pessoa_id').in('pessoa_id',chunk),
       supabase.from('encontreiros').select('id,pessoa_id').in('pessoa_id',chunk),
     ]);
-    if(ae) throw ae; if(we) throw we;
-    for(const a of adolescents||[]){const p=people.get(a.pessoa_id); if(p&&!p.adolescenteId)p.adolescenteId=a.id;}
-    for(const e of workers||[]){const p=people.get(e.pessoa_id); if(p&&!p.encontreiroId)p.encontreiroId=e.id;}
+    if(ae) throw ae;
+    if(we) throw we;
+    for(const a of adolescents||[]){
+      const p=people.get(clean(a.pessoa_id));
+      if(p&&!p.adolescenteId) p.adolescenteId=a.id;
+    }
+    for(const e of workers||[]){
+      const p=people.get(clean(e.pessoa_id));
+      if(p&&!p.encontreiroId) p.encontreiroId=e.id;
+    }
   }
+
   const deduped = new Map<string, any>();
   for (const person of people.values()) {
     const exactPhone = phoneNorm(person.phone);
@@ -270,15 +302,24 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
   return Array.from(deduped.values()).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
 }
 
-async function decorateSession(supabase: AnySupabase, row: any) {
+async function decorateSession(
+  supabase: AnySupabase,
+  row: any,
+  preloaded: { eligible?: any[]; group?: any; presences?: any[]; pendings?: any[] } = {}
+) {
   row = await ensureDueClose(supabase,row);
   const [group, eligible, pres, pend] = await Promise.all([
-    getGroup(supabase,row.responsavel_grupo_id),
-    eligiblePeople(supabase,row),
-    supabase.from('presencas').select('id,pessoa_id').eq('sessao_id',row.id),
-    supabase.from('presenca_pendencias').select('id,status').eq('sessao_id',row.id),
+    preloaded.group !== undefined ? Promise.resolve(preloaded.group) : getGroup(supabase,row.responsavel_grupo_id),
+    Array.isArray(preloaded.eligible) ? Promise.resolve(preloaded.eligible) : eligiblePeople(supabase,row),
+    Array.isArray(preloaded.presences)
+      ? Promise.resolve({data:preloaded.presences,error:null})
+      : supabase.from('presencas').select('id,pessoa_id').eq('sessao_id',row.id),
+    Array.isArray(preloaded.pendings)
+      ? Promise.resolve({data:preloaded.pendings,error:null})
+      : supabase.from('presenca_pendencias').select('id,status').eq('sessao_id',row.id),
   ]);
-  if(pres.error) throw pres.error; if(pend.error) throw pend.error;
+  if(pres.error) throw pres.error;
+  if(pend.error) throw pend.error;
   const publicToken=tokenFor('session',row.id);
   const expectedHash=hash(publicToken);
   if(clean(row.public_token_hash)!==expectedHash){
@@ -919,21 +960,19 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       const {data,error}=await supabase.from('presenca_sessoes').select('*').eq('public_token_hash',expected).maybeSingle();
       if(error) throw error; const session=await ensureDueClose(supabase,data);
       if(!session) return {ok:true,data:{success:false,error:'Sessão não encontrada.'}};
-      const people=await eligiblePeople(supabase,session);
-      const eligibleIds=people.map((p:any)=>p.id).filter(Boolean);
+      const [people,group,presencesResult,pendingsResult]=await Promise.all([
+        eligiblePeople(supabase,session),
+        getGroup(supabase,session.responsavel_grupo_id),
+        supabase.from('presencas').select('id,pessoa_id').eq('sessao_id',session.id),
+        supabase.from('presenca_pendencias').select('id,status').eq('sessao_id',session.id),
+      ]);
+      if(presencesResult.error) throw presencesResult.error;
+      if(pendingsResult.error) throw pendingsResult.error;
+      const presences=presencesResult.data||[];
+      const pendings=pendingsResult.data||[];
       const confirmedIds=new Set<string>();
-      if(eligibleIds.length){
-        for(let i=0;i<eligibleIds.length;i+=200){
-          const chunk=eligibleIds.slice(i,i+200);
-          const {data:confirmed,error:confirmedError}=await supabase.from('presencas')
-            .select('pessoa_id')
-            .eq('sessao_id',session.id)
-            .in('pessoa_id',chunk);
-          if(confirmedError) throw confirmedError;
-          for(const row of confirmed||[]) if(row.pessoa_id) confirmedIds.add(clean(row.pessoa_id));
-        }
-      }
-      return {ok:true,data:{success:true,session:{...(await decorateSession(supabase,session)),people:people.map((p:any)=>({
+      for(const row of presences) if(row.pessoa_id) confirmedIds.add(clean(row.pessoa_id));
+      return {ok:true,data:{success:true,session:{...(await decorateSession(supabase,session,{eligible:people,group,presences,pendings})),people:people.map((p:any)=>({
         id:p.id,
         name:p.name,
         circle:p.circle||'',
