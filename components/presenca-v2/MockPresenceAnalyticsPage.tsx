@@ -15,6 +15,14 @@ const MockPresenceAnalyticsPage: React.FC = () => {
   const [peopleFilter, setPeopleFilter] = useState('');
   const [peopleStatus, setPeopleStatus] = useState<'TODOS' | 'COM_FALTAS' | 'SEM_PRESENCA' | 'FREQUENTES'>('TODOS');
 
+  const formatRate = (value: unknown) => {
+    const rate = Number(value || 0);
+    if (!Number.isFinite(rate)) return '0%';
+    if (rate > 0 && rate < 1) return `${rate.toFixed(1)}%`;
+    if (!Number.isInteger(rate)) return `${rate.toFixed(1)}%`;
+    return `${rate}%`;
+  };
+
   const refresh = useCallback(async () => {
     try {
       setNotice('');
@@ -58,29 +66,31 @@ const MockPresenceAnalyticsPage: React.FC = () => {
         <div>
           <p className="text-xs font-black uppercase tracking-[0.16em] text-sky-800">Presença V2 · análise</p>
           <h1 className="mt-1 text-2xl font-black text-slate-900">Indicadores de presença</h1>
-          <p className="mt-2 text-sm text-slate-700">Visão histórica e gerencial. A operação de abrir, encerrar e conciliar sessões fica em uma tela separada.</p>
+          <p className="mt-2 text-sm text-slate-700">Visão histórica e gerencial das reuniões encerradas. A operação de criar, abrir, encerrar e conciliar fica em uma tela separada.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => { window.location.href = '/cadastro/presenca/sessoes'; }} className="rounded-xl bg-[#044372] px-4 py-3 text-sm font-black text-white">Gerenciar sessões</button>
+          <button type="button" onClick={() => { window.location.href = '/cadastro/presenca/sessoes'; }} className="rounded-xl bg-[#044372] px-4 py-3 text-sm font-black text-white">Gerenciar reuniões</button>
           <button type="button" onClick={() => void refresh()} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700">Atualizar indicadores</button>
         </div>
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Sessões encerradas</p><p className="mt-1 text-3xl font-black text-slate-900">{summary.closedSessions || 0}</p></div>
-        <div className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Participantes únicos</p><p className="mt-1 text-3xl font-black text-sky-700">{summary.uniqueParticipants || 0}</p></div>
-        <div className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Frequência média</p><p className="mt-1 text-3xl font-black text-emerald-700">{summary.averageAttendance || 0}%</p></div>
+        <div className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Reuniões encerradas</p><p className="mt-1 text-3xl font-black text-slate-900">{summary.closedSessions || 0}</p></div>
+        <div className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Participantes únicos</p><p className="mt-1 text-3xl font-black text-sky-700">{summary.uniqueParticipants || 0}</p><p className="mt-1 text-xs text-slate-500">{summary.confirmedPresences || 0} presença(s) confirmada(s)</p></div>
+        <div className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Frequência média</p><p className="mt-1 text-3xl font-black text-emerald-700">{formatRate(summary.averageAttendance)}</p></div>
         <div className="rounded-2xl bg-white p-5 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Nunca participaram</p><p className="mt-1 text-3xl font-black text-amber-700">{summary.neverParticipated || 0}</p></div>
       </div>
 
       {(summary.unlinkedConfirmedCount || 0) > 0 && <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><strong>{summary.unlinkedConfirmedCount}</strong> presença(s) confirmada(s) administrativamente sem vínculo cadastral. Elas entram no total operacional, mas não compõem a frequência individual de pessoas cadastradas.</div>}
+
+      <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-sm"><strong className="text-slate-900">Leitura dos indicadores:</strong> frequência é calculada somente sobre reuniões encerradas nas quais a pessoa estava elegível. Reuniões abertas não entram no cálculo.</div>
 
       <div className="mt-6 space-y-4">
         <section className="rounded-3xl bg-white shadow-sm">
           <button type="button" onClick={() => toggleSection('responsaveis')} className="flex w-full items-center justify-between gap-4 p-5 text-left">
             <div>
               <h2 className="text-lg font-black text-slate-900">Desempenho por responsáveis</h2>
-              <p className="mt-1 text-sm text-slate-600">Casais de tios e responsável do Pós, considerando sessões encerradas.</p>
+              <p className="mt-1 text-sm text-slate-600">Casais de tios e responsável do Pós, considerando reuniões encerradas.</p>
             </div>
             <span className="text-2xl font-black text-slate-500">{openSections.responsaveis ? '−' : '+'}</span>
           </button>
@@ -90,9 +100,9 @@ const MockPresenceAnalyticsPage: React.FC = () => {
                 <div key={group.key} className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div><p className="text-xs font-black uppercase tracking-wide text-sky-700">Pós-encontro</p><p className="font-bold text-slate-900">{group.label}</p></div>
-                    <span className="text-lg font-black text-sky-700">{group.rate}%</span>
+                    <span className="text-lg font-black text-sky-700">{formatRate(group.rate)}</span>
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-600"><span>{group.sessions} sessão(ões)</span><span>{group.present}/{group.eligible} presenças elegíveis</span></div>
+                  <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-600"><span>{group.sessions} reunião(ões)</span><span>{group.present}/{group.eligible} presenças elegíveis</span></div>
                 </div>
               ))}
 
@@ -110,8 +120,8 @@ const MockPresenceAnalyticsPage: React.FC = () => {
                     <div className="mt-4 space-y-3">
                       {circleGroups.length === 0 ? <p className="text-sm text-slate-500">Nenhum responsável encontrado para o filtro informado.</p> : circleGroups.map((group: any) => (
                         <div key={group.key} className="rounded-2xl border border-slate-200 p-4">
-                          <div className="flex items-center justify-between gap-3"><p className="font-bold text-slate-900">{group.label}</p><span className="text-lg font-black text-sky-700">{group.rate}%</span></div>
-                          <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-600"><span>{group.sessions} sessão(ões)</span><span>{group.present}/{group.eligible} presenças elegíveis</span></div>
+                          <div className="flex items-center justify-between gap-3"><p className="font-bold text-slate-900">{group.label}</p><span className="text-lg font-black text-sky-700">{formatRate(group.rate)}</span></div>
+                          <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-600"><span>{group.sessions} reunião(ões)</span><span>{group.present}/{group.eligible} presenças elegíveis</span></div>
                         </div>
                       ))}
                     </div>
@@ -124,16 +134,16 @@ const MockPresenceAnalyticsPage: React.FC = () => {
 
         <section className="rounded-3xl bg-white shadow-sm">
           <button type="button" onClick={() => toggleSection('evolucao')} className="flex w-full items-center justify-between gap-4 p-5 text-left">
-            <div><h2 className="text-lg font-black text-slate-900">Evolução por sessão</h2><p className="mt-1 text-sm text-slate-600">Taxa de presença conhecida em cada sessão encerrada.</p></div>
+            <div><h2 className="text-lg font-black text-slate-900">Evolução por reunião</h2><p className="mt-1 text-sm text-slate-600">Taxa de presença conhecida em cada reunião encerrada.</p></div>
             <span className="text-2xl font-black text-slate-500">{openSections.evolucao ? '−' : '+'}</span>
           </button>
           {openSections.evolucao && (
             <div className="border-t border-slate-200 p-5">
-              {evolution.length === 0 ? <p className="text-sm text-slate-500">Ainda não há sessões encerradas suficientes para análise.</p> : (
+              {evolution.length === 0 ? <p className="text-sm text-slate-500">Ainda não há reuniões encerradas suficientes para análise.</p> : (
                 <div className="space-y-3">
                   {evolution.map((item: any) => (
                     <div key={item.id} className="rounded-2xl border border-slate-200 p-4">
-                      <div className="flex items-center justify-between gap-3"><p className="font-bold text-slate-900">{item.title}</p><span className="font-black text-emerald-700">{item.rate}%</span></div>
+                      <div className="flex items-center justify-between gap-3"><p className="font-bold text-slate-900">{item.title}</p><span className="font-black text-emerald-700">{formatRate(item.rate)}</span></div>
                       <p className="mt-1 text-sm text-slate-600">{item.knownPresent}/{item.eligible} presenças vinculadas{item.unlinkedPresent ? ` · ${item.unlinkedPresent} sem cadastro` : ''}</p>
                     </div>
                   ))}
@@ -175,7 +185,7 @@ const MockPresenceAnalyticsPage: React.FC = () => {
                         <td className="px-3 py-3 text-center">{person.present}</td>
                         <td className="px-3 py-3 text-center">{person.absences}</td>
                         <td className="px-3 py-3 text-center">{person.consecutiveAbsences}</td>
-                        <td className="px-3 py-3 text-right font-black">{person.rate}%</td>
+                        <td className="px-3 py-3 text-right font-black">{formatRate(person.rate)}</td>
                       </tr>
                     ))}
                   </tbody>
