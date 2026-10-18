@@ -19,7 +19,21 @@ export function createMockPresenceState() {
   };
 }
 
+function normalizeDueClosures(state) {
+  const t=Date.now();
+  let changed=false;
+  const sessions=state.scenario.sessions.map((session)=>{
+    if(session.status==='ABERTA' && session.closeScheduledAt && Date.parse(session.closeScheduledAt)<=t){
+      changed=true;
+      return {...session,status:'ENCERRADA',closedAt:now(),closeScheduledAt:null};
+    }
+    return session;
+  });
+  return changed ? {...state,scenario:{...state.scenario,sessions}} : state;
+}
+
 export function listSessions(state) {
+  state=normalizeDueClosures(state);
   return state.scenario.sessions.map((session) => {
     const audience = sessionAudience(state.scenario, session);
     const confirmed = state.records.filter((record) => record.sessionId === session.id).length;
@@ -158,14 +172,20 @@ export function publicSession(state, publicToken) {
 }
 
 
+export function responsibleIdFromToken(state, tokenOrScope) {
+  const raw=String(tokenOrScope||'').trim().toLowerCase();
+  if(raw.startsWith('mock-access-')) return raw.slice('mock-access-'.length);
+  return raw;
+}
+
 export function listResponsibleSessions(state, scope) {
-  const normalizedScope = String(scope || '').trim().toLowerCase();
+  const normalizedScope = responsibleIdFromToken(state, scope);
   const responsible = (state.scenario.responsibleGroups || []).find((item) => item.id === normalizedScope);
   if (!responsible) throw new Error('INVALID_RESPONSIBLE_SCOPE');
 
   return listSessions(state)
     .filter((session) => {
-      if (!['ABERTA', 'ENCERRADA'].includes(session.status)) return false;
+      if (!['AGENDADA','ABERTA', 'ENCERRADA'].includes(session.status)) return false;
       return session.responsibleId === normalizedScope;
     })
     .sort((a, b) => {
@@ -179,6 +199,41 @@ export function listResponsibleSessions(state, scope) {
       const bTime = Date.parse(b.closedAt || '1970-01-01T00:00:00.000Z');
       return bTime - aTime;
     });
+}
+
+export function updateSession(state, sessionId, scheduledAt, actor='mock-responsible') {
+  const ms=Date.parse(String(scheduledAt||''));
+  if(Number.isNaN(ms)) throw new Error('INVALID_SCHEDULED_AT');
+  const session=state.scenario.sessions.find(x=>x.id===sessionId);
+  if(!session) throw new Error('SESSION_NOT_FOUND');
+  if(session.status!=='AGENDADA') throw new Error('SESSION_NOT_SCHEDULED');
+  const scenario={...state.scenario,sessions:state.scenario.sessions.map(x=>x.id===sessionId?{...x,scheduledAt:new Date(ms).toISOString()}:x)};
+  return {state:audit({...state,scenario},'SESSION_UPDATED',actor,{sessionId}),session:scenario.sessions.find(x=>x.id===sessionId)};
+}
+
+export function requestClose(state, sessionId, actor='mock-responsible') {
+  const session=state.scenario.sessions.find(x=>x.id===sessionId);
+  if(!session) throw new Error('SESSION_NOT_FOUND');
+  if(session.status!=='ABERTA') throw new Error('SESSION_NOT_OPEN');
+  const closeScheduledAt=new Date(Date.now()+60000).toISOString();
+  const scenario={...state.scenario,sessions:state.scenario.sessions.map(x=>x.id===sessionId?{...x,closeScheduledAt}:x)};
+  return {state:audit({...state,scenario},'CLOSE_REQUESTED',actor,{sessionId}),session:scenario.sessions.find(x=>x.id===sessionId)};
+}
+
+export function cancelClose(state, sessionId, actor='mock-responsible') {
+  const session=state.scenario.sessions.find(x=>x.id===sessionId);
+  if(!session) throw new Error('SESSION_NOT_FOUND');
+  const scenario={...state.scenario,sessions:state.scenario.sessions.map(x=>x.id===sessionId?{...x,closeScheduledAt:null}:x)};
+  return {state:audit({...state,scenario},'CLOSE_CANCELLED',actor,{sessionId}),session:scenario.sessions.find(x=>x.id===sessionId)};
+}
+
+export function reopenSession(state, sessionId, actor='mock-responsible') {
+  const session=state.scenario.sessions.find(x=>x.id===sessionId);
+  if(!session) throw new Error('SESSION_NOT_FOUND');
+  if(session.status!=='ENCERRADA') throw new Error('SESSION_NOT_CLOSED');
+  if(Number(session.responsibleReopens||0)>=1) throw new Error('RESPONSIBLE_REOPEN_ALREADY_USED');
+  const scenario={...state.scenario,sessions:state.scenario.sessions.map(x=>x.id===sessionId?{...x,status:'ABERTA',closedAt:null,responsibleReopens:1,openedAt:now()}:x)};
+  return {state:audit({...state,scenario},'SESSION_REOPENED',actor,{sessionId}),session:scenario.sessions.find(x=>x.id===sessionId)};
 }
 
 export function presenceAnalytics(state) {
