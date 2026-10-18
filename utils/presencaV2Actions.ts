@@ -379,10 +379,13 @@ async function publicCheckin(supabase: AnySupabase,payload:any){
     if(already) return {status:'ALREADY_PRESENT'};
   }
 
+  if(!person) {
+    return {status:'NOT_ELIGIBLE'};
+  }
+
   let reason='';
   let phoneAddedToProfile=false;
-  if(!person) reason='NO_ELIGIBLE_MATCH';
-  else if(!enteredPhone) reason='MISSING_PHONE';
+  if(!enteredPhone) reason='MISSING_PHONE';
   else if(!person.phone) {
     const {error:updatePhoneError}=await supabase.from('pessoas')
       .update({telefone:enteredPhone,telefone_normalizado:enteredPhone})
