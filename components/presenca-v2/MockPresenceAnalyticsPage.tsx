@@ -169,12 +169,12 @@ const MockPresenceAnalyticsPage: React.FC = () => {
           </button>
           {openSections.individual && (
             <div className="border-t border-slate-200 p-5">
-              <div className="grid gap-3 md:grid-cols-[1fr_240px]">
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-end">
                 <label className="grid gap-1 text-sm font-semibold text-slate-700">Buscar pessoa ou círculo
-                  <input value={peopleFilter} onChange={(event) => setPeopleFilter(event.target.value)} placeholder="Nome ou círculo" className="rounded-xl border border-slate-300 px-3 py-3 text-base font-normal" />
+                  <input value={peopleFilter} onChange={(event) => setPeopleFilter(event.target.value)} placeholder="Nome ou círculo" className="w-full rounded-xl border border-slate-300 px-3 py-3 text-base font-normal" />
                 </label>
                 <label className="grid gap-1 text-sm font-semibold text-slate-700">Situação
-                  <select value={peopleStatus} onChange={(event) => setPeopleStatus(event.target.value as any)} className="rounded-xl border border-slate-300 bg-white px-3 py-3">
+                  <select value={peopleStatus} onChange={(event) => setPeopleStatus(event.target.value as any)} className="w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-medium text-slate-800">
                     <option value="TODOS">Todos</option>
                     <option value="COM_PRESENCA">Com presença · mais presentes primeiro</option>
                     <option value="COM_FALTAS">Com faltas</option>
