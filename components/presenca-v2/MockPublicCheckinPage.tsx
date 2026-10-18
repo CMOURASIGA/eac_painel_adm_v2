@@ -90,9 +90,16 @@ const MockPublicCheckinPage: React.FC = () => {
       } else if (status === 'PENDING' || status === 'ALREADY_PENDING') {
         setMessage('Recebemos seu registro. A equipe administrativa fará a validação após o encerramento.');
         setResultBanner({ title: 'Registro de presença recebido', detail: 'Seu envio foi gravado e ficou aguardando validação administrativa.', tone: 'pending' });
+      } else if (status === 'SESSION_CLOSED') {
+        setMessage('Esta reunião já foi encerrada e não aceita novos registros de presença.');
+        setResultBanner({
+          title: 'Reunião encerrada',
+          detail: 'O QR continua identificando esta reunião, mas novos check-ins não são mais permitidos.',
+          tone: 'pending'
+        });
       } else {
-        setMessage('Registro recebido.');
-        setResultBanner({ title: 'Registro concluído', detail: 'Sua solicitação foi gravada nesta reunião.', tone: 'success' });
+        setMessage('Não foi possível confirmar a presença.');
+        setResultBanner(null);
       }
     } catch (error: any) { setMessage(error?.message || 'Não foi possível registrar.'); } finally { setBusy(false); }
   };
