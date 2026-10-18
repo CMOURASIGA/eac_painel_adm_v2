@@ -39,6 +39,9 @@ const PresenceResponsiblePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [qrSession, setQrSession] = useState<Session | null>(null);
+  const [newScheduledAt, setNewScheduledAt] = useState('');
+  const [editingSessionId, setEditingSessionId] = useState('');
+  const [editingScheduledAt, setEditingScheduledAt] = useState('');
   const [, setClock] = useState(0);
 
   const refresh = useCallback(async () => {
@@ -62,6 +65,46 @@ const PresenceResponsiblePage: React.FC = () => {
     const id = window.setInterval(() => setClock((v) => v + 1), 1000);
     return () => window.clearInterval(id);
   }, []);
+
+  const toApiDateTime = (value: string) => value ? new Date(value).toISOString() : '';
+  const toLocalInputValue = (value?: string | null) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+  };
+
+  const createSession = async () => {
+    if (!newScheduledAt) return;
+    setBusy('create');
+    try {
+      await call('PRESENCA_V2_RESPONSIBLE_CREATE_SESSION', { token, scheduledAt: toApiDateTime(newScheduledAt) });
+      setNewScheduledAt('');
+      setNotice('Reunião agendada.');
+      await refresh();
+    } catch (error: any) {
+      setNotice(error?.message || 'Não foi possível agendar a reunião.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const saveSession = async (sessionId: string) => {
+    if (!editingScheduledAt) return;
+    setBusy(sessionId);
+    try {
+      await call('PRESENCA_V2_RESPONSIBLE_UPDATE_SESSION', { token, sessionId, scheduledAt: toApiDateTime(editingScheduledAt) });
+      setEditingSessionId('');
+      setEditingScheduledAt('');
+      setNotice('Reunião atualizada.');
+      await refresh();
+    } catch (error: any) {
+      setNotice(error?.message || 'Não foi possível atualizar a reunião.');
+    } finally {
+      setBusy('');
+    }
+  };
 
   const execute = async (action: string, sessionId: string, successMessage: string) => {
     setBusy(sessionId);
@@ -113,6 +156,18 @@ const PresenceResponsiblePage: React.FC = () => {
           <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Confirmados</p><p className="mt-1 text-2xl font-black text-sky-700">{sessions.reduce((sum, item) => sum + item.confirmedCount, 0)}</p></div>
         </div>
 
+        <div className="mt-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
+          <h2 className="font-black text-slate-900">Agendar nova reunião</h2>
+          <p className="mt-1 text-sm text-slate-600">A reunião será criada diretamente no seu escopo.</p>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <label className="grid flex-1 gap-1 text-sm font-semibold text-slate-700">
+              Data e hora da reunião
+              <input type="datetime-local" value={newScheduledAt} onChange={(event) => setNewScheduledAt(event.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-3 font-normal" />
+            </label>
+            <button type="button" disabled={!newScheduledAt || busy==='create'} onClick={() => void createSession()} className="rounded-xl bg-[#044372] px-4 py-3 font-black text-white disabled:opacity-50">{busy==='create' ? 'Agendando...' : 'Agendar reunião'}</button>
+          </div>
+        </div>
+
         {notice && <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-800">{notice}</div>}
         {loading && <p className="mt-6 rounded-2xl bg-white p-5 text-sm text-slate-600 shadow-sm">Carregando reuniões…</p>}
 
@@ -139,7 +194,24 @@ const PresenceResponsiblePage: React.FC = () => {
                         <div className="rounded-xl bg-slate-50 p-2"><p className="text-[11px] text-slate-500">Confirmados</p><p className="font-black">{session.confirmedCount}</p></div>
                         <div className="rounded-xl bg-slate-50 p-2"><p className="text-[11px] text-slate-500">Pendentes</p><p className="font-black">{session.pendingCount}</p></div>
                       </div>
-                      <p className="mt-4 text-xs font-semibold text-slate-500">O QR e o registro de presença ficam disponíveis quando o ADM abrir a reunião.</p>
+                      {editingSessionId === session.id ? (
+                        <div className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-3">
+                          <label className="grid gap-1 text-xs font-bold text-slate-700">Data e hora
+                            <input type="datetime-local" value={editingScheduledAt} onChange={(event) => setEditingScheduledAt(event.target.value)} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-normal" />
+                          </label>
+                          <div className="mt-3 flex gap-2">
+                            <button type="button" disabled={!editingScheduledAt || busy===session.id} onClick={() => void saveSession(session.id)} className="rounded-lg bg-sky-700 px-3 py-2 text-sm font-black text-white disabled:opacity-50">Salvar</button>
+                            <button type="button" onClick={() => { setEditingSessionId(''); setEditingScheduledAt(''); }} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700">Cancelar edição</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button type="button" disabled={busy===session.id} onClick={() => void execute('PRESENCA_V2_RESPONSIBLE_OPEN_SESSION', session.id, 'Reunião aberta. O QR já está disponível.')} className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-black text-white disabled:opacity-50">Abrir reunião</button>
+                          <button type="button" disabled={busy===session.id} onClick={() => { setEditingSessionId(session.id); setEditingScheduledAt(toLocalInputValue(session.scheduledAt)); }} className="rounded-xl border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-black text-sky-800">Editar horário</button>
+                          <button type="button" disabled={busy===session.id} onClick={() => void execute('PRESENCA_V2_RESPONSIBLE_CANCEL_SESSION', session.id, 'Reunião cancelada.')} className="rounded-xl border border-rose-300 bg-rose-50 px-4 py-2 text-sm font-black text-rose-700 disabled:opacity-50">Cancelar reunião</button>
+                        </div>
+                      )}
+                      <p className="mt-3 text-xs font-semibold text-slate-500">Quando a reunião for aberta, o QR passa a aceitar check-in imediatamente.</p>
                     </article>
                   ))}
                 </div>
@@ -171,7 +243,7 @@ const PresenceResponsiblePage: React.FC = () => {
                           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
                             <p className="text-sm font-black text-amber-900">Encerramento em {seconds}s</p>
                             <p className="mt-1 text-xs text-amber-800">Durante esse período o encerramento pode ser cancelado.</p>
-                            <button disabled={busy===session.id} type="button" onClick={() => void execute('PRESENCA_V2_CANCEL_CLOSE', session.id, 'Encerramento cancelado. A sessão continua aberta.')} className="mt-3 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-black text-amber-900">Cancelar encerramento</button>
+                            <button disabled={busy===session.id} type="button" onClick={() => void execute('PRESENCA_V2_CANCEL_CLOSE', session.id, 'Encerramento cancelado. A reunião continua aberta.')} className="mt-3 w-full rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-black text-amber-900">Cancelar encerramento</button>
                           </div>
                         ) : (
                           <button disabled={busy===session.id} type="button" onClick={() => void execute('PRESENCA_V2_REQUEST_CLOSE', session.id, 'Encerramento solicitado. Você tem 60 segundos para cancelar.')} className="mt-3 w-full rounded-xl bg-slate-800 px-4 py-3 font-black text-white disabled:opacity-50">Encerrar reunião</button>
@@ -199,7 +271,7 @@ const PresenceResponsiblePage: React.FC = () => {
                         <span><strong>{session.eligibleCount}</strong> elegíveis</span>
                       </div>
                       {(session.responsibleReopens || 0) < 1 ? (
-                        <button disabled={busy===session.id} type="button" onClick={() => void execute('PRESENCA_V2_REOPEN_SESSION', session.id, 'Sessão reaberta. O mesmo QR voltou a aceitar check-in.')} className="mt-4 rounded-xl border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-black text-sky-800 disabled:opacity-50">Reabrir sessão</button>
+                        <button disabled={busy===session.id} type="button" onClick={() => void execute('PRESENCA_V2_REOPEN_SESSION', session.id, 'Reunião reaberta. O mesmo QR voltou a aceitar check-in.')} className="mt-4 rounded-xl border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-black text-sky-800 disabled:opacity-50">Reabrir reunião</button>
                       ) : <p className="mt-4 text-xs font-semibold text-slate-500">A reabertura do responsável já foi utilizada. Nova reabertura somente pelo ADM.</p>}
                     </article>
                   ))}
