@@ -34,3 +34,5 @@ git
 .tmp_*.json
 .tmp-*
 vercel-runtime-log.txt
+test-results
+playwright-report

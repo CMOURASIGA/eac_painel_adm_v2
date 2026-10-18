@@ -49,7 +49,8 @@ export const NAVIGATION_GROUPS: NavigationGroup[] = [
       { label: 'Encontros', view: 'encontros', enabled: true, description: 'Cadastro das edições — datas, local, status.' },
       { label: 'Equipes', view: 'equipes', enabled: true, description: 'Monta as equipes de encontreiros por edição.' },
       { label: 'Cadastro de Encontreiro', view: 'encontreiros', enabled: true, description: 'Base de voluntários da equipe.' },
-      { label: 'Presença', view: 'presence', enabled: true, description: 'Controle de presença por círculo e encontro.' },
+      { label: 'Presença', view: 'presence', enabled: true, description: 'Indicadores e acompanhamento da presença.' },
+      { label: 'Reuniões de Presença', view: 'presence_sessions', enabled: true, description: 'Agenda, abre, encerra e concilia reuniões de presença.' },
     ],
   },
   {
@@ -107,6 +108,7 @@ export function canAccessView(view: View, isAdmin: boolean, allowedModules: stri
     case 'encontros': return allowed.includes('encontros') || allowed.includes('settings');
     case 'equipes': return allowed.includes('equipes') || allowed.includes('encontreiros');
     case 'presence': return allowed.includes('presence');
+    case 'presence_sessions': return allowed.includes('presence');
     case 'dispatches': return allowed.includes('dispatches');
     case 'calendar': return allowed.includes('calendar');
     case 'comunicados': return allowed.includes('comunicados');
