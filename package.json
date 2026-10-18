@@ -6,8 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test:mock": "node --test tests/eac-presenca-v2-fixtures.test.mjs tests/eac-presenca-v2-domain.test.mjs tests/eac-presenca-v2-repository.test.mjs tests/eac-mock-isolation.static.test.mjs",
+    "test:e2e": "playwright test",
+    "validate:mock": "npm run audit:api-actions && npm run typecheck && npm run test:mock && VITE_EAC_MOCK_MODE=true VITE_EAC_MOCK_PREVIEW=true vite build",
     "preview": "vite preview",
-    "validate:supabase-sync": "node scripts/validate-supabase-sync.mjs"
+    "validate:supabase-sync": "node scripts/validate-supabase-sync.mjs",
+    "audit:api-actions": "node scripts/audit-api-actions.mjs",
+    "test:fixtures": "node --test tests/eac-presenca-v2-fixtures.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",
@@ -16,9 +22,11 @@
     "next": "^16.1.1",
     "nodemailer": "^8.0.9",
     "react": "^19.2.3",
-    "react-dom": "^19.2.3"
+    "react-dom": "^19.2.3",
+    "qrcode-generator": "^2.0.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@types/node": "^22.14.0",
     "@types/react": "19.2.14",
     "@vitejs/plugin-react": "^5.0.0",

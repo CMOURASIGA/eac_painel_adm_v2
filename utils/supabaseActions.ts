@@ -2,6 +2,7 @@
 import { getSupabaseServerClient } from './supabaseServer.js';
 import { createHash, timingSafeEqual } from 'crypto';
 import { markPresenceService } from '../services/presencaBusinessService.js';
+import { handlePresenceV2Action } from './presencaV2Actions.js';
 import { prioritizeNonEnrolledService } from '../services/priorizacaoService.js';
 import {
   saveEventService,
@@ -1819,6 +1820,10 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
   const ctx: SupabaseActionContext = { action, payload: payload || {} };
 
   try {
+    if (ctx.action.startsWith('PRESENCA_V2_')) {
+      return await handlePresenceV2Action(supabase, ctx.action, ctx.payload);
+    }
+
     if (ctx.action === 'GET_SYNC_STATUS') {
       const last =
         (await getLastUpdateFromTable(supabase, ['sync_log', 'sync_logs', 'eac_sync_log'], ['updated_at', 'created_at', 'synced_at', 'timestamp'])) ||

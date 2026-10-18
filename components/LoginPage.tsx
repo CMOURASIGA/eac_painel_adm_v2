@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import type { User, View } from "../types"; // ajuste o caminho conforme sua estrutura
 import { sanitizeTextDeep, toCleanString } from "../utils/textEncoding.ts";
+import { isMockRuntime, mockUser } from '../services/mock/mockRuntime.ts';
 // import type { UserRole } from "../types"; // só se você realmente usa UserRole aqui
 
 // resto do arquivo...
@@ -28,6 +29,11 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, googleWebAppUrl }) => {
     setError('');
 
     try {
+      if (isMockRuntime()) {
+        // O Preview de homologação nunca autentica contra a base real.
+        onLogin(mockUser as User);
+        return;
+      }
       const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
       if (isLocalhost && email === 'admin@eac.com' && password === 'admin123') {
         const devUser: User = {

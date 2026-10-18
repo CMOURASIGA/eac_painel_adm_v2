@@ -2,6 +2,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
+import { installMockRuntime } from './services/mock/mockRuntime.ts';
+
+installMockRuntime();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
