@@ -154,6 +154,8 @@ async function sessionRaw(supabase: AnySupabase, id: string) {
 
 async function eligiblePeople(supabase: AnySupabase, session: any) {
   const people = new Map<string, any>();
+  const sessionType=clean(session?.tipo||session?.type);
+  const responsibleGroupId=clean(session?.responsavel_grupo_id||session?.responsibleId);
   const addPeople = async (ids: string[], circle?: string) => {
     const unique = Array.from(new Set(ids.filter(Boolean)));
     for (let i=0;i<unique.length;i+=200) {
@@ -177,10 +179,10 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
     }
   };
 
-  if (session.tipo === 'REUNIAO_DUPLA_TIOS') {
+  if (sessionType === 'REUNIAO_DUPLA_TIOS') {
     const { data: links, error } = await supabase.from('presenca_responsavel_circulos')
       .select('circulo_historico_id,circulo_id')
-      .eq('grupo_id', session.responsavel_grupo_id);
+      .eq('grupo_id', responsibleGroupId);
     if (error) throw error;
     for (const link of links || []) {
       if (link.circulo_historico_id) {
