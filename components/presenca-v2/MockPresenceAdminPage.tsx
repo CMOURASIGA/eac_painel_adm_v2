@@ -75,6 +75,22 @@ const MockPresenceAdminPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const options = responsibleGroups
+      .filter((item) => type === 'REUNIAO_DUPLA_TIOS' ? isSelectableTiosGroup(item) : item.kind === 'POS' && item.active === true)
+      .slice()
+      .sort(responsibleGroupOrder);
+
+    if (!options.length) {
+      if (responsibleId) setResponsibleId('');
+      return;
+    }
+
+    if (!options.some((item) => item.id === responsibleId)) {
+      setResponsibleId(options[0].id);
+    }
+  }, [type, responsibleGroups, responsibleId]);
+
+  useEffect(() => {
     void refresh().catch((error) => setNotice(error.message));
 
     const refreshWhenVisible = () => {
@@ -215,6 +231,29 @@ const MockPresenceAdminPage: React.FC = () => {
     await execute('PRESENCA_V2_DELETE_SESSION', { sessionId: session.id }, 'Reunião excluída.', 'Excluindo reunião...');
   };
 
+  const copyAllResponsibleAccesses = async () => {
+    const groups = responsibleGroups
+      .filter((item) => (item.kind === 'POS' && item.active === true) || isSelectableTiosGroup(item))
+      .slice()
+      .sort((a: any, b: any) => {
+        if (a.kind === 'POS' && b.kind !== 'POS') return -1;
+        if (a.kind !== 'POS' && b.kind === 'POS') return 1;
+        return responsibleGroupOrder(a, b);
+      });
+
+    const text = groups.map((item: any) => {
+      const label = item.kind === 'POS' ? 'Responsável do Pós' : item.label;
+      return `${label}\n${responsibleLink(item.accessToken || '')}`;
+    }).join('\n\n');
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setNotice('Todos os acessos dos responsáveis foram copiados.');
+    } catch {
+      setNotice('Não foi possível copiar todos os acessos automaticamente.');
+    }
+  };
+
   const copyPublicLink = async (session: Session) => {
     const link = qrLink(session);
     try {
@@ -347,8 +386,13 @@ const MockPresenceAdminPage: React.FC = () => {
       </div>
 
       <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="font-bold text-slate-900">Acessos operacionais</h2>
-        <p className="mt-1 text-sm text-slate-600">O Pós aparece primeiro. Os casais de tios ficam agrupados abaixo para evitar crescimento excessivo da tela.</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="font-bold text-slate-900">Acessos operacionais</h2>
+            <p className="mt-1 text-sm text-slate-600">O Pós aparece primeiro. Os casais de tios ficam agrupados abaixo para evitar crescimento excessivo da tela.</p>
+          </div>
+          <button type="button" onClick={() => void copyAllResponsibleAccesses()} className="shrink-0 rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-black text-sky-800">Copiar todos os acessos</button>
+        </div>
 
         {responsibleGroups.filter((item) => item.kind === 'POS' && item.active === true).map((item) => (
           <div key={item.id} className="mt-4 rounded-xl border border-sky-200 bg-sky-50 p-4">
