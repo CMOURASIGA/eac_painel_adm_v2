@@ -625,6 +625,19 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       if(error) throw error; const session=await ensureDueClose(supabase,data);
       if(!session) return {ok:true,data:{success:false,error:'Sessão não encontrada.'}};
       const people=await eligiblePeople(supabase,session);
+      const eligibleIds=people.map((p:any)=>p.id).filter(Boolean);
+      const confirmedIds=new Set<string>();
+      if(eligibleIds.length){
+        for(let i=0;i<eligibleIds.length;i+=200){
+          const chunk=eligibleIds.slice(i,i+200);
+          const {data:confirmed,error:confirmedError}=await supabase.from('presencas')
+            .select('pessoa_id')
+            .eq('sessao_id',session.id)
+            .in('pessoa_id',chunk);
+          if(confirmedError) throw confirmedError;
+          for(const row of confirmed||[]) if(row.pessoa_id) confirmedIds.add(clean(row.pessoa_id));
+        }
+      }
       return {ok:true,data:{success:true,session:{...(await decorateSession(supabase,session)),people:people.map((p:any)=>({
         id:p.id,
         name:p.name,
@@ -632,6 +645,7 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
         hasPhone:Boolean(p.phone),
         phoneLast4:p.phone ? p.phone.slice(-4) : '',
         phone:p.phone || '',
+        alreadyPresent:confirmedIds.has(p.id),
       }))}}};
     }
     if(action==='PRESENCA_V2_PUBLIC_CHECKIN'){
