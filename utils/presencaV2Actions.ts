@@ -579,6 +579,75 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       const sessions=(await listSessions(supabase,group.id)).filter((s:any)=>s.status==='AGENDADA'||s.status==='ABERTA'||s.status==='ENCERRADA');
       return {ok:true,data:{success:true,responsible:{id:group.id,label:group.nome_exibicao},sessions,source:'supabase'}};
     }
+    if(action==='PRESENCA_V2_RESPONSIBLE_CREATE_SESSION'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+
+      const type=group.tipo==='POS'?'POS_ENCONTRO_GERAL':'REUNIAO_DUPLA_TIOS';
+      if(!['POS','TIOS'].includes(clean(group.tipo))) return {ok:true,data:{success:false,error:'Este responsável não pode criar reuniões.'}};
+      const scheduledAt=clean(payload.scheduledAt);
+      if(!scheduledAt) return {ok:true,data:{success:false,error:'Informe a data e hora da reunião.'}};
+
+      const title=type==='POS_ENCONTRO_GERAL'?'Pós-encontro':`Reunião de círculos · ${group.nome_exibicao}`;
+      const body:any={encontro_id:null,responsavel_grupo_id:group.id,tipo:type,titulo:title,agendada_para:scheduledAt,status:'AGENDADA'};
+      const {data,error}=await supabase.from('presenca_sessoes').insert(body).select('*').maybeSingle();
+      if(error) throw error;
+      const raw=tokenFor('session',data.id);
+      const {error:ue}=await supabase.from('presenca_sessoes').update({public_token_hash:hash(raw),atualizado_em:nowIso()}).eq('id',data.id);
+      if(ue) throw ue;
+      await audit(supabase,data.id,'SESSION_CREATED','RESPONSAVEL',group.id,{});
+      return {ok:true,data:{success:true,session:await decorateSession(supabase,{...data,public_token_hash:hash(raw)})}};
+    }
+    if(action==='PRESENCA_V2_RESPONSIBLE_UPDATE_SESSION'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+      const session=await sessionRaw(supabase,clean(payload.sessionId));
+      if(!session||session.responsavel_grupo_id!==group.id) return {ok:true,data:{success:false,error:'Reunião fora do escopo deste responsável.'}};
+      if(session.status!=='AGENDADA') return {ok:true,data:{success:false,error:'Somente reuniões agendadas podem ser editadas.'}};
+      const scheduledAt=clean(payload.scheduledAt);
+      if(!scheduledAt) return {ok:true,data:{success:false,error:'Informe a data e hora da reunião.'}};
+      const {data,error}=await supabase.from('presenca_sessoes')
+        .update({agendada_para:scheduledAt,atualizado_em:nowIso()})
+        .eq('id',session.id).eq('status','AGENDADA').select('*').maybeSingle();
+      if(error) throw error;
+      if(!data) return {ok:true,data:{success:false,error:'A reunião não está mais disponível para edição.'}};
+      await audit(supabase,session.id,'SESSION_UPDATED','RESPONSAVEL',group.id,{scheduledAt});
+      return {ok:true,data:{success:true,session:await decorateSession(supabase,data)}};
+    }
+    if(action==='PRESENCA_V2_RESPONSIBLE_OPEN_SESSION'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+      const session=await sessionRaw(supabase,clean(payload.sessionId));
+      if(!session||session.responsavel_grupo_id!==group.id) return {ok:true,data:{success:false,error:'Reunião fora do escopo deste responsável.'}};
+      if(session.status!=='AGENDADA') return {ok:true,data:{success:false,error:'Somente reuniões agendadas podem ser abertas.'}};
+      const t=nowIso();
+      const {data,error}=await supabase.from('presenca_sessoes')
+        .update({status:'ABERTA',aberta_em:t,atualizado_em:t})
+        .eq('id',session.id).eq('status','AGENDADA').select('*').maybeSingle();
+      if(error) throw error;
+      if(!data) return {ok:true,data:{success:false,error:'A reunião não está mais disponível para abertura.'}};
+      await audit(supabase,session.id,'SESSION_OPENED','RESPONSAVEL',group.id,{});
+      return {ok:true,data:{success:true,session:await decorateSession(supabase,data)}};
+    }
+    if(action==='PRESENCA_V2_RESPONSIBLE_CANCEL_SESSION'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+      const session=await sessionRaw(supabase,clean(payload.sessionId));
+      if(!session||session.responsavel_grupo_id!==group.id) return {ok:true,data:{success:false,error:'Reunião fora do escopo deste responsável.'}};
+      if(session.status!=='AGENDADA') return {ok:true,data:{success:false,error:'Somente reuniões agendadas podem ser canceladas.'}};
+      const t=nowIso();
+      const {data,error}=await supabase.from('presenca_sessoes')
+        .update({status:'CANCELADA',cancelada_em:t,atualizado_em:t})
+        .eq('id',session.id).eq('status','AGENDADA').select('*').maybeSingle();
+      if(error) throw error;
+      if(!data) return {ok:true,data:{success:false,error:'A reunião não está mais disponível para cancelamento.'}};
+      await audit(supabase,session.id,'SESSION_CANCELLED','RESPONSAVEL',group.id,{});
+      return {ok:true,data:{success:true,session:await decorateSession(supabase,data)}};
+    }
     if(action==='PRESENCA_V2_CREATE_SESSION'){
       const group=await getGroup(supabase,clean(payload.responsibleId));
       if(!group) return {ok:true,data:{success:false,error:'Responsável inválido.'}};
