@@ -236,6 +236,61 @@ export function reopenSession(state, sessionId, actor='mock-responsible') {
   return {state:audit({...state,scenario},'SESSION_REOPENED',actor,{sessionId}),session:scenario.sessions.find(x=>x.id===sessionId)};
 }
 
+export function responsibleAttendance(state, tokenOrScope, sessionId) {
+  const responsibleId=responsibleIdFromToken(state,tokenOrScope);
+  const responsible=(state.scenario.responsibleGroups||[]).find((item)=>item.id===responsibleId);
+  if(!responsible) throw new Error('INVALID_RESPONSIBLE_SCOPE');
+  if(responsible.kind!=='TIOS') throw new Error('ATTENDANCE_CHECKLIST_ONLY_FOR_TIOS');
+  const session=state.scenario.sessions.find((item)=>item.id===sessionId);
+  if(!session||session.responsibleId!==responsibleId) throw new Error('SESSION_OUT_OF_SCOPE');
+  if(!['ABERTA','ENCERRADA'].includes(session.status)) throw new Error('SESSION_NOT_AVAILABLE_FOR_ATTENDANCE');
+  const presentIds=new Set((state.records||[]).filter((record)=>record.sessionId===sessionId&&record.personId).map((record)=>record.personId));
+  return {
+    session:listSessions(state).find((item)=>item.id===sessionId),
+    people:sessionAudience(state.scenario,session).map((person)=>({
+      id:person.id,
+      name:person.name,
+      circle:person.circle||'',
+      phoneMissing:!person.phone,
+      present:presentIds.has(person.id),
+    }))
+  };
+}
+
+export function confirmResponsibleAttendance(state, tokenOrScope, sessionId, personIds) {
+  const responsibleId=responsibleIdFromToken(state,tokenOrScope);
+  const responsible=(state.scenario.responsibleGroups||[]).find((item)=>item.id===responsibleId);
+  if(!responsible) throw new Error('INVALID_RESPONSIBLE_SCOPE');
+  if(responsible.kind!=='TIOS') throw new Error('ATTENDANCE_CHECKLIST_ONLY_FOR_TIOS');
+  const session=state.scenario.sessions.find((item)=>item.id===sessionId);
+  if(!session||session.responsibleId!==responsibleId) throw new Error('SESSION_OUT_OF_SCOPE');
+  if(session.status!=='ABERTA') throw new Error('SESSION_NOT_OPEN');
+
+  const eligible=sessionAudience(state.scenario,session);
+  const eligibleIds=new Set(eligible.map((person)=>person.id));
+  const selected=Array.from(new Set((personIds||[]).map((id)=>String(id)))).filter((id)=>eligibleIds.has(id));
+  if(selected.length!==(personIds||[]).length) throw new Error('INVALID_ATTENDANCE_PERSON');
+
+  const preserved=(state.records||[]).filter((record)=>record.sessionId!==sessionId);
+  const confirmedAt=now();
+  const records=[
+    ...preserved,
+    ...selected.map((personId)=>({
+      sessionId,
+      personId,
+      origin:'MOCK_RESPONSIBLE_CHECKLIST',
+      confirmedAt,
+      confirmedBy:responsibleId,
+    }))
+  ];
+  const next={...state,records};
+  return {
+    state:audit(next,'ATTENDANCE_CHECKLIST_CONFIRMED',responsibleId,{sessionId,present:selected.length,eligible:eligible.length}),
+    present:selected.length,
+    eligible:eligible.length,
+  };
+}
+
 export function presenceAnalytics(state) {
   const sessions = listSessions(state);
   const closed = sessions.filter((session) => session.status === 'ENCERRADA');
