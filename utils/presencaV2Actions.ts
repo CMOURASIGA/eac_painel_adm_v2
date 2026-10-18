@@ -394,7 +394,8 @@ async function publicCheckin(supabase: AnySupabase,payload:any){
   } else if(enteredPhone!==person.phone) reason='PHONE_MISMATCH';
   else {
     const same=people.filter((p:any)=>p.phone&&p.phone===enteredPhone);
-    if(same.length>1) reason='PHONE_SHARED';
+    const distinctIdentities=new Set(same.map((p:any)=>normalizedNameKey(p.name)));
+    if(distinctIdentities.size>1) reason='PHONE_SHARED';
   }
 
   if(reason){
