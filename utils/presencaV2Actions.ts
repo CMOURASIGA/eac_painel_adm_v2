@@ -576,7 +576,7 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       const token=clean(payload.token||payload.scope);
       const group=await getGroupByToken(supabase,token);
       if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
-      const sessions=(await listSessions(supabase,group.id)).filter((s:any)=>s.status==='ABERTA'||s.status==='ENCERRADA');
+      const sessions=(await listSessions(supabase,group.id)).filter((s:any)=>s.status==='AGENDADA'||s.status==='ABERTA'||s.status==='ENCERRADA');
       return {ok:true,data:{success:true,responsible:{id:group.id,label:group.nome_exibicao},sessions,source:'supabase'}};
     }
     if(action==='PRESENCA_V2_CREATE_SESSION'){
