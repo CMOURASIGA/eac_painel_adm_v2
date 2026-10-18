@@ -35,6 +35,7 @@ const PresenceResponsiblePage: React.FC = () => {
   const token = params.get('token') || '';
   const [sessions, setSessions] = useState<Session[]>([]);
   const [responsibleLabel, setResponsibleLabel] = useState('');
+  const [responsibleKind, setResponsibleKind] = useState('');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
@@ -43,6 +44,11 @@ const PresenceResponsiblePage: React.FC = () => {
   const [editingSessionId, setEditingSessionId] = useState('');
   const [editingScheduledAt, setEditingScheduledAt] = useState('');
   const [, setClock] = useState(0);
+  const [attendanceSessionId, setAttendanceSessionId] = useState('');
+  const [attendancePeople, setAttendancePeople] = useState<any[]>([]);
+  const [attendanceSelected, setAttendanceSelected] = useState<string[]>([]);
+  const [attendanceSearch, setAttendanceSearch] = useState('');
+  const [attendanceFilter, setAttendanceFilter] = useState<'TODOS'|'PRESENTES'|'AUSENTES'>('TODOS');
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -51,10 +57,12 @@ const PresenceResponsiblePage: React.FC = () => {
       const data = await call('PRESENCA_V2_LIST_RESPONSIBLE_SESSIONS', { token });
       setSessions(Array.isArray(data.sessions) ? data.sessions : []);
       setResponsibleLabel(data.responsible?.label || '');
+      setResponsibleKind(data.responsible?.kind || '');
     } catch (error: any) {
       setNotice(error?.message || 'Não foi possível carregar as reuniões.');
       setSessions([]);
       setResponsibleLabel('');
+      setResponsibleKind('');
     } finally {
       setLoading(false);
     }
@@ -105,6 +113,61 @@ const PresenceResponsiblePage: React.FC = () => {
       setBusy('');
     }
   };
+
+  const loadAttendance = async (sessionId: string) => {
+    setBusy(`attendance:${sessionId}`);
+    try {
+      const data=await call('PRESENCA_V2_RESPONSIBLE_ATTENDANCE_LIST',{token,sessionId});
+      const people=Array.isArray(data.people)?data.people:[];
+      setAttendanceSessionId(sessionId);
+      setAttendancePeople(people);
+      setAttendanceSelected(people.filter((person:any)=>person.present).map((person:any)=>person.id));
+      setAttendanceSearch('');
+      setAttendanceFilter('TODOS');
+      setNotice('');
+    } catch (error:any) {
+      setNotice(error?.message||'Não foi possível carregar a chamada.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const toggleAttendancePerson = (personId: string) => {
+    setAttendanceSelected((current)=>current.includes(personId)
+      ? current.filter((id)=>id!==personId)
+      : [...current,personId]);
+  };
+
+  const confirmAttendance = async (sessionId: string) => {
+    const absent=Math.max(0,attendancePeople.length-attendanceSelected.length);
+    if(!window.confirm(`Confirmar ${attendanceSelected.length} presença(s)? ${absent} adolescente(s) ficarão como ausentes.`)) return;
+    setBusy(`attendance:${sessionId}`);
+    try {
+      await call('PRESENCA_V2_RESPONSIBLE_CONFIRM_ATTENDANCE',{token,sessionId,personIds:attendanceSelected});
+      setNotice(`Chamada confirmada: ${attendanceSelected.length} presente(s) e ${absent} ausente(s).`);
+      const data=await call('PRESENCA_V2_RESPONSIBLE_ATTENDANCE_LIST',{token,sessionId});
+      const people=Array.isArray(data.people)?data.people:[];
+      setAttendancePeople(people);
+      setAttendanceSelected(people.filter((person:any)=>person.present).map((person:any)=>person.id));
+      await refresh();
+    } catch (error:any) {
+      setNotice(error?.message||'Não foi possível confirmar a chamada.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const filteredAttendancePeople = attendancePeople.filter((person:any)=>{
+    const text=attendanceSearch.trim().toLocaleLowerCase('pt-BR');
+    const matches=!text
+      || String(person.name||'').toLocaleLowerCase('pt-BR').includes(text)
+      || String(person.circle||'').toLocaleLowerCase('pt-BR').includes(text);
+    if(!matches) return false;
+    const selected=attendanceSelected.includes(person.id);
+    if(attendanceFilter==='PRESENTES') return selected;
+    if(attendanceFilter==='AUSENTES') return !selected;
+    return true;
+  });
 
   const execute = async (action: string, sessionId: string, successMessage: string) => {
     setBusy(sessionId);
@@ -238,7 +301,61 @@ const PresenceResponsiblePage: React.FC = () => {
                           <div className="rounded-xl bg-slate-50 p-2"><p className="text-[11px] text-slate-500">Confirmados</p><p className="font-black">{session.confirmedCount}</p></div>
                           <div className="rounded-xl bg-slate-50 p-2"><p className="text-[11px] text-slate-500">Pendentes</p><p className="font-black">{session.pendingCount}</p></div>
                         </div>
-                        <button type="button" onClick={() => setQrSession(session)} className="mt-5 w-full rounded-xl bg-[#044372] px-4 py-3 font-black text-white">Exibir QR Code</button>
+                        <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                          <button type="button" onClick={() => setQrSession(session)} className="w-full rounded-xl bg-[#044372] px-4 py-3 font-black text-white">Exibir QR Code</button>
+                          {responsibleKind === 'TIOS' && <button type="button" onClick={() => void loadAttendance(session.id)} className="w-full rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 font-black text-emerald-800">Fazer chamada</button>}
+                        </div>
+                        {responsibleKind === 'TIOS' && attendanceSessionId === session.id && (
+                          <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div>
+                                <h4 className="font-black text-slate-900">Chamada do círculo</h4>
+                                <p className="mt-1 text-sm text-slate-600">Marque quem está presente e confirme a lista ao final.</p>
+                              </div>
+                              <div className="rounded-xl bg-white px-3 py-2 text-sm font-black text-slate-800 shadow-sm">{attendanceSelected.length} de {attendancePeople.length} marcados</div>
+                            </div>
+
+                            <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+                              <input value={attendanceSearch} onChange={(event)=>setAttendanceSearch(event.target.value)} placeholder="Buscar adolescente ou círculo" className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm" />
+                              <div className="flex flex-wrap gap-1">
+                                {(['TODOS','PRESENTES','AUSENTES'] as const).map((filter)=>(
+                                  <button key={filter} type="button" onClick={()=>setAttendanceFilter(filter)} className={`rounded-lg px-3 py-2 text-xs font-black ${attendanceFilter===filter?'bg-[#044372] text-white':'border border-slate-300 bg-white text-slate-700'}`}>
+                                    {filter==='TODOS'?'Todos':filter==='PRESENTES'?'Presentes':'Ausentes'}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button type="button" onClick={()=>setAttendanceSelected(attendancePeople.map((person:any)=>person.id))} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700">Marcar todos</button>
+                              <button type="button" onClick={()=>setAttendanceSelected([])} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700">Limpar marcações</button>
+                            </div>
+
+                            <div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                              {filteredAttendancePeople.map((person:any)=>{
+                                const selected=attendanceSelected.includes(person.id);
+                                return (
+                                  <button type="button" key={person.id} onClick={()=>toggleAttendancePerson(person.id)} className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${selected?'border-emerald-300 bg-emerald-100':'border-slate-200 bg-white'}`}>
+                                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border text-sm font-black ${selected?'border-emerald-600 bg-emerald-600 text-white':'border-slate-300 bg-white text-transparent'}`}>✓</span>
+                                    <span className="min-w-0 flex-1">
+                                      <span className="block font-bold text-slate-900">{person.name}</span>
+                                      <span className="mt-0.5 block text-xs text-slate-500">{person.circle || 'Sem círculo'}{person.phoneMissing ? ' · ⚠ telefone não cadastrado' : ''}</span>
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                              {filteredAttendancePeople.length===0 && <p className="rounded-xl bg-white p-4 text-sm text-slate-500">Nenhum adolescente encontrado neste filtro.</p>}
+                            </div>
+
+                            <div className="mt-4 rounded-xl bg-white p-3 text-sm text-slate-700">
+                              <strong>{attendanceSelected.length}</strong> presentes · <strong>{Math.max(0,attendancePeople.length-attendanceSelected.length)}</strong> ausentes · <strong>{attendancePeople.length}</strong> elegíveis
+                            </div>
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                              <button type="button" disabled={busy===`attendance:${session.id}`} onClick={()=>void confirmAttendance(session.id)} className="rounded-xl bg-emerald-700 px-4 py-3 font-black text-white disabled:opacity-50">{busy===`attendance:${session.id}`?'Confirmando...':'Confirmar presenças'}</button>
+                              <button type="button" onClick={()=>{setAttendanceSessionId('');setAttendancePeople([]);setAttendanceSelected([]);}} className="rounded-xl border border-slate-300 bg-white px-4 py-3 font-bold text-slate-700">Fechar chamada</button>
+                            </div>
+                          </div>
+                        )}
                         {session.closeScheduledAt ? (
                           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
                             <p className="text-sm font-black text-amber-900">Encerramento em {seconds}s</p>
