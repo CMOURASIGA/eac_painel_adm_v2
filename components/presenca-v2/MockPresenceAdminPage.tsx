@@ -75,6 +75,22 @@ const MockPresenceAdminPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const options = responsibleGroups
+      .filter((item) => type === 'REUNIAO_DUPLA_TIOS' ? isSelectableTiosGroup(item) : item.kind === 'POS' && item.active === true)
+      .slice()
+      .sort(responsibleGroupOrder);
+
+    if (!options.length) {
+      if (responsibleId) setResponsibleId('');
+      return;
+    }
+
+    if (!options.some((item) => item.id === responsibleId)) {
+      setResponsibleId(options[0].id);
+    }
+  }, [type, responsibleGroups, responsibleId]);
+
+  useEffect(() => {
     void refresh().catch((error) => setNotice(error.message));
 
     const refreshWhenVisible = () => {
