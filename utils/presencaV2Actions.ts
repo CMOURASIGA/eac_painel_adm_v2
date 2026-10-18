@@ -333,8 +333,12 @@ async function insertPresence(supabase: AnySupabase, session: any, person: any, 
     circulo_informado:person?.circle||null,
     status_presenca:'REGISTRADA',
     criado_via_sistema:true,
-    tipo_evento:session.tipo==='REUNIAO_DUPLA_TIOS'?'REUNIAO_CIRCULO':'POS_ENCONTRO',
-    payload:{canal:'PRESENCA_V2',sessaoId:session.id,...extra},
+    payload:{
+      canal:'PRESENCA_V2',
+      sessaoId:session.id,
+      tipoReuniao:session.tipo==='REUNIAO_DUPLA_TIOS'?'REUNIAO_CIRCULO':'POS_ENCONTRO',
+      ...extra
+    },
   };
   const {data,error}=await supabase.from('presencas').insert(body).select('*').maybeSingle();
   if(error) throw error;
