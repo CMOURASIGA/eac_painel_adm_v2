@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     const apiProxy = env.VITE_API_PROXY || 'http://localhost:3001';
-    const mockEnabled = env.VITE_EAC_MOCK_MODE === 'true';
+    const mockEnabled = true;
     return {
       server: {
         port: 3000,
