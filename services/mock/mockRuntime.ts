@@ -97,10 +97,19 @@ async function handlePresenceAction(action: string, data: any) {
     if (action === 'PRESENCA_V2_LIST_RESPONSIBLE_SESSIONS') {
       const responsibleId=repo.responsibleIdFromToken(current,String(data?.token || data?.scope || ''));
       const responsible=current.scenario.responsibleGroups.find((item:any)=>item.id===responsibleId);
-      return actionSuccess({ responsible: responsible ? {id:responsible.id,label:responsible.label} : null, sessions: repo.listResponsibleSessions(current, String(data?.token || data?.scope || '')) });
+      return actionSuccess({ responsible: responsible ? {id:responsible.id,label:responsible.label,kind:responsible.kind} : null, sessions: repo.listResponsibleSessions(current, String(data?.token || data?.scope || '')) });
     }
     if (action === 'PRESENCA_V2_GET_ANALYTICS') return actionSuccess({ analytics: repo.presenceAnalytics(current) });
     if (action === 'PRESENCA_V2_GET_PUBLIC_SESSION') return actionSuccess({ session: repo.publicSession(current, String(data?.token || data?.sessionId || '')) });
+    if (action === 'PRESENCA_V2_RESPONSIBLE_ATTENDANCE_LIST') {
+      const result=repo.responsibleAttendance(current,String(data?.token||''),String(data?.sessionId||''));
+      return actionSuccess(result);
+    }
+    if (action === 'PRESENCA_V2_RESPONSIBLE_CONFIRM_ATTENDANCE') {
+      const result=repo.confirmResponsibleAttendance(current,String(data?.token||''),String(data?.sessionId||''),Array.isArray(data?.personIds)?data.personIds:[]);
+      save(result.state);
+      return actionSuccess({present:result.present,eligible:result.eligible});
+    }
     if (action === 'PRESENCA_V2_RESPONSIBLE_CREATE_SESSION') {
       const responsibleId=repo.responsibleIdFromToken(current,String(data?.token||''));
       const responsible=current.scenario.responsibleGroups.find((item:any)=>item.id===responsibleId);
