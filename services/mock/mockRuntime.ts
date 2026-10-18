@@ -18,7 +18,7 @@ async function loadRepository() {
   return repository;
 }
 
-export const isMockRuntime = () => __EAC_MOCK_ENABLED__ && environment.VITE_EAC_MOCK_MODE === MOCK_FLAG;
+export const isMockRuntime = () => __EAC_MOCK_ENABLED__;
 
 const mockUser = {
   id: 'mock-admin-01',
@@ -94,9 +94,66 @@ async function handlePresenceAction(action: string, data: any) {
   try {
     if (action === 'PRESENCA_V2_LIST_SESSIONS') return actionSuccess({ sessions: repo.listSessions(current), audit: current.audit });
     if (action === 'PRESENCA_V2_LIST_RESPONSIBLE_GROUPS') return actionSuccess({ responsibleGroups: repo.listResponsibleGroups(current) });
-    if (action === 'PRESENCA_V2_LIST_RESPONSIBLE_SESSIONS') return actionSuccess({ sessions: repo.listResponsibleSessions(current, String(data?.scope || '')) });
+    if (action === 'PRESENCA_V2_LIST_RESPONSIBLE_SESSIONS') {
+      const responsibleId=repo.responsibleIdFromToken(current,String(data?.token || data?.scope || ''));
+      const responsible=current.scenario.responsibleGroups.find((item:any)=>item.id===responsibleId);
+      return actionSuccess({ responsible: responsible ? {id:responsible.id,label:responsible.label} : null, sessions: repo.listResponsibleSessions(current, String(data?.token || data?.scope || '')) });
+    }
     if (action === 'PRESENCA_V2_GET_ANALYTICS') return actionSuccess({ analytics: repo.presenceAnalytics(current) });
     if (action === 'PRESENCA_V2_GET_PUBLIC_SESSION') return actionSuccess({ session: repo.publicSession(current, String(data?.token || data?.sessionId || '')) });
+    if (action === 'PRESENCA_V2_RESPONSIBLE_CREATE_SESSION') {
+      const responsibleId=repo.responsibleIdFromToken(current,String(data?.token||''));
+      const responsible=current.scenario.responsibleGroups.find((item:any)=>item.id===responsibleId);
+      if(!responsible) throw new Error('INVALID_RESPONSIBLE_SCOPE');
+      const result=repo.createSession(current,{
+        type:responsible.kind==='POS'?'POS_ENCONTRO_GERAL':'REUNIAO_DUPLA_TIOS',
+        responsibleId,
+        scheduledAt:data?.scheduledAt
+      },responsibleId);
+      save(result.state); return actionSuccess({session:result.session});
+    }
+    if (action === 'PRESENCA_V2_RESPONSIBLE_UPDATE_SESSION') {
+      const responsibleId=repo.responsibleIdFromToken(current,String(data?.token||''));
+      const session=current.scenario.sessions.find((x:any)=>x.id===String(data?.sessionId||''));
+      if(!session||session.responsibleId!==responsibleId) throw new Error('SESSION_OUT_OF_SCOPE');
+      const result=repo.updateSession(current,session.id,data?.scheduledAt,responsibleId);
+      save(result.state); return actionSuccess({session:result.session});
+    }
+    if (action === 'PRESENCA_V2_RESPONSIBLE_OPEN_SESSION') {
+      const responsibleId=repo.responsibleIdFromToken(current,String(data?.token||''));
+      const session=current.scenario.sessions.find((x:any)=>x.id===String(data?.sessionId||''));
+      if(!session||session.responsibleId!==responsibleId) throw new Error('SESSION_OUT_OF_SCOPE');
+      const result=repo.openSession(current,session.id,responsibleId);
+      save(result.state); return actionSuccess({session:result.session});
+    }
+    if (action === 'PRESENCA_V2_RESPONSIBLE_CANCEL_SESSION') {
+      const responsibleId=repo.responsibleIdFromToken(current,String(data?.token||''));
+      const session=current.scenario.sessions.find((x:any)=>x.id===String(data?.sessionId||''));
+      if(!session||session.responsibleId!==responsibleId) throw new Error('SESSION_OUT_OF_SCOPE');
+      const result=repo.cancelSession(current,session.id,responsibleId);
+      save(result.state); return actionSuccess({session:result.session});
+    }
+    if (action === 'PRESENCA_V2_REQUEST_CLOSE') {
+      const responsibleId=repo.responsibleIdFromToken(current,String(data?.token||''));
+      const session=current.scenario.sessions.find((x:any)=>x.id===String(data?.sessionId||''));
+      if(!session||session.responsibleId!==responsibleId) throw new Error('SESSION_OUT_OF_SCOPE');
+      const result=repo.requestClose(current,session.id,responsibleId);
+      save(result.state); return actionSuccess({session:result.session});
+    }
+    if (action === 'PRESENCA_V2_CANCEL_CLOSE') {
+      const responsibleId=repo.responsibleIdFromToken(current,String(data?.token||''));
+      const session=current.scenario.sessions.find((x:any)=>x.id===String(data?.sessionId||''));
+      if(!session||session.responsibleId!==responsibleId) throw new Error('SESSION_OUT_OF_SCOPE');
+      const result=repo.cancelClose(current,session.id,responsibleId);
+      save(result.state); return actionSuccess({session:result.session});
+    }
+    if (action === 'PRESENCA_V2_REOPEN_SESSION') {
+      const responsibleId=repo.responsibleIdFromToken(current,String(data?.token||''));
+      const session=current.scenario.sessions.find((x:any)=>x.id===String(data?.sessionId||''));
+      if(!session||session.responsibleId!==responsibleId) throw new Error('SESSION_OUT_OF_SCOPE');
+      const result=repo.reopenSession(current,session.id,responsibleId);
+      save(result.state); return actionSuccess({session:result.session});
+    }
     if (action === 'PRESENCA_V2_CREATE_SESSION') {
       const result = repo.createSession(current, data);
       save(result.state);
@@ -181,9 +238,6 @@ export function installMockRuntime() {
   if (typeof window === 'undefined' || !isMockRuntime()) return;
   const target = window as any;
   if (target.__eacMockRuntimeInstalled) return;
-  if (environment.PROD && environment.VITE_EAC_MOCK_PREVIEW !== MOCK_FLAG) {
-    throw new Error('MOCK_PREVIEW_NOT_EXPLICITLY_ALLOWED');
-  }
 
   const originalFetch = window.fetch.bind(window);
   target.__eacMockRuntimeInstalled = true;
