@@ -657,10 +657,21 @@ async function responsibleCircleMaintenancePreview(supabase:AnySupabase, group:a
   }
   const toLabels=(rows:any[])=>Array.from(new Set((rows||[]).map((x:any)=>labels.get(clean(x.grupo_id))).filter(Boolean)));
 
+  const duplicateCircleIds=Array.from(new Set((duplicatesResult.data||[])
+    .map((row:any)=>clean(row.circulo_id))
+    .filter(Boolean)));
+  const duplicateCircleEditions=new Map<string,number>();
+  if(duplicateCircleIds.length){
+    const {data:duplicateCircles,error:duplicateCirclesError}=await supabase.from('eac_circulos_historicos')
+      .select('id,edicao')
+      .in('id',duplicateCircleIds);
+    if(duplicateCirclesError) throw duplicateCirclesError;
+    for(const circle of duplicateCircles||[]) duplicateCircleEditions.set(clean(circle.id),Number(circle.edicao));
+  }
   const duplicateSameEdition=(duplicatesResult.data||[]).filter((row:any)=>{
     if(clean(row.id)===memberId) return false;
     const circleId=clean(row.circulo_id);
-    return scope.editions.includes(Number(source.edicao)) && circleId!==clean(source.id);
+    return duplicateCircleEditions.get(circleId)===Number(source.edicao);
   });
 
   return {
