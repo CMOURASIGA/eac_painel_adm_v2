@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { postComunicadosAction } from '../../services/eacApiClient.ts';
 import QrDisplay from './QrDisplay.tsx';
+import Toast from '../Toast.tsx';
 
 type Session = {
   id: string;
@@ -49,6 +50,18 @@ const PresenceResponsiblePage: React.FC = () => {
   const [attendanceSelected, setAttendanceSelected] = useState<string[]>([]);
   const [attendanceSearch, setAttendanceSearch] = useState('');
   const [attendanceFilter, setAttendanceFilter] = useState<'TODOS'|'PRESENTES'|'AUSENTES'>('TODOS');
+  const [maintenanceOpen, setMaintenanceOpen] = useState(false);
+  const [maintenancePeople, setMaintenancePeople] = useState<any[]>([]);
+  const [maintenanceCircles, setMaintenanceCircles] = useState<any[]>([]);
+  const [maintenanceSearch, setMaintenanceSearch] = useState('');
+  const [maintenanceSelected, setMaintenanceSelected] = useState<any | null>(null);
+  const [maintenanceTargetCircleId, setMaintenanceTargetCircleId] = useState('');
+  const [maintenancePreview, setMaintenancePreview] = useState<any | null>(null);
+  const [operationalPeople, setOperationalPeople] = useState<any[]>([]);
+  const [operationalSearch, setOperationalSearch] = useState('');
+  const [operationalSelected, setOperationalSelected] = useState<any | null>(null);
+  const [operationalTargetCircleId, setOperationalTargetCircleId] = useState('');
+  const [operationalPreview, setOperationalPreview] = useState<any | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -141,6 +154,91 @@ const PresenceResponsiblePage: React.FC = () => {
     }
   };
 
+  const loadMaintenance = async () => {
+    setBusy('maintenance-load');
+    try {
+      const [data,operational]=await Promise.all([
+        call('PRESENCA_V2_RESPONSIBLE_CIRCLE_MAINTENANCE_LIST',{token}),
+        call('PRESENCA_V2_RESPONSIBLE_OPERATIONAL_CANDIDATES',{token}),
+      ]);
+      setMaintenancePeople(Array.isArray(data.people)?data.people:[]);
+      setMaintenanceCircles(Array.isArray(data.authorizedCircles)?data.authorizedCircles:[]);
+      setOperationalPeople(Array.isArray(operational.people)?operational.people:[]);
+      setMaintenanceOpen(true);
+      setMaintenanceSelected(null);
+      setMaintenancePreview(null);
+      setMaintenanceTargetCircleId('');
+      setOperationalSelected(null);
+      setOperationalPreview(null);
+      setOperationalTargetCircleId('');
+      setNotice('');
+    } catch (error:any) {
+      setNotice(error?.message||'Não foi possível carregar a manutenção de adolescentes.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const chooseMaintenancePerson = (person:any) => {
+    setMaintenanceSelected(person);
+    const targets=maintenanceCircles.filter((circle:any)=>Number(circle.edition)===Number(person.edition) && circle.id!==person.currentCircleId);
+    setMaintenanceTargetCircleId(targets[0]?.id||'');
+    setMaintenancePreview(null);
+  };
+
+  const previewMaintenance = async () => {
+    if(!maintenanceSelected||!maintenanceTargetCircleId) return;
+    setBusy('maintenance-preview');
+    try {
+      const data=await call('PRESENCA_V2_RESPONSIBLE_CIRCLE_MAINTENANCE_PREVIEW',{
+        token,
+        memberId:maintenanceSelected.memberId,
+        targetCircleId:maintenanceTargetCircleId,
+      });
+      setMaintenancePreview(data.preview||null);
+      setNotice('');
+    } catch (error:any) {
+      setMaintenancePreview(null);
+      setNotice(error?.message||'Não foi possível validar a correção.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const applyMaintenance = async () => {
+    if(!maintenancePreview) return;
+    const warning=maintenancePreview?.checks?.sourceHasOtherResponsible
+      ? ' O círculo atual possui outro casal responsável.'
+      : '';
+    if(!window.confirm(`Confirmar a correção de ${maintenancePreview.name} de ${maintenancePreview.sourceCircle?.color} para ${maintenancePreview.targetCircle?.color}?${warning} O histórico de presenças anteriores será preservado.`)) return;
+    setBusy('maintenance-apply');
+    try {
+      const data=await call('PRESENCA_V2_RESPONSIBLE_CIRCLE_MAINTENANCE_APPLY',{
+        token,
+        memberId:maintenancePreview.memberId,
+        targetCircleId:maintenancePreview.targetCircle?.id,
+      });
+      setNotice(`${data.result?.name||maintenancePreview.name} atualizado para o círculo ${data.result?.to?.color||maintenancePreview.targetCircle?.color}. Presenças anteriores foram preservadas.`);
+      setMaintenanceSelected(null);
+      setMaintenancePreview(null);
+      setMaintenanceTargetCircleId('');
+      await loadMaintenance();
+      await refresh();
+    } catch (error:any) {
+      setNotice(error?.message||'Não foi possível aplicar a correção.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const maintenanceFilteredPeople = maintenancePeople.filter((person:any)=>{
+    const text=maintenanceSearch.trim().toLocaleLowerCase('pt-BR');
+    if(!text) return true;
+    return String(person.name||'').toLocaleLowerCase('pt-BR').includes(text)
+      || String(person.currentCircle||'').toLocaleLowerCase('pt-BR').includes(text)
+      || String(person.edition||'').includes(text);
+  });
+
   const loadAttendance = async (sessionId: string) => {
     setBusy(`attendance:${sessionId}`);
     try {
@@ -195,6 +293,63 @@ const PresenceResponsiblePage: React.FC = () => {
     if(attendanceFilter==='AUSENTES') return !selected;
     return true;
   });
+  const chooseOperationalPerson = (person:any) => {
+    setOperationalSelected(person);
+    const targets=maintenanceCircles.filter((circle:any)=>circle.id!==person.currentOperationalCircleId);
+    setOperationalTargetCircleId(targets[0]?.id||'');
+    setOperationalPreview(null);
+  };
+
+  const previewOperationalAssignment = async () => {
+    if(!operationalSelected||!operationalTargetCircleId) return;
+    setBusy('operational-preview');
+    try {
+      const data=await call('PRESENCA_V2_RESPONSIBLE_OPERATIONAL_ASSIGNMENT_PREVIEW',{
+        token,
+        personId:operationalSelected.personId,
+        targetCircleId:operationalTargetCircleId,
+      });
+      setOperationalPreview(data.preview||null);
+      setNotice('');
+    } catch (error:any) {
+      setOperationalPreview(null);
+      setNotice(error?.message||'Não foi possível validar o vínculo operacional.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const applyOperationalAssignment = async () => {
+    if(!operationalPreview) return;
+    if(!window.confirm(`Confirmar ${operationalPreview.name} no círculo ${operationalPreview.targetCircle?.color}? Esta ação não cria histórico de participação no EAC.`)) return;
+    setBusy('operational-apply');
+    try {
+      const data=await call('PRESENCA_V2_RESPONSIBLE_OPERATIONAL_ASSIGNMENT_APPLY',{
+        token,
+        personId:operationalPreview.personId,
+        targetCircleId:operationalPreview.targetCircle?.id,
+      });
+      setNotice(`${data.result?.name||operationalPreview.name} vinculado operacionalmente ao círculo ${data.result?.to?.color||operationalPreview.targetCircle?.color}. O histórico de EAC foi preservado.`);
+      setOperationalSelected(null);
+      setOperationalPreview(null);
+      setOperationalTargetCircleId('');
+      await loadMaintenance();
+      await refresh();
+    } catch (error:any) {
+      setNotice(error?.message||'Não foi possível aplicar o vínculo operacional.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const operationalFilteredPeople = operationalPeople.filter((person:any)=>{
+    const text=operationalSearch.trim().toLocaleLowerCase('pt-BR');
+    if(!text) return true;
+    return String(person.name||'').toLocaleLowerCase('pt-BR').includes(text)
+      || String(person.currentOperationalCircle||'').toLocaleLowerCase('pt-BR').includes(text)
+      || (Array.isArray(person.histories) ? person.histories.some((item:any)=>String(item.edition||'').includes(text)||String(item.color||'').toLocaleLowerCase('pt-BR').includes(text)) : false);
+  });
+
 
   const execute = async (action: string, sessionId: string, successMessage: string) => {
     setBusy(sessionId);
@@ -253,6 +408,161 @@ const PresenceResponsiblePage: React.FC = () => {
           </div>
         )}
 
+        {responsibleKind === 'TIOS' && (
+          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-black text-slate-900">Gerenciar adolescentes</h2>
+                <p className="mt-1 text-sm text-slate-600">Consulte adolescentes da mesma edição do seu EAC e corrija o círculo quando houver erro de vínculo. O sistema verifica cadastro, histórico, responsáveis e presenças antes de alterar.</p>
+              </div>
+              <button type="button" disabled={busy==='maintenance-load'} onClick={()=>void loadMaintenance()} className="shrink-0 rounded-xl bg-amber-700 px-4 py-3 font-black text-white disabled:opacity-50">
+                {busy==='maintenance-load'?'Carregando...':maintenanceOpen?'Atualizar lista':'Gerenciar adolescentes'}
+              </button>
+            </div>
+
+            {maintenanceOpen && (
+              <div className="mt-4 rounded-2xl bg-white p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <label className="grid flex-1 gap-1 text-sm font-bold text-slate-700">
+                    Buscar adolescente
+                    <input value={maintenanceSearch} onChange={(event)=>setMaintenanceSearch(event.target.value)} placeholder="Digite nome, círculo ou EAC" className="rounded-xl border border-slate-300 px-3 py-3 font-normal" />
+                  </label>
+                  <button type="button" onClick={()=>{setMaintenanceOpen(false);setMaintenanceSelected(null);setMaintenancePreview(null);}} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700">Fechar manutenção</button>
+                </div>
+
+                <div className="mt-4 max-h-[420px] overflow-auto rounded-xl border border-slate-200">
+                  {maintenanceFilteredPeople.length===0 ? (
+                    <p className="p-4 text-sm text-slate-500">Nenhum adolescente encontrado.</p>
+                  ) : maintenanceFilteredPeople.map((person:any)=>(
+                    <div key={person.memberId} className="flex flex-col gap-3 border-b border-slate-100 p-3 last:border-0 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-bold text-slate-900">{person.name}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          EAC {person.edition} · círculo atual {person.currentCircle||'não identificado'}
+                          {person.currentResponsibleLabels?.length ? ` · ${person.currentResponsibleLabels.join(' / ')}` : ' · sem Tios vinculados'}
+                        </p>
+                      </div>
+                      <button type="button" onClick={()=>chooseMaintenancePerson(person)} className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-black text-amber-800">Corrigir círculo</button>
+                    </div>
+                  ))}
+                </div>
+
+
+                <div className="mt-6 border-t border-slate-200 pt-5">
+                  <div>
+                    <h3 className="font-black text-slate-900">Vínculo operacional</h3>
+                    <p className="mt-1 text-sm text-slate-600">Use para adolescentes/encontreiros que precisam participar das reuniões dos Tios, mas não possuem histórico como encontrista naquele EAC. O histórico do encontro não é alterado.</p>
+                  </div>
+                  <label className="mt-3 grid gap-1 text-sm font-bold text-slate-700">
+                    Buscar adolescente/encontreiro
+                    <input value={operationalSearch} onChange={(event)=>setOperationalSearch(event.target.value)} placeholder="Ex.: Cauã de Freitas Caldas" className="rounded-xl border border-slate-300 px-3 py-3 font-normal" />
+                  </label>
+                  <div className="mt-3 max-h-[320px] overflow-auto rounded-xl border border-slate-200">
+                    {operationalFilteredPeople.length===0 ? (
+                      <p className="p-4 text-sm text-slate-500">Nenhum adolescente/encontreiro disponível encontrado.</p>
+                    ) : operationalFilteredPeople.map((person:any)=>(
+                      <div key={person.personId} className="flex flex-col gap-3 border-b border-slate-100 p-3 last:border-0 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="font-bold text-slate-900">{person.name}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Adolescente / Encontreiro · {person.assigned ? `círculo operacional ${person.currentOperationalCircle}` : 'sem círculo operacional'}
+                            {person.histories?.length ? ` · histórico: ${person.histories.map((item:any)=>`EAC ${item.edition} ${item.color}`).join(', ')}` : ' · sem histórico como encontrista'}
+                          </p>
+                        </div>
+                        <button type="button" onClick={()=>chooseOperationalPerson(person)} className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm font-black text-indigo-800">
+                          {person.assigned?'Alterar vínculo':'Vincular ao círculo'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {operationalSelected && (
+                    <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+                      <h4 className="font-black text-slate-900">Vínculo operacional</h4>
+                      <p className="mt-1 text-sm text-slate-600"><strong>{operationalSelected.name}</strong> · {operationalSelected.assigned ? `atual: ${operationalSelected.currentOperationalCircle}` : 'sem círculo operacional'}</p>
+                      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <label className="grid flex-1 gap-1 text-sm font-bold text-slate-700">
+                          Círculo dos Tios
+                          <select value={operationalTargetCircleId} onChange={(event)=>{setOperationalTargetCircleId(event.target.value);setOperationalPreview(null);}} className="rounded-xl border border-slate-300 bg-white px-3 py-3 font-normal">
+                            <option value="">Selecione...</option>
+                            {maintenanceCircles.filter((circle:any)=>circle.id!==operationalSelected.currentOperationalCircleId).map((circle:any)=>(
+                              <option key={circle.id} value={circle.id}>{circle.color}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <button type="button" disabled={!operationalTargetCircleId||busy==='operational-preview'} onClick={()=>void previewOperationalAssignment()} className="rounded-xl bg-indigo-700 px-4 py-3 font-black text-white disabled:opacity-50">
+                          {busy==='operational-preview'?'Verificando...':'Verificar impacto'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {operationalPreview && (
+                    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <h4 className="font-black text-slate-900">Validação do vínculo operacional</h4>
+                      <p className="mt-1 text-sm text-slate-700"><strong>{operationalPreview.name}</strong> → círculo <strong>{operationalPreview.targetCircle?.color}</strong></p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <div className="rounded-xl bg-white p-3 text-sm"><strong>Cadastro:</strong> localizado</div>
+                        <div className="rounded-xl bg-white p-3 text-sm"><strong>Encontreiro:</strong> {operationalPreview.checks?.classification} / {operationalPreview.checks?.status}</div>
+                        <div className="rounded-xl bg-white p-3 text-sm"><strong>Histórico EAC:</strong> {operationalPreview.checks?.historicalMemberships||0} vínculo(s), nenhum será alterado</div>
+                        <div className="rounded-xl bg-white p-3 text-sm"><strong>Presenças:</strong> {operationalPreview.checks?.presenceRecords||0} registro(s) preservado(s)</div>
+                      </div>
+                      <p className="mt-3 rounded-xl bg-white p-3 text-sm font-bold text-emerald-900">Este vínculo serve somente para a operação das reuniões dos Tios. Não transforma a pessoa em encontrista de um EAC anterior.</p>
+                      <button type="button" disabled={busy==='operational-apply'} onClick={()=>void applyOperationalAssignment()} className="mt-4 rounded-xl bg-emerald-700 px-4 py-3 font-black text-white disabled:opacity-50">
+                        {busy==='operational-apply'?'Aplicando...':'Confirmar vínculo operacional'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {maintenanceSelected && (
+                  <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4">
+                    <h3 className="font-black text-slate-900">Correção de círculo</h3>
+                    <p className="mt-1 text-sm text-slate-600"><strong>{maintenanceSelected.name}</strong> · EAC {maintenanceSelected.edition} · atual: {maintenanceSelected.currentCircle}</p>
+                    <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+                      <label className="grid flex-1 gap-1 text-sm font-bold text-slate-700">
+                        Novo círculo
+                        <select value={maintenanceTargetCircleId} onChange={(event)=>{setMaintenanceTargetCircleId(event.target.value);setMaintenancePreview(null);}} className="rounded-xl border border-slate-300 bg-white px-3 py-3 font-normal">
+                          <option value="">Selecione...</option>
+                          {maintenanceCircles.filter((circle:any)=>Number(circle.edition)===Number(maintenanceSelected.edition) && circle.id!==maintenanceSelected.currentCircleId).map((circle:any)=>(
+                            <option key={circle.id} value={circle.id}>{circle.color}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button type="button" disabled={!maintenanceTargetCircleId||busy==='maintenance-preview'} onClick={()=>void previewMaintenance()} className="rounded-xl bg-sky-700 px-4 py-3 font-black text-white disabled:opacity-50">
+                        {busy==='maintenance-preview'?'Verificando...':'Verificar impacto'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {maintenancePreview && (
+                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                    <h3 className="font-black text-slate-900">Validação antes da alteração</h3>
+                    <p className="mt-1 text-sm text-slate-700">{maintenancePreview.name}: <strong>{maintenancePreview.sourceCircle?.color}</strong> → <strong>{maintenancePreview.targetCircle?.color}</strong></p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-xl bg-white p-3 text-sm"><strong>Cadastro:</strong> {maintenancePreview.checks?.person?'localizado':'sem pessoa vinculada'}</div>
+                      <div className="rounded-xl bg-white p-3 text-sm"><strong>Adolescente:</strong> {maintenancePreview.checks?.adolescentLinks||0} vínculo(s)</div>
+                      <div className="rounded-xl bg-white p-3 text-sm"><strong>Presenças:</strong> {maintenancePreview.checks?.presenceRecords||0} registro(s) preservado(s)</div>
+                      <div className="rounded-xl bg-white p-3 text-sm"><strong>Histórico:</strong> {maintenancePreview.checks?.historicalMemberships||0} vínculo(s) localizado(s)</div>
+                    </div>
+                    {maintenancePreview.checks?.sourceHasOtherResponsible && (
+                      <p className="mt-3 rounded-xl bg-amber-100 p-3 text-sm font-bold text-amber-900">Atenção: o círculo atual possui outro casal de Tios responsável. A correção será auditada e moverá o adolescente para um círculo do seu escopo.</p>
+                    )}
+                    {maintenancePreview.checks?.duplicateMembershipWarning && (
+                      <p className="mt-3 rounded-xl bg-rose-100 p-3 text-sm font-bold text-rose-800">Existe outro vínculo histórico para esta pessoa. A alteração ficará bloqueada até essa duplicidade ser revisada.</p>
+                    )}
+                    <p className="mt-3 text-xs text-slate-600">Presenças já registradas não serão reescritas. A mudança afeta o vínculo histórico usado nas próximas chamadas.</p>
+                    <button type="button" disabled={busy==='maintenance-apply'||maintenancePreview.checks?.duplicateMembershipWarning} onClick={()=>void applyMaintenance()} className="mt-4 rounded-xl bg-emerald-700 px-4 py-3 font-black text-white disabled:opacity-50">
+                      {busy==='maintenance-apply'?'Aplicando...':'Confirmar correção'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Agendadas</p><p className="mt-1 text-2xl font-black text-sky-700">{scheduledSessions.length}</p></div>
           <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Abertas</p><p className="mt-1 text-2xl font-black text-emerald-700">{openSessions.length}</p></div>
@@ -272,7 +582,7 @@ const PresenceResponsiblePage: React.FC = () => {
           </div>
         </div>
 
-        {notice && <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-800">{notice}</div>}
+{notice && <Toast message={notice} type={/não|erro|inválid|falha|bloquead/i.test(notice) ? 'error' : 'success'} onClose={() => setNotice('')} />}
         {loading && <p className="mt-6 rounded-2xl bg-white p-5 text-sm text-slate-600 shadow-sm">Carregando reuniões…</p>}
 
         {!loading && (
