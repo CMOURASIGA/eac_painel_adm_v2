@@ -773,6 +773,240 @@ async function responsibleCircleMaintenanceApply(supabase:AnySupabase, group:any
   };
 }
 
+async function responsibleOperationalCandidates(supabase:AnySupabase, group:any){
+  const scope=await responsibleCircleMaintenanceScope(supabase,group);
+  const {data:workers,error:workersError}=await supabase.from('encontreiros')
+    .select('id,pessoa_id,classificacao,status')
+    .eq('classificacao','ADOLESCENTE')
+    .eq('status','DISPONIVEL')
+    .not('pessoa_id','is',null);
+  if(workersError) throw workersError;
+
+  const personIds=Array.from(new Set((workers||[]).map((row:any)=>clean(row.pessoa_id)).filter(Boolean)));
+  const personMap=new Map<string,any>();
+  for(let i=0;i<personIds.length;i+=200){
+    const chunk=personIds.slice(i,i+200);
+    const {data:people,error}=await supabase.from('pessoas')
+      .select('id,nome_completo,telefone_normalizado,telefone')
+      .in('id',chunk);
+    if(error) throw error;
+    for(const person of people||[]) personMap.set(clean(person.id),person);
+  }
+
+  let assignments:any[]=[];
+  const assignmentsResult=await supabase.from('presenca_responsavel_pessoas')
+    .select('id,pessoa_id,encontreiro_id,circulo_historico_id,ativo')
+    .eq('grupo_id',group.id);
+  if(assignmentsResult.error && clean(assignmentsResult.error.code)!=='42P01') throw assignmentsResult.error;
+  assignments=assignmentsResult.data||[];
+  const assignmentByPerson=new Map<string,any>(assignments.map((row:any)=>[clean(row.pessoa_id),row]));
+
+  const historicalRowsResult=personIds.length
+    ? await supabase.from('eac_circulo_membros_historicos')
+        .select('pessoa_id,circulo_id')
+        .in('pessoa_id',personIds)
+    : {data:[],error:null};
+  if(historicalRowsResult.error) throw historicalRowsResult.error;
+
+  const historicalCircleIds=Array.from(new Set((historicalRowsResult.data||[]).map((row:any)=>clean(row.circulo_id)).filter(Boolean)));
+  const historicalCircleMap=new Map<string,any>();
+  if(historicalCircleIds.length){
+    const {data:circles,error}=await supabase.from('eac_circulos_historicos')
+      .select('id,edicao,cor')
+      .in('id',historicalCircleIds);
+    if(error) throw error;
+    for(const circle of circles||[]) historicalCircleMap.set(clean(circle.id),circle);
+  }
+  const historyByPerson=new Map<string,any[]>();
+  for(const row of historicalRowsResult.data||[]){
+    const circle=historicalCircleMap.get(clean(row.circulo_id));
+    if(!circle) continue;
+    const pid=clean(row.pessoa_id);
+    const values=historyByPerson.get(pid)||[];
+    values.push({edition:Number(circle.edicao),color:clean(circle.cor)});
+    historyByPerson.set(pid,values);
+  }
+
+  const workerByPerson=new Map<string,any>();
+  for(const worker of workers||[]) workerByPerson.set(clean(worker.pessoa_id),worker);
+
+  const people=personIds.map((pid)=>{
+    const person=personMap.get(pid);
+    const worker=workerByPerson.get(pid);
+    const assignment=assignmentByPerson.get(pid);
+    const assignedCircle=scope.authorizedCircles.find((circle:any)=>circle.id===clean(assignment?.circulo_historico_id))||null;
+    return {
+      personId:pid,
+      encontreiroId:clean(worker?.id)||null,
+      name:clean(person?.nome_completo)||'Sem nome',
+      phone:phoneNorm(person?.telefone_normalizado||person?.telefone)||'',
+      classification:clean(worker?.classificacao)||'',
+      status:clean(worker?.status)||'',
+      histories:historyByPerson.get(pid)||[],
+      assignmentId:clean(assignment?.id)||null,
+      currentOperationalCircleId:assignedCircle?.id||null,
+      currentOperationalCircle:assignedCircle?.color||null,
+      assigned:Boolean(assignment?.ativo && assignedCircle),
+    };
+  }).sort((a:any,b:any)=>a.name.localeCompare(b.name,'pt-BR'));
+
+  return {authorizedCircles:scope.authorizedCircles,people};
+}
+
+async function responsibleOperationalAssignmentPreview(supabase:AnySupabase, group:any, payload:any){
+  const personId=clean(payload.personId);
+  const targetCircleId=clean(payload.targetCircleId);
+  if(!personId||!targetCircleId) throw new Error('Adolescente e círculo de destino são obrigatórios.');
+
+  const scope=await responsibleCircleMaintenanceScope(supabase,group);
+  const target=scope.authorizedCircles.find((circle:any)=>circle.id===targetCircleId);
+  if(!target) throw new Error('O círculo de destino não pertence ao escopo deste responsável.');
+
+  const {data:person,error:personError}=await supabase.from('pessoas')
+    .select('id,nome_completo,telefone_normalizado,telefone')
+    .eq('id',personId)
+    .maybeSingle();
+  if(personError) throw personError;
+  if(!person) throw new Error('Pessoa não encontrada.');
+
+  const {data:worker,error:workerError}=await supabase.from('encontreiros')
+    .select('id,pessoa_id,classificacao,status')
+    .eq('pessoa_id',personId)
+    .eq('classificacao','ADOLESCENTE')
+    .eq('status','DISPONIVEL')
+    .maybeSingle();
+  if(workerError) throw workerError;
+  if(!worker) throw new Error('A pessoa não está disponível como adolescente/encontreiro.');
+
+  const [historyResult,presenceResult,currentAssignmentResult]=await Promise.all([
+    supabase.from('eac_circulo_membros_historicos').select('id,circulo_id').eq('pessoa_id',personId),
+    supabase.from('presencas').select('id,sessao_id,circulo_informado').eq('pessoa_id',personId),
+    supabase.from('presenca_responsavel_pessoas').select('id,circulo_historico_id,ativo').eq('grupo_id',group.id).eq('pessoa_id',personId).maybeSingle(),
+  ]);
+  if(historyResult.error) throw historyResult.error;
+  if(presenceResult.error) throw presenceResult.error;
+  if(currentAssignmentResult.error && clean(currentAssignmentResult.error.code)!=='42P01') throw currentAssignmentResult.error;
+
+  let currentCircle:any=null;
+  if(currentAssignmentResult.data?.circulo_historico_id){
+    const {data,error}=await supabase.from('eac_circulos_historicos')
+      .select('id,edicao,cor')
+      .eq('id',currentAssignmentResult.data.circulo_historico_id)
+      .maybeSingle();
+    if(error) throw error;
+    currentCircle=data;
+  }
+
+  return {
+    personId,
+    encontreiroId:clean(worker.id),
+    name:clean(person.nome_completo)||'Sem nome',
+    phone:phoneNorm(person.telefone_normalizado||person.telefone)||'',
+    targetCircle:{id:target.id,edition:target.edition,color:target.color},
+    currentOperationalCircle:currentCircle ? {id:clean(currentCircle.id),edition:Number(currentCircle.edicao),color:clean(currentCircle.cor)} : null,
+    checks:{
+      person:true,
+      encontreiro:true,
+      classification:clean(worker.classificacao),
+      status:clean(worker.status),
+      historicalMemberships:(historyResult.data||[]).length,
+      presenceRecords:(presenceResult.data||[]).length,
+      existingOperationalAssignment:Boolean(currentAssignmentResult.data?.id),
+      targetAuthorized:true,
+    },
+    policy:{
+      updateHistoricalMembership:false,
+      createHistoricalMembership:false,
+      updatePerson:false,
+      updateEncontreiro:false,
+      preservePastPresences:true,
+      note:'O vínculo é apenas operacional para a chamada dos Tios. Não cria participação histórica no EAC.',
+    },
+  };
+}
+
+async function responsibleOperationalAssignmentApply(supabase:AnySupabase, group:any, payload:any){
+  const preview=await responsibleOperationalAssignmentPreview(supabase,group,payload);
+  const now=nowIso();
+  const existing=await supabase.from('presenca_responsavel_pessoas')
+    .select('id,circulo_historico_id')
+    .eq('grupo_id',group.id)
+    .eq('pessoa_id',preview.personId)
+    .maybeSingle();
+  if(existing.error && clean(existing.error.code)!=='42P01') throw existing.error;
+  if(clean(existing.error?.code)==='42P01') throw new Error('A estrutura de vínculo operacional ainda não foi instalada no banco.');
+
+  const sourceCircleId=clean(existing.data?.circulo_historico_id)||null;
+  let saved:any=null;
+  if(existing.data?.id){
+    const {data,error}=await supabase.from('presenca_responsavel_pessoas')
+      .update({
+        encontreiro_id:preview.encontreiroId,
+        circulo_historico_id:preview.targetCircle.id,
+        ativo:true,
+        origem:'MANUTENCAO_RESPONSAVEL',
+        atualizado_em:now,
+      })
+      .eq('id',existing.data.id)
+      .select('*')
+      .maybeSingle();
+    if(error) throw error;
+    saved=data;
+  }else{
+    const {data,error}=await supabase.from('presenca_responsavel_pessoas')
+      .insert({
+        grupo_id:group.id,
+        pessoa_id:preview.personId,
+        encontreiro_id:preview.encontreiroId,
+        circulo_historico_id:preview.targetCircle.id,
+        ativo:true,
+        origem:'MANUTENCAO_RESPONSAVEL',
+        criado_em:now,
+        atualizado_em:now,
+      })
+      .select('*')
+      .maybeSingle();
+    if(error) throw error;
+    saved=data;
+  }
+
+  const {error:auditError}=await supabase.from('presenca_manutencao_operacional_auditoria').insert({
+    grupo_id:group.id,
+    pessoa_id:preview.personId,
+    encontreiro_id:preview.encontreiroId,
+    circulo_origem_id:sourceCircleId,
+    circulo_destino_id:preview.targetCircle.id,
+    nome_snapshot:preview.name,
+    detalhes:{
+      actor:'RESPONSAVEL',
+      responsibleLabel:clean(group.nome_exibicao),
+      checks:preview.checks,
+      policy:preview.policy,
+    },
+  });
+  if(auditError){
+    if(existing.data?.id){
+      await supabase.from('presenca_responsavel_pessoas')
+        .update({circulo_historico_id:sourceCircleId,atualizado_em:nowIso()})
+        .eq('id',existing.data.id);
+    }else if(saved?.id){
+      await supabase.from('presenca_responsavel_pessoas').delete().eq('id',saved.id);
+    }
+    if(clean(auditError.code)==='42P01') throw new Error('A auditoria operacional ainda não foi instalada no banco. A alteração foi desfeita.');
+    throw auditError;
+  }
+
+  return {
+    assigned:true,
+    personId:preview.personId,
+    name:preview.name,
+    from:preview.currentOperationalCircle,
+    to:preview.targetCircle,
+    historicalMembershipsPreserved:preview.checks.historicalMemberships,
+    presenceRecordsPreserved:preview.checks.presenceRecords,
+  };
+}
+
 async function analytics(supabase:AnySupabase){
   const sessions=(await listSessions(supabase))
     .filter((s:any)=>s.status==='ENCERRADA')
@@ -907,6 +1141,30 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
       const sessions=(await listSessions(supabase,group.id)).filter((s:any)=>s.status==='AGENDADA'||s.status==='ABERTA'||s.status==='ENCERRADA');
       return {ok:true,data:{success:true,responsible:{id:group.id,label:group.nome_exibicao,kind:group.tipo==='TIOS'?'TIOS':group.tipo==='POS'?'POS':'HISTORICO'},sessions,source:'supabase'}};
+    }
+    if(action==='PRESENCA_V2_RESPONSIBLE_OPERATIONAL_CANDIDATES'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+      if(group.tipo!=='TIOS') return {ok:true,data:{success:false,error:'Vínculo operacional disponível somente para Tios de Círculo.'}};
+      const result=await responsibleOperationalCandidates(supabase,group);
+      return {ok:true,data:{success:true,responsible:{id:group.id,label:group.nome_exibicao},...result,source:'supabase'}};
+    }
+    if(action==='PRESENCA_V2_RESPONSIBLE_OPERATIONAL_ASSIGNMENT_PREVIEW'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+      if(group.tipo!=='TIOS') return {ok:true,data:{success:false,error:'Vínculo operacional disponível somente para Tios de Círculo.'}};
+      const preview=await responsibleOperationalAssignmentPreview(supabase,group,payload);
+      return {ok:true,data:{success:true,preview,source:'supabase'}};
+    }
+    if(action==='PRESENCA_V2_RESPONSIBLE_OPERATIONAL_ASSIGNMENT_APPLY'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+      if(group.tipo!=='TIOS') return {ok:true,data:{success:false,error:'Vínculo operacional disponível somente para Tios de Círculo.'}};
+      const result=await responsibleOperationalAssignmentApply(supabase,group,payload);
+      return {ok:true,data:{success:true,result,source:'supabase'}};
     }
     if(action==='PRESENCA_V2_RESPONSIBLE_CIRCLE_MAINTENANCE_LIST'){
       const token=clean(payload.token);
