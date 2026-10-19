@@ -179,7 +179,7 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
     const historicalIds=Array.from(new Set((links||[]).map((x:any)=>clean(x.circulo_historico_id)).filter(Boolean)));
     const currentIds=Array.from(new Set((links||[]).map((x:any)=>clean(x.circulo_id)).filter(Boolean)));
 
-    const [historicalCirclesResult,historicalMembersResult,currentMembersResult]=await Promise.all([
+    const [historicalCirclesResult,historicalMembersResult,currentMembersResult,operationalAssignmentsResult]=await Promise.all([
       historicalIds.length
         ? supabase.from('eac_circulos_historicos').select('id,edicao,cor').in('id',historicalIds)
         : Promise.resolve({data:[],error:null}),
@@ -189,10 +189,15 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
       currentIds.length
         ? supabase.from('circulo_participantes').select('pessoa_id,circulo_id').in('circulo_id',currentIds).not('pessoa_id','is',null)
         : Promise.resolve({data:[],error:null}),
+      supabase.from('presenca_responsavel_pessoas')
+        .select('pessoa_id,circulo_historico_id')
+        .eq('grupo_id',responsibleGroupId)
+        .eq('ativo',true),
     ]);
     if(historicalCirclesResult.error) throw historicalCirclesResult.error;
     if(historicalMembersResult.error) throw historicalMembersResult.error;
     if(currentMembersResult.error) throw currentMembersResult.error;
+    if(operationalAssignmentsResult.error && clean(operationalAssignmentsResult.error.code)!=='42P01') throw operationalAssignmentsResult.error;
 
     const historicalLabels=new Map<string,string>((historicalCirclesResult.data||[]).map((circle:any)=>[
       clean(circle.id),
@@ -201,6 +206,9 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
 
     for(const member of historicalMembersResult.data||[]){
       collect(member.pessoa_id,historicalLabels.get(clean(member.circulo_id))||'');
+    }
+    for(const member of operationalAssignmentsResult.data||[]){
+      collect(member.pessoa_id,historicalLabels.get(clean(member.circulo_historico_id))||'');
     }
     for(const member of currentMembersResult.data||[]){
       collect(member.pessoa_id);
