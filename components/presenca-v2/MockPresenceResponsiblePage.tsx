@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { postComunicadosAction } from '../../services/eacApiClient.ts';
 import QrDisplay from './QrDisplay.tsx';
+import Toast from '../Toast.tsx';
 
 type Session = {
   id: string;
@@ -581,7 +582,7 @@ const PresenceResponsiblePage: React.FC = () => {
           </div>
         </div>
 
-        {notice && <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-800">{notice}</div>}
+{notice && <Toast message={notice} type={/não|erro|inválid|falha|bloquead/i.test(notice) ? 'error' : 'success'} onClose={() => setNotice('')} />}
         {loading && <p className="mt-6 rounded-2xl bg-white p-5 text-sm text-slate-600 shadow-sm">Carregando reuniões…</p>}
 
         {!loading && (
