@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Toast from '../Toast.tsx';
 import qrcode from 'qrcode-generator';
 import { postComunicadosAction } from '../../services/eacApiClient.ts';
 
@@ -355,7 +356,7 @@ const MockPresenceAdminPage: React.FC = () => {
         </div>
       )}
 
-      {notice && <div className="mb-4 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">{notice}</div>}
+{notice && <Toast message={notice} type={/não|erro|inválid|falha/i.test(notice) ? 'error' : 'success'} onClose={() => setNotice('')} />}
 
       <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="font-bold text-slate-900">Criar nova reunião</h2>
