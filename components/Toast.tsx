@@ -9,9 +9,9 @@ interface ToastProps {
 
 const Toast: React.FC<ToastProps> = ({ message, type, onClose }) => {
   return (
-    <div className="fixed bottom-6 right-6 z-[200] animate-in fade-in slide-in-from-right-10 duration-300">
+    <div className="fixed inset-0 z-[250] flex items-center justify-center p-4 pointer-events-none animate-in fade-in zoom-in-95 duration-200">
       {/* Fix: Added conditional styling and icon for 'info' type */}
-      <div className={`flex items-center space-x-3 px-5 py-4 rounded-2xl shadow-2xl border ${
+      <div className={`pointer-events-auto flex w-full max-w-lg items-center space-x-3 px-5 py-4 rounded-2xl shadow-2xl border ${
         type === 'success' ? 'bg-white border-green-500 text-green-800' : 
         type === 'error' ? 'bg-white border-red-500 text-red-800' :
         'bg-white border-blue-500 text-blue-800'
