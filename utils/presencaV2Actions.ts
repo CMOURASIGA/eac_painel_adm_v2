@@ -485,6 +485,275 @@ async function listPending(supabase:AnySupabase){
   }));
 }
 
+async function responsibleCircleMaintenanceScope(supabase:AnySupabase, group:any){
+  if(!group || group.tipo!=='TIOS') throw new Error('Manutenção de adolescentes disponível somente para Tios de Círculo.');
+  const {data:links,error:linksError}=await supabase.from('presenca_responsavel_circulos')
+    .select('circulo_historico_id')
+    .eq('grupo_id',group.id)
+    .not('circulo_historico_id','is',null);
+  if(linksError) throw linksError;
+  const circleIds=Array.from(new Set((links||[]).map((row:any)=>clean(row.circulo_historico_id)).filter(Boolean)));
+  if(!circleIds.length) return {authorizedCircles:[],editions:[]};
+
+  const {data:circles,error:circlesError}=await supabase.from('eac_circulos_historicos')
+    .select('id,edicao,cor')
+    .in('id',circleIds);
+  if(circlesError) throw circlesError;
+  const authorizedCircles=(circles||[]).map((circle:any)=>({
+    id:clean(circle.id),
+    edition:Number(circle.edicao),
+    color:clean(circle.cor),
+  }));
+  return {
+    authorizedCircles,
+    editions:Array.from(new Set(authorizedCircles.map((circle:any)=>circle.edition))).filter(Boolean),
+  };
+}
+
+async function responsibleCircleMaintenanceList(supabase:AnySupabase, group:any){
+  const scope=await responsibleCircleMaintenanceScope(supabase,group);
+  if(!scope.editions.length) return {authorizedCircles:scope.authorizedCircles,people:[]};
+
+  const {data:allCircles,error:circlesError}=await supabase.from('eac_circulos_historicos')
+    .select('id,edicao,cor')
+    .in('edicao',scope.editions);
+  if(circlesError) throw circlesError;
+  const circleMap=new Map<string,any>((allCircles||[]).map((circle:any)=>[clean(circle.id),{
+    id:clean(circle.id),
+    edition:Number(circle.edicao),
+    color:clean(circle.cor),
+  }]));
+  const allCircleIds=Array.from(circleMap.keys());
+  if(!allCircleIds.length) return {authorizedCircles:scope.authorizedCircles,people:[]};
+
+  const [{data:members,error:membersError},{data:responsibilityLinks,error:responsibilityError}]=await Promise.all([
+    supabase.from('eac_circulo_membros_historicos')
+      .select('id,circulo_id,pessoa_id,nome_origem,ordem_origem,conciliacao_status')
+      .in('circulo_id',allCircleIds),
+    supabase.from('presenca_responsavel_circulos')
+      .select('grupo_id,circulo_historico_id')
+      .in('circulo_historico_id',allCircleIds),
+  ]);
+  if(membersError) throw membersError;
+  if(responsibilityError) throw responsibilityError;
+
+  const groupIds=Array.from(new Set((responsibilityLinks||[]).map((row:any)=>clean(row.grupo_id)).filter(Boolean)));
+  const groupLabels=new Map<string,string>();
+  if(groupIds.length){
+    const {data:groups,error:groupsError}=await supabase.from('presenca_responsaveis_grupos')
+      .select('id,nome_exibicao,tipo,ativo')
+      .in('id',groupIds);
+    if(groupsError) throw groupsError;
+    for(const item of groups||[]){
+      if(item.tipo==='TIOS' && item.ativo!==false) groupLabels.set(clean(item.id),clean(item.nome_exibicao));
+    }
+  }
+  const responsibleByCircle=new Map<string,string[]>();
+  for(const link of responsibilityLinks||[]){
+    const label=groupLabels.get(clean(link.grupo_id));
+    const cid=clean(link.circulo_historico_id);
+    if(!label||!cid) continue;
+    const values=responsibleByCircle.get(cid)||[];
+    if(!values.includes(label)) values.push(label);
+    responsibleByCircle.set(cid,values);
+  }
+
+  const personIds=Array.from(new Set((members||[]).map((row:any)=>clean(row.pessoa_id)).filter(Boolean)));
+  const personMap=new Map<string,any>();
+  for(let i=0;i<personIds.length;i+=200){
+    const chunk=personIds.slice(i,i+200);
+    const {data:people,error:peopleError}=await supabase.from('pessoas')
+      .select('id,nome_completo,telefone_normalizado,telefone')
+      .in('id',chunk);
+    if(peopleError) throw peopleError;
+    for(const person of people||[]) personMap.set(clean(person.id),person);
+  }
+
+  const rows=(members||[]).map((member:any)=>{
+    const circle=circleMap.get(clean(member.circulo_id));
+    const person=personMap.get(clean(member.pessoa_id));
+    return {
+      memberId:clean(member.id),
+      personId:clean(member.pessoa_id)||null,
+      name:clean(person?.nome_completo)||clean(member.nome_origem)||'Sem nome',
+      phone:phoneNorm(person?.telefone_normalizado||person?.telefone)||'',
+      edition:Number(circle?.edition||0),
+      currentCircleId:clean(circle?.id),
+      currentCircle:clean(circle?.color),
+      currentResponsibleLabels:responsibleByCircle.get(clean(circle?.id))||[],
+      reconciliationStatus:clean(member.conciliacao_status)||'',
+      order:Number(member.ordem_origem||0),
+    };
+  }).sort((a:any,b:any)=>a.name.localeCompare(b.name,'pt-BR'));
+
+  return {authorizedCircles:scope.authorizedCircles,people:rows};
+}
+
+async function responsibleCircleMaintenancePreview(supabase:AnySupabase, group:any, payload:any){
+  const memberId=clean(payload.memberId);
+  const targetCircleId=clean(payload.targetCircleId);
+  if(!memberId||!targetCircleId) throw new Error('Adolescente e círculo de destino são obrigatórios.');
+
+  const scope=await responsibleCircleMaintenanceScope(supabase,group);
+  const target=scope.authorizedCircles.find((circle:any)=>circle.id===targetCircleId);
+  if(!target) throw new Error('O círculo de destino não pertence ao escopo deste responsável.');
+
+  const {data:member,error:memberError}=await supabase.from('eac_circulo_membros_historicos')
+    .select('id,circulo_id,pessoa_id,nome_origem,conciliacao_status')
+    .eq('id',memberId)
+    .maybeSingle();
+  if(memberError) throw memberError;
+  if(!member) throw new Error('Adolescente histórico não encontrado.');
+
+  const {data:source,error:sourceError}=await supabase.from('eac_circulos_historicos')
+    .select('id,edicao,cor')
+    .eq('id',member.circulo_id)
+    .maybeSingle();
+  if(sourceError) throw sourceError;
+  if(!source) throw new Error('Círculo atual não encontrado.');
+  if(Number(source.edicao)!==Number(target.edition)) throw new Error('A correção não pode mover o adolescente entre edições diferentes do EAC.');
+  if(clean(source.id)===targetCircleId) throw new Error('O adolescente já está vinculado a este círculo.');
+
+  let person:any=null;
+  if(member.pessoa_id){
+    const {data,error}=await supabase.from('pessoas')
+      .select('id,nome_completo,telefone_normalizado,telefone')
+      .eq('id',member.pessoa_id)
+      .maybeSingle();
+    if(error) throw error;
+    person=data;
+  }
+  const personId=clean(member.pessoa_id);
+  const [adolescentsResult,presencesResult,duplicatesResult,targetResponsibilityResult,sourceResponsibilityResult]=await Promise.all([
+    personId
+      ? supabase.from('adolescentes').select('id,pessoa_id').eq('pessoa_id',personId)
+      : Promise.resolve({data:[],error:null}),
+    personId
+      ? supabase.from('presencas').select('id,sessao_id,circulo_informado,status_presenca').eq('pessoa_id',personId)
+      : Promise.resolve({data:[],error:null}),
+    personId
+      ? supabase.from('eac_circulo_membros_historicos').select('id,circulo_id').eq('pessoa_id',personId)
+      : Promise.resolve({data:[],error:null}),
+    supabase.from('presenca_responsavel_circulos').select('grupo_id').eq('circulo_historico_id',targetCircleId),
+    supabase.from('presenca_responsavel_circulos').select('grupo_id').eq('circulo_historico_id',source.id),
+  ]);
+  if(adolescentsResult.error) throw adolescentsResult.error;
+  if(presencesResult.error) throw presencesResult.error;
+  if(duplicatesResult.error) throw duplicatesResult.error;
+  if(targetResponsibilityResult.error) throw targetResponsibilityResult.error;
+  if(sourceResponsibilityResult.error) throw sourceResponsibilityResult.error;
+
+  const linkedGroupIds=Array.from(new Set([
+    ...(targetResponsibilityResult.data||[]).map((x:any)=>clean(x.grupo_id)),
+    ...(sourceResponsibilityResult.data||[]).map((x:any)=>clean(x.grupo_id)),
+  ].filter(Boolean)));
+  const labels=new Map<string,string>();
+  if(linkedGroupIds.length){
+    const {data:groups,error}=await supabase.from('presenca_responsaveis_grupos')
+      .select('id,nome_exibicao,tipo,ativo')
+      .in('id',linkedGroupIds);
+    if(error) throw error;
+    for(const item of groups||[]) if(item.tipo==='TIOS'&&item.ativo!==false) labels.set(clean(item.id),clean(item.nome_exibicao));
+  }
+  const toLabels=(rows:any[])=>Array.from(new Set((rows||[]).map((x:any)=>labels.get(clean(x.grupo_id))).filter(Boolean)));
+
+  const duplicateSameEdition=(duplicatesResult.data||[]).filter((row:any)=>{
+    if(clean(row.id)===memberId) return false;
+    const circleId=clean(row.circulo_id);
+    return scope.editions.includes(Number(source.edicao)) && circleId!==clean(source.id);
+  });
+
+  return {
+    memberId,
+    personId:personId||null,
+    name:clean(person?.nome_completo)||clean(member.nome_origem)||'Sem nome',
+    phone:phoneNorm(person?.telefone_normalizado||person?.telefone)||'',
+    edition:Number(source.edicao),
+    sourceCircle:{id:clean(source.id),color:clean(source.cor),responsibleLabels:toLabels(sourceResponsibilityResult.data||[])},
+    targetCircle:{id:target.id,color:target.color,responsibleLabels:toLabels(targetResponsibilityResult.data||[])},
+    checks:{
+      person:Boolean(personId),
+      adolescentLinks:(adolescentsResult.data||[]).length,
+      presenceRecords:(presencesResult.data||[]).length,
+      historicalMemberships:(duplicatesResult.data||[]).length,
+      duplicateMembershipWarning:duplicateSameEdition.length>0,
+      sourceHasOtherResponsible:toLabels(sourceResponsibilityResult.data||[]).some((label:string)=>label!==clean(group.nome_exibicao)),
+      targetAuthorized:true,
+      sameEdition:true,
+    },
+    policy:{
+      updateHistoricalMembership:true,
+      updatePastPresences:false,
+      updatePerson:false,
+      updateAdolescentRecord:false,
+      note:'Presenças anteriores não são reescritas. A correção altera o vínculo histórico usado nas próximas chamadas e mantém auditoria.',
+    },
+  };
+}
+
+async function responsibleCircleMaintenanceApply(supabase:AnySupabase, group:any, payload:any){
+  const preview=await responsibleCircleMaintenancePreview(supabase,group,payload);
+  const memberId=preview.memberId;
+  const sourceCircleId=preview.sourceCircle.id;
+  const targetCircleId=preview.targetCircle.id;
+
+  if(preview.checks.duplicateMembershipWarning){
+    throw new Error('A pessoa possui outro vínculo histórico na mesma edição. A correção foi bloqueada para evitar duplicidade.');
+  }
+
+  const {data:updated,error:updateError}=await supabase.from('eac_circulo_membros_historicos')
+    .update({
+      circulo_id:targetCircleId,
+      conciliacao_status:'CONCILIADO',
+    })
+    .eq('id',memberId)
+    .eq('circulo_id',sourceCircleId)
+    .select('id,circulo_id,pessoa_id,nome_origem')
+    .maybeSingle();
+  if(updateError) throw updateError;
+  if(!updated) throw new Error('O vínculo mudou durante a operação. Atualize a tela e tente novamente.');
+
+  const auditPayload={
+    grupo_id:group.id,
+    membro_historico_id:memberId,
+    pessoa_id:preview.personId||null,
+    edicao:preview.edition,
+    circulo_origem_id:sourceCircleId,
+    circulo_destino_id:targetCircleId,
+    nome_snapshot:preview.name,
+    detalhes:{
+      actor:'RESPONSAVEL',
+      responsibleLabel:clean(group.nome_exibicao),
+      sourceResponsibleLabels:preview.sourceCircle.responsibleLabels,
+      targetResponsibleLabels:preview.targetCircle.responsibleLabels,
+      checks:preview.checks,
+      policy:preview.policy,
+    },
+  };
+  const {error:auditError}=await supabase.from('presenca_manutencao_circulo_auditoria').insert(auditPayload);
+  if(auditError){
+    await supabase.from('eac_circulo_membros_historicos')
+      .update({circulo_id:sourceCircleId})
+      .eq('id',memberId)
+      .eq('circulo_id',targetCircleId);
+    if(clean(auditError.code)==='42P01'){
+      throw new Error('A auditoria de manutenção ainda não foi instalada no banco. A alteração foi desfeita com segurança.');
+    }
+    throw auditError;
+  }
+
+  return {
+    changed:true,
+    memberId,
+    personId:preview.personId,
+    name:preview.name,
+    edition:preview.edition,
+    from:preview.sourceCircle,
+    to:preview.targetCircle,
+    preservedPresenceRecords:preview.checks.presenceRecords,
+  };
+}
+
 async function analytics(supabase:AnySupabase){
   const sessions=(await listSessions(supabase))
     .filter((s:any)=>s.status==='ENCERRADA')
@@ -619,6 +888,30 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
       const sessions=(await listSessions(supabase,group.id)).filter((s:any)=>s.status==='AGENDADA'||s.status==='ABERTA'||s.status==='ENCERRADA');
       return {ok:true,data:{success:true,responsible:{id:group.id,label:group.nome_exibicao,kind:group.tipo==='TIOS'?'TIOS':group.tipo==='POS'?'POS':'HISTORICO'},sessions,source:'supabase'}};
+    }
+    if(action==='PRESENCA_V2_RESPONSIBLE_CIRCLE_MAINTENANCE_LIST'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+      if(group.tipo!=='TIOS') return {ok:true,data:{success:false,error:'Manutenção de adolescentes disponível somente para Tios de Círculo.'}};
+      const result=await responsibleCircleMaintenanceList(supabase,group);
+      return {ok:true,data:{success:true,responsible:{id:group.id,label:group.nome_exibicao},...result,source:'supabase'}};
+    }
+    if(action==='PRESENCA_V2_RESPONSIBLE_CIRCLE_MAINTENANCE_PREVIEW'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+      if(group.tipo!=='TIOS') return {ok:true,data:{success:false,error:'Manutenção de adolescentes disponível somente para Tios de Círculo.'}};
+      const preview=await responsibleCircleMaintenancePreview(supabase,group,payload);
+      return {ok:true,data:{success:true,preview,source:'supabase'}};
+    }
+    if(action==='PRESENCA_V2_RESPONSIBLE_CIRCLE_MAINTENANCE_APPLY'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+      if(group.tipo!=='TIOS') return {ok:true,data:{success:false,error:'Manutenção de adolescentes disponível somente para Tios de Círculo.'}};
+      const result=await responsibleCircleMaintenanceApply(supabase,group,payload);
+      return {ok:true,data:{success:true,result,source:'supabase'}};
     }
     if(action==='PRESENCA_V2_RESPONSIBLE_EXPORT_ADOLESCENTS'){
       const token=clean(payload.token);
