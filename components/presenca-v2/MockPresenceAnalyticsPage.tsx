@@ -12,7 +12,7 @@ const MockPresenceAnalyticsPage: React.FC = () => {
   const [notice, setNotice] = useState('');
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [responsibleFilter, setResponsibleFilter] = useState('');
-  const [tiosOrder, setTiosOrder] = useState<'POS' | 'CIRCULO'>('POS');
+  const [tiosView, setTiosView] = useState<'TODOS' | 'POS' | 'CIRCULO'>('TODOS');
   const [peopleFilter, setPeopleFilter] = useState('');
   const [peopleStatus, setPeopleStatus] = useState<'TODOS' | 'COM_PRESENCA' | 'COM_FALTAS' | 'SEM_PRESENCA' | 'FREQUENTES'>('TODOS');
 
@@ -45,16 +45,29 @@ const MockPresenceAnalyticsPage: React.FC = () => {
   const postGroups = groups.filter((group: any) => group.kind === 'POS');
   const tiosPerformanceGroups = (Array.isArray(analytics.tiosPerformance) ? analytics.tiosPerformance : [])
     .filter((group: any) => String(group.label || '').toLocaleLowerCase('pt-BR').includes(responsibleFilter.trim().toLocaleLowerCase('pt-BR')))
+    .filter((group: any) => {
+      if (tiosView === 'POS') return Number(group.postEligible || 0) > 0;
+      if (tiosView === 'CIRCULO') return Number(group.circleEligible || 0) > 0;
+      return true;
+    })
     .slice()
     .sort((a: any, b: any) => {
-      const primary = tiosOrder === 'POS'
-        ? Number(b.postRate || 0) - Number(a.postRate || 0)
-        : Number(b.circleRate || 0) - Number(a.circleRate || 0);
-      if (primary !== 0) return primary;
-      const secondary = tiosOrder === 'POS'
-        ? Number(b.circleRate || 0) - Number(a.circleRate || 0)
-        : Number(b.postRate || 0) - Number(a.postRate || 0);
-      if (secondary !== 0) return secondary;
+      if (tiosView === 'POS') {
+        const byPost = Number(b.postRate || 0) - Number(a.postRate || 0);
+        if (byPost !== 0) return byPost;
+      }
+      if (tiosView === 'CIRCULO') {
+        const byCircle = Number(b.circleRate || 0) - Number(a.circleRate || 0);
+        if (byCircle !== 0) return byCircle;
+      }
+      if (tiosView === 'TODOS') {
+        const aCombinedEligible = Number(a.postEligible || 0) + Number(a.circleEligible || 0);
+        const bCombinedEligible = Number(b.postEligible || 0) + Number(b.circleEligible || 0);
+        const aCombinedRate = aCombinedEligible ? ((Number(a.postPresent || 0) + Number(a.circlePresent || 0)) * 100 / aCombinedEligible) : 0;
+        const bCombinedRate = bCombinedEligible ? ((Number(b.postPresent || 0) + Number(b.circlePresent || 0)) * 100 / bCombinedEligible) : 0;
+        const byCombined = bCombinedRate - aCombinedRate;
+        if (byCombined !== 0) return byCombined;
+      }
       return String(a.label || '').localeCompare(String(b.label || ''), 'pt-BR');
     });
 
@@ -141,8 +154,9 @@ const MockPresenceAnalyticsPage: React.FC = () => {
                         <input value={responsibleFilter} onChange={(event) => setResponsibleFilter(event.target.value)} placeholder="Digite parte do nome" className="rounded-xl border border-slate-300 px-3 py-3 text-base font-normal" />
                       </label>
                       <label className="grid gap-1 text-sm font-semibold text-slate-700">
-                        Ordenar por melhor presença
-                        <select value={tiosOrder} onChange={(event)=>setTiosOrder(event.target.value as 'POS'|'CIRCULO')} className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-medium text-slate-800">
+                        Exibir
+                        <select value={tiosView} onChange={(event)=>setTiosView(event.target.value as 'TODOS'|'POS'|'CIRCULO')} className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-medium text-slate-800">
+                          <option value="TODOS">Todos</option>
                           <option value="POS">Pós-encontro</option>
                           <option value="CIRCULO">Reunião de círculo</option>
                         </select>
@@ -163,15 +177,19 @@ const MockPresenceAnalyticsPage: React.FC = () => {
                                 <p className="mt-1 text-xs text-slate-500">{(group.circles||[]).join(' / ') || 'Círculos não identificados'} · {group.adolescents||0} adolescente(s)</p>
                               </div>
                               <div className="flex shrink-0 items-center gap-3">
-                                <div className="grid grid-cols-2 gap-2 text-right">
-                                  <div className="rounded-lg bg-violet-50 px-3 py-2">
-                                    <p className="text-[10px] font-black uppercase text-violet-700">Pós</p>
-                                    <p className="font-black text-violet-800">{formatRate(group.postRate)}</p>
-                                  </div>
-                                  <div className="rounded-lg bg-emerald-50 px-3 py-2">
-                                    <p className="text-[10px] font-black uppercase text-emerald-700">Círculo</p>
-                                    <p className="font-black text-emerald-800">{formatRate(group.circleRate)}</p>
-                                  </div>
+                                <div className={`grid gap-2 text-right ${tiosView==='TODOS'?'grid-cols-2':'grid-cols-1'}`}>
+                                  {tiosView !== 'CIRCULO' && (
+                                    <div className="rounded-lg bg-violet-50 px-3 py-2">
+                                      <p className="text-[10px] font-black uppercase text-violet-700">Pós</p>
+                                      <p className="font-black text-violet-800">{formatRate(group.postRate)}</p>
+                                    </div>
+                                  )}
+                                  {tiosView !== 'POS' && (
+                                    <div className="rounded-lg bg-emerald-50 px-3 py-2">
+                                      <p className="text-[10px] font-black uppercase text-emerald-700">Círculo</p>
+                                      <p className="font-black text-emerald-800">{formatRate(group.circleRate)}</p>
+                                    </div>
+                                  )}
                                 </div>
                                 <span className="text-xl font-black text-slate-500">{openSections[groupKey] ? '−' : '+'}</span>
                               </div>
@@ -179,9 +197,9 @@ const MockPresenceAnalyticsPage: React.FC = () => {
 
                             {openSections[groupKey] && (
                               <div className="border-t border-slate-200 bg-white p-4">
-                                <div className="mb-4 grid gap-2 sm:grid-cols-2">
-                                  <div className="rounded-xl bg-violet-50 p-3 text-sm text-violet-900"><strong>Pós:</strong> {group.postPresent}/{group.postEligible} presenças elegíveis · {formatRate(group.postRate)}</div>
-                                  <div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900"><strong>Reunião de círculo:</strong> {group.circlePresent}/{group.circleEligible} presenças elegíveis · {formatRate(group.circleRate)}</div>
+                                <div className={`mb-4 grid gap-2 ${tiosView==='TODOS'?'sm:grid-cols-2':'sm:grid-cols-1'}`}>
+                                  {tiosView !== 'CIRCULO' && <div className="rounded-xl bg-violet-50 p-3 text-sm text-violet-900"><strong>Pós:</strong> {group.postPresent}/{group.postEligible} presenças elegíveis · {formatRate(group.postRate)}</div>}
+                                  {tiosView !== 'POS' && <div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900"><strong>Reunião de círculo:</strong> {group.circlePresent}/{group.circleEligible} presenças elegíveis · {formatRate(group.circleRate)}</div>}
                                 </div>
                                 <div className="overflow-x-auto">
                                   <table className="w-full min-w-[760px] text-left text-sm">
@@ -189,10 +207,10 @@ const MockPresenceAnalyticsPage: React.FC = () => {
                                       <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
                                         <th className="px-3 py-3">Adolescente</th>
                                         <th className="px-3 py-3">Círculo</th>
-                                        <th className="px-3 py-3 text-center">Pós</th>
-                                        <th className="px-3 py-3 text-right">Freq. Pós</th>
-                                        <th className="px-3 py-3 text-center">Reunião de círculo</th>
-                                        <th className="px-3 py-3 text-right">Freq. círculo</th>
+                                        {tiosView !== 'CIRCULO' && <th className="px-3 py-3 text-center">Pós</th>}
+                                        {tiosView !== 'CIRCULO' && <th className="px-3 py-3 text-right">Freq. Pós</th>}
+                                        {tiosView !== 'POS' && <th className="px-3 py-3 text-center">Reunião de círculo</th>}
+                                        {tiosView !== 'POS' && <th className="px-3 py-3 text-right">Freq. círculo</th>
                                       </tr>
                                     </thead>
                                     <tbody>
@@ -200,10 +218,10 @@ const MockPresenceAnalyticsPage: React.FC = () => {
                                         <tr key={person.id} className="border-b border-slate-100 last:border-0">
                                           <td className="px-3 py-3 font-semibold text-slate-900">{person.name}</td>
                                           <td className="px-3 py-3 text-slate-600">{person.circle || 'Sem círculo'}</td>
-                                          <td className="px-3 py-3 text-center">{person.postPresent}/{person.postEligible}</td>
-                                          <td className="px-3 py-3 text-right font-black text-violet-700">{formatRate(person.postRate)}</td>
-                                          <td className="px-3 py-3 text-center">{person.circlePresent}/{person.circleEligible}</td>
-                                          <td className="px-3 py-3 text-right font-black text-emerald-700">{formatRate(person.circleRate)}</td>
+                                          {tiosView !== 'CIRCULO' && <td className="px-3 py-3 text-center">{person.postPresent}/{person.postEligible}</td>}
+                                          {tiosView !== 'CIRCULO' && <td className="px-3 py-3 text-right font-black text-violet-700">{formatRate(person.postRate)}</td>}
+                                          {tiosView !== 'POS' && <td className="px-3 py-3 text-center">{person.circlePresent}/{person.circleEligible}</td>}
+                                          {tiosView !== 'POS' && <td className="px-3 py-3 text-right font-black text-emerald-700">{formatRate(person.circleRate)}</td>
                                         </tr>
                                       ))}
                                     </tbody>
