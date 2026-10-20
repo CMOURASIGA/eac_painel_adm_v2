@@ -325,7 +325,12 @@ const MockPresenceAdminPage: React.FC = () => {
         </>}
         {session.status === 'ABERTA' && <button disabled={busy} onClick={() => void execute('PRESENCA_V2_CLOSE_SESSION', { sessionId: session.id }, 'Reunião encerrada pelo ADM.')} className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white">Encerrar reunião</button>}
         {session.status === 'CANCELADA' && <button disabled={busy} onClick={() => void deleteSession(session)} className="rounded-lg border border-rose-500 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-800">{busy ? 'Processando...' : 'Excluir'}</button>}
-        {session.status === 'ENCERRADA' && <button disabled={busy} onClick={() => void execute('PRESENCA_V2_REOPEN_SESSION_ADMIN', { sessionId: session.id }, 'Reunião reaberta pelo ADM. O mesmo QR voltou a aceitar check-in.')} className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-bold text-sky-800">Reabrir pelo ADM</button>}
+        {session.status === 'ENCERRADA' && <>
+          <button disabled={busy} onClick={() => void execute('PRESENCA_V2_REOPEN_SESSION_ADMIN', { sessionId: session.id }, 'Reunião reaberta pelo ADM. O mesmo QR voltou a aceitar check-in.')} className="rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-bold text-sky-800">Reabrir pelo ADM</button>
+          {session.confirmedCount === 0 && session.pendingCount === 0 && (
+            <button disabled={busy} onClick={() => void deleteSession(session)} className="rounded-lg border border-rose-500 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-800">{busy ? 'Processando...' : 'Excluir reunião vazia'}</button>
+          )}
+        </>}
         <button type="button" onClick={() => void copyPublicLink(session)} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700">
           {copiedSessionId === session.id ? '✓ Link copiado' : 'Copiar link'}
         </button>
