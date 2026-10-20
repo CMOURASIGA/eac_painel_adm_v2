@@ -62,6 +62,8 @@ const PresenceResponsiblePage: React.FC = () => {
   const [operationalSelected, setOperationalSelected] = useState<any | null>(null);
   const [operationalTargetCircleId, setOperationalTargetCircleId] = useState('');
   const [operationalPreview, setOperationalPreview] = useState<any | null>(null);
+  const [postTiosGroups, setPostTiosGroups] = useState<any[]>([]);
+  const [postTiosOpen, setPostTiosOpen] = useState<Record<string, boolean>>({});
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -71,11 +73,18 @@ const PresenceResponsiblePage: React.FC = () => {
       setSessions(Array.isArray(data.sessions) ? data.sessions : []);
       setResponsibleLabel(data.responsible?.label || '');
       setResponsibleKind(data.responsible?.kind || '');
+      if (data.responsible?.kind === 'POS') {
+        const analyticsData = await call('PRESENCA_V2_GET_ANALYTICS');
+        setPostTiosGroups(Array.isArray(analyticsData.analytics?.postTios) ? analyticsData.analytics.postTios : []);
+      } else {
+        setPostTiosGroups([]);
+      }
     } catch (error: any) {
       setNotice(error?.message || 'Não foi possível carregar as reuniões.');
       setSessions([]);
       setResponsibleLabel('');
       setResponsibleKind('');
+      setPostTiosGroups([]);
     } finally {
       setLoading(false);
     }
@@ -569,6 +578,77 @@ const PresenceResponsiblePage: React.FC = () => {
           <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Encerradas</p><p className="mt-1 text-2xl font-black text-slate-900">{closedSessions.length}</p></div>
           <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Confirmados</p><p className="mt-1 text-2xl font-black text-sky-700">{sessions.reduce((sum, item) => sum + item.confirmedCount, 0)}</p></div>
         </div>
+
+        {responsibleKind === 'POS' && (
+          <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div>
+              <h2 className="text-lg font-black text-slate-900">Acompanhamento por Tios de Círculo</h2>
+              <p className="mt-1 text-sm text-slate-600">Drill-down das reuniões do Pós: casal de tios → círculo → adolescentes.</p>
+            </div>
+
+            {postTiosGroups.length === 0 ? (
+              <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Ainda não há reuniões encerradas do Pós com dados suficientes para montar o acompanhamento.</p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {postTiosGroups.map((group:any)=>{
+                  const groupKey=`group:${group.key}`;
+                  return (
+                    <div key={group.key} className="rounded-xl border border-slate-200">
+                      <button type="button" onClick={()=>setPostTiosOpen((current)=>({...current,[groupKey]:!current[groupKey]}))} className="flex w-full items-center justify-between gap-3 p-4 text-left">
+                        <div>
+                          <p className="font-black text-slate-900">{group.label}</p>
+                          <p className="mt-1 text-xs text-slate-600">{group.sessions} reunião(ões) · {group.present} presentes · {group.absences} ausentes · {group.eligible} elegibilidades</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-black text-sky-700">{Number(group.rate||0).toFixed(1)}%</span>
+                          <span className="text-lg font-black text-slate-500">{postTiosOpen[groupKey]?'−':'+'}</span>
+                        </div>
+                      </button>
+
+                      {postTiosOpen[groupKey] && (
+                        <div className="space-y-2 border-t border-slate-200 p-3">
+                          {(group.circles||[]).map((circle:any)=>{
+                            const circleKey=`circle:${group.key}:${circle.id}`;
+                            return (
+                              <div key={circle.id} className="rounded-xl border border-sky-100 bg-sky-50/40">
+                                <button type="button" onClick={()=>setPostTiosOpen((current)=>({...current,[circleKey]:!current[circleKey]}))} className="flex w-full items-center justify-between gap-3 p-3 text-left">
+                                  <div>
+                                    <p className="font-bold text-slate-900">{circle.label}</p>
+                                    <p className="mt-1 text-xs text-slate-600">{circle.present} presentes · {circle.absences} ausentes · {circle.eligible} elegibilidades</p>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <span className="font-black text-emerald-700">{Number(circle.rate||0).toFixed(1)}%</span>
+                                    <span className="text-lg font-black text-slate-500">{postTiosOpen[circleKey]?'−':'+'}</span>
+                                  </div>
+                                </button>
+
+                                {postTiosOpen[circleKey] && (
+                                  <div className="border-t border-sky-100 bg-white p-3">
+                                    <div className="space-y-2">
+                                      {(circle.people||[]).map((person:any)=>(
+                                        <div key={person.id} className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                                          <div>
+                                            <p className="font-bold text-slate-900">{person.name}</p>
+                                            <p className="text-xs text-slate-500">{person.present} presença(s) · {person.absences} ausência(s) · {person.eligibleSessions} elegibilidade(s)</p>
+                                          </div>
+                                          <span className="font-black text-slate-700">{Number(person.rate||0).toFixed(1)}%</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
 
         <div className="mt-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
           <h2 className="font-black text-slate-900">Agendar nova reunião</h2>
