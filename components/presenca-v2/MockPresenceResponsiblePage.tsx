@@ -66,6 +66,7 @@ const PresenceResponsiblePage: React.FC = () => {
   const [postTiosOpen, setPostTiosOpen] = useState<Record<string, boolean>>({});
   const [tiosAttendanceSummary, setTiosAttendanceSummary] = useState<any>({ people: [], sessions: [], closedSessions: 0 });
   const [closedDrilldownOpen, setClosedDrilldownOpen] = useState<Record<string, boolean>>({});
+  const [tiosSummaryOpen, setTiosSummaryOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -412,44 +413,13 @@ const PresenceResponsiblePage: React.FC = () => {
           <p className="mt-2 max-w-3xl text-sm text-sky-100">Aqui aparecem as reuniões agendadas, abertas e encerradas do seu escopo. O mesmo QR é preservado em caso de reabertura.</p>
         </header>
 
-        {responsibleKind === 'TIOS' && (
-          <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-lg font-black text-slate-900">Presença dos adolescentes do círculo</h2>
-                <p className="mt-1 text-sm text-slate-600">Resumo das reuniões encerradas deste casal de Tios, em ordem alfabética.</p>
-              </div>
-              <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-black text-slate-700">{Number(tiosAttendanceSummary.closedSessions||0)} reunião(ões) encerrada(s)</div>
-            </div>
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full min-w-[620px] text-left text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
-                    <th className="px-3 py-3">Adolescente</th>
-                    <th className="px-3 py-3">Círculo</th>
-                    <th className="px-3 py-3 text-center">Presenças</th>
-                    <th className="px-3 py-3 text-center">Reuniões</th>
-                    <th className="px-3 py-3 text-right">Frequência</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(Array.isArray(tiosAttendanceSummary.people) ? tiosAttendanceSummary.people : []).map((person:any)=>(
-                    <tr key={person.id} className="border-b border-slate-100 last:border-0">
-                      <td className="px-3 py-3 font-bold text-slate-900">{person.name}</td>
-                      <td className="px-3 py-3 text-slate-600">{person.circle || 'Sem círculo'}</td>
-                      <td className="px-3 py-3 text-center font-black text-sky-700">{person.present}</td>
-                      <td className="px-3 py-3 text-center">{person.eligibleSessions}</td>
-                      <td className="px-3 py-3 text-right font-black text-emerald-700">{Number(person.rate||0).toFixed(1)}%</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {(!Array.isArray(tiosAttendanceSummary.people) || tiosAttendanceSummary.people.length===0) && (
-                <p className="py-5 text-center text-sm text-slate-500">Ainda não há reuniões encerradas suficientes para calcular a frequência.</p>
-              )}
-            </div>
-          </section>
-        )}
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Agendadas</p><p className="mt-1 text-2xl font-black text-sky-700">{scheduledSessions.length}</p></div>
+          <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Abertas</p><p className="mt-1 text-2xl font-black text-emerald-700">{openSessions.length}</p></div>
+          <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Encerradas</p><p className="mt-1 text-2xl font-black text-slate-900">{closedSessions.length}</p></div>
+          <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Confirmados</p><p className="mt-1 text-2xl font-black text-sky-700">{sessions.reduce((sum, item) => sum + item.confirmedCount, 0)}</p></div>
+        </div>
+
 
         {responsibleKind === 'POS' && (
           <div className="mt-5 rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
@@ -464,168 +434,6 @@ const PresenceResponsiblePage: React.FC = () => {
             </div>
           </div>
         )}
-
-        {responsibleKind === 'TIOS' && (
-          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="font-black text-slate-900">Gerenciar adolescentes</h2>
-                <p className="mt-1 text-sm text-slate-600">Consulte adolescentes da mesma edição do seu EAC e corrija o círculo quando houver erro de vínculo. O sistema verifica cadastro, histórico, responsáveis e presenças antes de alterar.</p>
-              </div>
-              <button type="button" disabled={busy==='maintenance-load'} onClick={()=>void loadMaintenance()} className="shrink-0 rounded-xl bg-amber-700 px-4 py-3 font-black text-white disabled:opacity-50">
-                {busy==='maintenance-load'?'Carregando...':maintenanceOpen?'Atualizar lista':'Gerenciar adolescentes'}
-              </button>
-            </div>
-
-            {maintenanceOpen && (
-              <div className="mt-4 rounded-2xl bg-white p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <label className="grid flex-1 gap-1 text-sm font-bold text-slate-700">
-                    Buscar adolescente
-                    <input value={maintenanceSearch} onChange={(event)=>setMaintenanceSearch(event.target.value)} placeholder="Digite nome, círculo ou EAC" className="rounded-xl border border-slate-300 px-3 py-3 font-normal" />
-                  </label>
-                  <button type="button" onClick={()=>{setMaintenanceOpen(false);setMaintenanceSelected(null);setMaintenancePreview(null);}} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700">Fechar manutenção</button>
-                </div>
-
-                <div className="mt-4 max-h-[420px] overflow-auto rounded-xl border border-slate-200">
-                  {maintenanceFilteredPeople.length===0 ? (
-                    <p className="p-4 text-sm text-slate-500">Nenhum adolescente encontrado.</p>
-                  ) : maintenanceFilteredPeople.map((person:any)=>(
-                    <div key={person.memberId} className="flex flex-col gap-3 border-b border-slate-100 p-3 last:border-0 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="font-bold text-slate-900">{person.name}</p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          EAC {person.edition} · círculo atual {person.currentCircle||'não identificado'}
-                          {person.currentResponsibleLabels?.length ? ` · ${person.currentResponsibleLabels.join(' / ')}` : ' · sem Tios vinculados'}
-                        </p>
-                      </div>
-                      <button type="button" onClick={()=>chooseMaintenancePerson(person)} className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-black text-amber-800">Corrigir círculo</button>
-                    </div>
-                  ))}
-                </div>
-
-
-                <div className="mt-6 border-t border-slate-200 pt-5">
-                  <div>
-                    <h3 className="font-black text-slate-900">Vínculo operacional</h3>
-                    <p className="mt-1 text-sm text-slate-600">Use para adolescentes/encontreiros que precisam participar das reuniões dos Tios, mas não possuem histórico como encontrista naquele EAC. O histórico do encontro não é alterado.</p>
-                  </div>
-                  <label className="mt-3 grid gap-1 text-sm font-bold text-slate-700">
-                    Buscar adolescente/encontreiro
-                    <input value={operationalSearch} onChange={(event)=>setOperationalSearch(event.target.value)} placeholder="Ex.: Cauã de Freitas Caldas" className="rounded-xl border border-slate-300 px-3 py-3 font-normal" />
-                  </label>
-                  <div className="mt-3 max-h-[320px] overflow-auto rounded-xl border border-slate-200">
-                    {operationalFilteredPeople.length===0 ? (
-                      <p className="p-4 text-sm text-slate-500">Nenhum adolescente/encontreiro disponível encontrado.</p>
-                    ) : operationalFilteredPeople.map((person:any)=>(
-                      <div key={person.personId} className="flex flex-col gap-3 border-b border-slate-100 p-3 last:border-0 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="font-bold text-slate-900">{person.name}</p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            Adolescente / Encontreiro · {person.assigned ? `círculo operacional ${person.currentOperationalCircle}` : 'sem círculo operacional'}
-                            {person.histories?.length ? ` · histórico: ${person.histories.map((item:any)=>`EAC ${item.edition} ${item.color}`).join(', ')}` : ' · sem histórico como encontrista'}
-                          </p>
-                        </div>
-                        <button type="button" onClick={()=>chooseOperationalPerson(person)} className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm font-black text-indigo-800">
-                          {person.assigned?'Alterar vínculo':'Vincular ao círculo'}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  {operationalSelected && (
-                    <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
-                      <h4 className="font-black text-slate-900">Vínculo operacional</h4>
-                      <p className="mt-1 text-sm text-slate-600"><strong>{operationalSelected.name}</strong> · {operationalSelected.assigned ? `atual: ${operationalSelected.currentOperationalCircle}` : 'sem círculo operacional'}</p>
-                      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
-                        <label className="grid flex-1 gap-1 text-sm font-bold text-slate-700">
-                          Círculo dos Tios
-                          <select value={operationalTargetCircleId} onChange={(event)=>{setOperationalTargetCircleId(event.target.value);setOperationalPreview(null);}} className="rounded-xl border border-slate-300 bg-white px-3 py-3 font-normal">
-                            <option value="">Selecione...</option>
-                            {maintenanceCircles.filter((circle:any)=>circle.id!==operationalSelected.currentOperationalCircleId).map((circle:any)=>(
-                              <option key={circle.id} value={circle.id}>{circle.color}</option>
-                            ))}
-                          </select>
-                        </label>
-                        <button type="button" disabled={!operationalTargetCircleId||busy==='operational-preview'} onClick={()=>void previewOperationalAssignment()} className="rounded-xl bg-indigo-700 px-4 py-3 font-black text-white disabled:opacity-50">
-                          {busy==='operational-preview'?'Verificando...':'Verificar impacto'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {operationalPreview && (
-                    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                      <h4 className="font-black text-slate-900">Validação do vínculo operacional</h4>
-                      <p className="mt-1 text-sm text-slate-700"><strong>{operationalPreview.name}</strong> → círculo <strong>{operationalPreview.targetCircle?.color}</strong></p>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        <div className="rounded-xl bg-white p-3 text-sm"><strong>Cadastro:</strong> localizado</div>
-                        <div className="rounded-xl bg-white p-3 text-sm"><strong>Encontreiro:</strong> {operationalPreview.checks?.classification} / {operationalPreview.checks?.status}</div>
-                        <div className="rounded-xl bg-white p-3 text-sm"><strong>Histórico EAC:</strong> {operationalPreview.checks?.historicalMemberships||0} vínculo(s), nenhum será alterado</div>
-                        <div className="rounded-xl bg-white p-3 text-sm"><strong>Presenças:</strong> {operationalPreview.checks?.presenceRecords||0} registro(s) preservado(s)</div>
-                      </div>
-                      <p className="mt-3 rounded-xl bg-white p-3 text-sm font-bold text-emerald-900">Este vínculo serve somente para a operação das reuniões dos Tios. Não transforma a pessoa em encontrista de um EAC anterior.</p>
-                      <button type="button" disabled={busy==='operational-apply'} onClick={()=>void applyOperationalAssignment()} className="mt-4 rounded-xl bg-emerald-700 px-4 py-3 font-black text-white disabled:opacity-50">
-                        {busy==='operational-apply'?'Aplicando...':'Confirmar vínculo operacional'}
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {maintenanceSelected && (
-                  <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4">
-                    <h3 className="font-black text-slate-900">Correção de círculo</h3>
-                    <p className="mt-1 text-sm text-slate-600"><strong>{maintenanceSelected.name}</strong> · EAC {maintenanceSelected.edition} · atual: {maintenanceSelected.currentCircle}</p>
-                    <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
-                      <label className="grid flex-1 gap-1 text-sm font-bold text-slate-700">
-                        Novo círculo
-                        <select value={maintenanceTargetCircleId} onChange={(event)=>{setMaintenanceTargetCircleId(event.target.value);setMaintenancePreview(null);}} className="rounded-xl border border-slate-300 bg-white px-3 py-3 font-normal">
-                          <option value="">Selecione...</option>
-                          {maintenanceCircles.filter((circle:any)=>Number(circle.edition)===Number(maintenanceSelected.edition) && circle.id!==maintenanceSelected.currentCircleId).map((circle:any)=>(
-                            <option key={circle.id} value={circle.id}>{circle.color}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <button type="button" disabled={!maintenanceTargetCircleId||busy==='maintenance-preview'} onClick={()=>void previewMaintenance()} className="rounded-xl bg-sky-700 px-4 py-3 font-black text-white disabled:opacity-50">
-                        {busy==='maintenance-preview'?'Verificando...':'Verificar impacto'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {maintenancePreview && (
-                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                    <h3 className="font-black text-slate-900">Validação antes da alteração</h3>
-                    <p className="mt-1 text-sm text-slate-700">{maintenancePreview.name}: <strong>{maintenancePreview.sourceCircle?.color}</strong> → <strong>{maintenancePreview.targetCircle?.color}</strong></p>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      <div className="rounded-xl bg-white p-3 text-sm"><strong>Cadastro:</strong> {maintenancePreview.checks?.person?'localizado':'sem pessoa vinculada'}</div>
-                      <div className="rounded-xl bg-white p-3 text-sm"><strong>Adolescente:</strong> {maintenancePreview.checks?.adolescentLinks||0} vínculo(s)</div>
-                      <div className="rounded-xl bg-white p-3 text-sm"><strong>Presenças:</strong> {maintenancePreview.checks?.presenceRecords||0} registro(s) preservado(s)</div>
-                      <div className="rounded-xl bg-white p-3 text-sm"><strong>Histórico:</strong> {maintenancePreview.checks?.historicalMemberships||0} vínculo(s) localizado(s)</div>
-                    </div>
-                    {maintenancePreview.checks?.sourceHasOtherResponsible && (
-                      <p className="mt-3 rounded-xl bg-amber-100 p-3 text-sm font-bold text-amber-900">Atenção: o círculo atual possui outro casal de Tios responsável. A correção será auditada e moverá o adolescente para um círculo do seu escopo.</p>
-                    )}
-                    {maintenancePreview.checks?.duplicateMembershipWarning && (
-                      <p className="mt-3 rounded-xl bg-rose-100 p-3 text-sm font-bold text-rose-800">Existe outro vínculo histórico para esta pessoa. A alteração ficará bloqueada até essa duplicidade ser revisada.</p>
-                    )}
-                    <p className="mt-3 text-xs text-slate-600">Presenças já registradas não serão reescritas. A mudança afeta o vínculo histórico usado nas próximas chamadas.</p>
-                    <button type="button" disabled={busy==='maintenance-apply'||maintenancePreview.checks?.duplicateMembershipWarning} onClick={()=>void applyMaintenance()} className="mt-4 rounded-xl bg-emerald-700 px-4 py-3 font-black text-white disabled:opacity-50">
-                      {busy==='maintenance-apply'?'Aplicando...':'Confirmar correção'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Agendadas</p><p className="mt-1 text-2xl font-black text-sky-700">{scheduledSessions.length}</p></div>
-          <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Abertas</p><p className="mt-1 text-2xl font-black text-emerald-700">{openSessions.length}</p></div>
-          <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Encerradas</p><p className="mt-1 text-2xl font-black text-slate-900">{closedSessions.length}</p></div>
-          <div className="rounded-2xl bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase text-slate-500">Confirmados</p><p className="mt-1 text-2xl font-black text-sky-700">{sessions.reduce((sum, item) => sum + item.confirmedCount, 0)}</p></div>
-        </div>
 
         {responsibleKind === 'POS' && (
           <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -903,6 +711,204 @@ const PresenceResponsiblePage: React.FC = () => {
             </section>
           </div>
         )}
+        {responsibleKind === 'TIOS' && (
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <button type="button" onClick={()=>setTiosSummaryOpen((open)=>!open)} className="flex w-full items-center justify-between gap-3 p-4 text-left">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Frequência dos adolescentes</h2>
+                <p className="mt-1 text-sm text-slate-600">{Array.isArray(tiosAttendanceSummary.people)?tiosAttendanceSummary.people.length:0} adolescente(s) · {Number(tiosAttendanceSummary.closedSessions||0)} reunião(ões) encerrada(s)</p>
+              </div>
+              <span className="text-xl font-black text-slate-500">{tiosSummaryOpen?'−':'+'}</span>
+            </button>
+            {tiosSummaryOpen && <div className="border-t border-slate-200 p-4">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[620px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
+                    <th className="px-3 py-3">Adolescente</th>
+                    <th className="px-3 py-3">Círculo</th>
+                    <th className="px-3 py-3 text-center">Presenças</th>
+                    <th className="px-3 py-3 text-center">Reuniões</th>
+                    <th className="px-3 py-3 text-right">Frequência</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(Array.isArray(tiosAttendanceSummary.people) ? tiosAttendanceSummary.people : []).map((person:any)=>(
+                    <tr key={person.id} className="border-b border-slate-100 last:border-0">
+                      <td className="px-3 py-3 font-bold text-slate-900">{person.name}</td>
+                      <td className="px-3 py-3 text-slate-600">{person.circle || 'Sem círculo'}</td>
+                      <td className="px-3 py-3 text-center font-black text-sky-700">{person.present}</td>
+                      <td className="px-3 py-3 text-center">{person.eligibleSessions}</td>
+                      <td className="px-3 py-3 text-right font-black text-emerald-700">{Number(person.rate||0).toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {(!Array.isArray(tiosAttendanceSummary.people) || tiosAttendanceSummary.people.length===0) && (
+                <p className="py-5 text-center text-sm text-slate-500">Ainda não há reuniões encerradas suficientes para calcular a frequência.</p>
+              )}
+            </div>
+            </div>}
+          </section>
+        )}
+
+
+        {responsibleKind === 'TIOS' && (
+          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-black text-slate-900">Gerenciar adolescentes</h2>
+                <p className="mt-1 text-sm text-slate-600">Consulte adolescentes da mesma edição do seu EAC e corrija o círculo quando houver erro de vínculo. O sistema verifica cadastro, histórico, responsáveis e presenças antes de alterar.</p>
+              </div>
+              <button type="button" disabled={busy==='maintenance-load'} onClick={()=>void loadMaintenance()} className="shrink-0 rounded-xl bg-amber-700 px-4 py-3 font-black text-white disabled:opacity-50">
+                {busy==='maintenance-load'?'Carregando...':maintenanceOpen?'Atualizar lista':'Gerenciar adolescentes'}
+              </button>
+            </div>
+
+            {maintenanceOpen && (
+              <div className="mt-4 rounded-2xl bg-white p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <label className="grid flex-1 gap-1 text-sm font-bold text-slate-700">
+                    Buscar adolescente
+                    <input value={maintenanceSearch} onChange={(event)=>setMaintenanceSearch(event.target.value)} placeholder="Digite nome, círculo ou EAC" className="rounded-xl border border-slate-300 px-3 py-3 font-normal" />
+                  </label>
+                  <button type="button" onClick={()=>{setMaintenanceOpen(false);setMaintenanceSelected(null);setMaintenancePreview(null);}} className="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700">Fechar manutenção</button>
+                </div>
+
+                <div className="mt-4 max-h-[420px] overflow-auto rounded-xl border border-slate-200">
+                  {maintenanceFilteredPeople.length===0 ? (
+                    <p className="p-4 text-sm text-slate-500">Nenhum adolescente encontrado.</p>
+                  ) : maintenanceFilteredPeople.map((person:any)=>(
+                    <div key={person.memberId} className="flex flex-col gap-3 border-b border-slate-100 p-3 last:border-0 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-bold text-slate-900">{person.name}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          EAC {person.edition} · círculo atual {person.currentCircle||'não identificado'}
+                          {person.currentResponsibleLabels?.length ? ` · ${person.currentResponsibleLabels.join(' / ')}` : ' · sem Tios vinculados'}
+                        </p>
+                      </div>
+                      <button type="button" onClick={()=>chooseMaintenancePerson(person)} className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-black text-amber-800">Corrigir círculo</button>
+                    </div>
+                  ))}
+                </div>
+
+
+                <div className="mt-6 border-t border-slate-200 pt-5">
+                  <div>
+                    <h3 className="font-black text-slate-900">Vínculo operacional</h3>
+                    <p className="mt-1 text-sm text-slate-600">Use para adolescentes/encontreiros que precisam participar das reuniões dos Tios, mas não possuem histórico como encontrista naquele EAC. O histórico do encontro não é alterado.</p>
+                  </div>
+                  <label className="mt-3 grid gap-1 text-sm font-bold text-slate-700">
+                    Buscar adolescente/encontreiro
+                    <input value={operationalSearch} onChange={(event)=>setOperationalSearch(event.target.value)} placeholder="Ex.: Cauã de Freitas Caldas" className="rounded-xl border border-slate-300 px-3 py-3 font-normal" />
+                  </label>
+                  <div className="mt-3 max-h-[320px] overflow-auto rounded-xl border border-slate-200">
+                    {operationalFilteredPeople.length===0 ? (
+                      <p className="p-4 text-sm text-slate-500">Nenhum adolescente/encontreiro disponível encontrado.</p>
+                    ) : operationalFilteredPeople.map((person:any)=>(
+                      <div key={person.personId} className="flex flex-col gap-3 border-b border-slate-100 p-3 last:border-0 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="font-bold text-slate-900">{person.name}</p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Adolescente / Encontreiro · {person.assigned ? `círculo operacional ${person.currentOperationalCircle}` : 'sem círculo operacional'}
+                            {person.histories?.length ? ` · histórico: ${person.histories.map((item:any)=>`EAC ${item.edition} ${item.color}`).join(', ')}` : ' · sem histórico como encontrista'}
+                          </p>
+                        </div>
+                        <button type="button" onClick={()=>chooseOperationalPerson(person)} className="rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-2 text-sm font-black text-indigo-800">
+                          {person.assigned?'Alterar vínculo':'Vincular ao círculo'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {operationalSelected && (
+                    <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+                      <h4 className="font-black text-slate-900">Vínculo operacional</h4>
+                      <p className="mt-1 text-sm text-slate-600"><strong>{operationalSelected.name}</strong> · {operationalSelected.assigned ? `atual: ${operationalSelected.currentOperationalCircle}` : 'sem círculo operacional'}</p>
+                      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+                        <label className="grid flex-1 gap-1 text-sm font-bold text-slate-700">
+                          Círculo dos Tios
+                          <select value={operationalTargetCircleId} onChange={(event)=>{setOperationalTargetCircleId(event.target.value);setOperationalPreview(null);}} className="rounded-xl border border-slate-300 bg-white px-3 py-3 font-normal">
+                            <option value="">Selecione...</option>
+                            {maintenanceCircles.filter((circle:any)=>circle.id!==operationalSelected.currentOperationalCircleId).map((circle:any)=>(
+                              <option key={circle.id} value={circle.id}>{circle.color}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <button type="button" disabled={!operationalTargetCircleId||busy==='operational-preview'} onClick={()=>void previewOperationalAssignment()} className="rounded-xl bg-indigo-700 px-4 py-3 font-black text-white disabled:opacity-50">
+                          {busy==='operational-preview'?'Verificando...':'Verificar impacto'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {operationalPreview && (
+                    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <h4 className="font-black text-slate-900">Validação do vínculo operacional</h4>
+                      <p className="mt-1 text-sm text-slate-700"><strong>{operationalPreview.name}</strong> → círculo <strong>{operationalPreview.targetCircle?.color}</strong></p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <div className="rounded-xl bg-white p-3 text-sm"><strong>Cadastro:</strong> localizado</div>
+                        <div className="rounded-xl bg-white p-3 text-sm"><strong>Encontreiro:</strong> {operationalPreview.checks?.classification} / {operationalPreview.checks?.status}</div>
+                        <div className="rounded-xl bg-white p-3 text-sm"><strong>Histórico EAC:</strong> {operationalPreview.checks?.historicalMemberships||0} vínculo(s), nenhum será alterado</div>
+                        <div className="rounded-xl bg-white p-3 text-sm"><strong>Presenças:</strong> {operationalPreview.checks?.presenceRecords||0} registro(s) preservado(s)</div>
+                      </div>
+                      <p className="mt-3 rounded-xl bg-white p-3 text-sm font-bold text-emerald-900">Este vínculo serve somente para a operação das reuniões dos Tios. Não transforma a pessoa em encontrista de um EAC anterior.</p>
+                      <button type="button" disabled={busy==='operational-apply'} onClick={()=>void applyOperationalAssignment()} className="mt-4 rounded-xl bg-emerald-700 px-4 py-3 font-black text-white disabled:opacity-50">
+                        {busy==='operational-apply'?'Aplicando...':'Confirmar vínculo operacional'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {maintenanceSelected && (
+                  <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4">
+                    <h3 className="font-black text-slate-900">Correção de círculo</h3>
+                    <p className="mt-1 text-sm text-slate-600"><strong>{maintenanceSelected.name}</strong> · EAC {maintenanceSelected.edition} · atual: {maintenanceSelected.currentCircle}</p>
+                    <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+                      <label className="grid flex-1 gap-1 text-sm font-bold text-slate-700">
+                        Novo círculo
+                        <select value={maintenanceTargetCircleId} onChange={(event)=>{setMaintenanceTargetCircleId(event.target.value);setMaintenancePreview(null);}} className="rounded-xl border border-slate-300 bg-white px-3 py-3 font-normal">
+                          <option value="">Selecione...</option>
+                          {maintenanceCircles.filter((circle:any)=>Number(circle.edition)===Number(maintenanceSelected.edition) && circle.id!==maintenanceSelected.currentCircleId).map((circle:any)=>(
+                            <option key={circle.id} value={circle.id}>{circle.color}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button type="button" disabled={!maintenanceTargetCircleId||busy==='maintenance-preview'} onClick={()=>void previewMaintenance()} className="rounded-xl bg-sky-700 px-4 py-3 font-black text-white disabled:opacity-50">
+                        {busy==='maintenance-preview'?'Verificando...':'Verificar impacto'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {maintenancePreview && (
+                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                    <h3 className="font-black text-slate-900">Validação antes da alteração</h3>
+                    <p className="mt-1 text-sm text-slate-700">{maintenancePreview.name}: <strong>{maintenancePreview.sourceCircle?.color}</strong> → <strong>{maintenancePreview.targetCircle?.color}</strong></p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-xl bg-white p-3 text-sm"><strong>Cadastro:</strong> {maintenancePreview.checks?.person?'localizado':'sem pessoa vinculada'}</div>
+                      <div className="rounded-xl bg-white p-3 text-sm"><strong>Adolescente:</strong> {maintenancePreview.checks?.adolescentLinks||0} vínculo(s)</div>
+                      <div className="rounded-xl bg-white p-3 text-sm"><strong>Presenças:</strong> {maintenancePreview.checks?.presenceRecords||0} registro(s) preservado(s)</div>
+                      <div className="rounded-xl bg-white p-3 text-sm"><strong>Histórico:</strong> {maintenancePreview.checks?.historicalMemberships||0} vínculo(s) localizado(s)</div>
+                    </div>
+                    {maintenancePreview.checks?.sourceHasOtherResponsible && (
+                      <p className="mt-3 rounded-xl bg-amber-100 p-3 text-sm font-bold text-amber-900">Atenção: o círculo atual possui outro casal de Tios responsável. A correção será auditada e moverá o adolescente para um círculo do seu escopo.</p>
+                    )}
+                    {maintenancePreview.checks?.duplicateMembershipWarning && (
+                      <p className="mt-3 rounded-xl bg-rose-100 p-3 text-sm font-bold text-rose-800">Existe outro vínculo histórico para esta pessoa. A alteração ficará bloqueada até essa duplicidade ser revisada.</p>
+                    )}
+                    <p className="mt-3 text-xs text-slate-600">Presenças já registradas não serão reescritas. A mudança afeta o vínculo histórico usado nas próximas chamadas.</p>
+                    <button type="button" disabled={busy==='maintenance-apply'||maintenancePreview.checks?.duplicateMembershipWarning} onClick={()=>void applyMaintenance()} className="mt-4 rounded-xl bg-emerald-700 px-4 py-3 font-black text-white disabled:opacity-50">
+                      {busy==='maintenance-apply'?'Aplicando...':'Confirmar correção'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+
       </section>
 
       {qrSession && <QrDisplay value={checkinUrl(qrSession)} title={qrSession.title} subtitle="Sessão aberta para check-in" onClose={() => setQrSession(null)} />}
