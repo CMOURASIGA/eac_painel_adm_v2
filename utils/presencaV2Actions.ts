@@ -340,6 +340,87 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
   return Array.from(deduped.values()).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
 }
 
+async function tiosContextByPerson(supabase:AnySupabase, personIds:string[]) {
+  const ids=Array.from(new Set((personIds||[]).map((id)=>clean(id)).filter(Boolean)));
+  const result=new Map<string,any>();
+  if(!ids.length) return result;
+
+  const members:any[]=[];
+  for(let i=0;i<ids.length;i+=200){
+    const chunk=ids.slice(i,i+200);
+    const {data,error}=await supabase.from('eac_circulo_membros_historicos')
+      .select('pessoa_id,circulo_id')
+      .in('pessoa_id',chunk)
+      .not('circulo_id','is',null);
+    if(error) throw error;
+    members.push(...(data||[]));
+  }
+
+  const circleIds=Array.from(new Set(members.map((row:any)=>clean(row.circulo_id)).filter(Boolean)));
+  if(!circleIds.length) return result;
+
+  const [{data:circles,error:circlesError},{data:links,error:linksError}]=await Promise.all([
+    supabase.from('eac_circulos_historicos').select('id,edicao,cor').in('id',circleIds),
+    supabase.from('presenca_responsavel_circulos').select('grupo_id,circulo_historico_id').in('circulo_historico_id',circleIds),
+  ]);
+  if(circlesError) throw circlesError;
+  if(linksError) throw linksError;
+
+  const groupIds=Array.from(new Set((links||[]).map((row:any)=>clean(row.grupo_id)).filter(Boolean)));
+  const groupsMap=new Map<string,any>();
+  if(groupIds.length){
+    const {data:groups,error:groupsError}=await supabase.from('presenca_responsaveis_grupos')
+      .select('id,nome_exibicao,tipo,ativo')
+      .in('id',groupIds);
+    if(groupsError) throw groupsError;
+    for(const group of groups||[]){
+      if(group.tipo==='TIOS' && group.ativo!==false){
+        groupsMap.set(clean(group.id),{id:clean(group.id),label:clean(group.nome_exibicao)||'Tios de Círculo'});
+      }
+    }
+  }
+
+  const circleMap=new Map<string,any>();
+  for(const circle of circles||[]){
+    circleMap.set(clean(circle.id),{
+      id:clean(circle.id),
+      edition:Number(circle.edicao||0),
+      color:clean(circle.cor),
+      label:`EAC ${Number(circle.edicao||0)} · ${clean(circle.cor)}`,
+      groups:[],
+    });
+  }
+  for(const link of links||[]){
+    const circle=circleMap.get(clean(link.circulo_historico_id));
+    const group=groupsMap.get(clean(link.grupo_id));
+    if(!circle||!group) continue;
+    if(!circle.groups.some((item:any)=>item.id===group.id)) circle.groups.push(group);
+  }
+
+  for(const member of members){
+    const personId=clean(member.pessoa_id);
+    const circle=circleMap.get(clean(member.circulo_id));
+    if(!personId||!circle||!circle.groups.length) continue;
+    const current=result.get(personId)||{labels:[],groups:[],circles:[]};
+    for(const group of circle.groups){
+      if(!current.groups.some((item:any)=>item.id===group.id)) current.groups.push(group);
+      if(group.label && !current.labels.includes(group.label)) current.labels.push(group.label);
+    }
+    if(!current.circles.some((item:any)=>item.id===circle.id)){
+      current.circles.push({
+        id:circle.id,
+        edition:circle.edition,
+        color:circle.color,
+        label:circle.label,
+        groups:circle.groups,
+      });
+    }
+    result.set(personId,current);
+  }
+
+  return result;
+}
+
 async function decorateSession(
   supabase: AnySupabase,
   row: any,
@@ -1057,6 +1138,8 @@ async function analytics(supabase:AnySupabase){
 
   const peopleStats=new Map<string,any>();
   const groupStats=new Map<string,any>();
+  const postTiosStats=new Map<string,any>();
+  const postTiosSeen=new Set<string>();
   const evolution:any[]=[];
   const confirmedUnique=new Set<string>();
   let totalEligible=0;
@@ -1079,6 +1162,7 @@ async function analytics(supabase:AnySupabase){
     evolution.push({
       id:session.id,
       title:session.title,
+      type:session.type,
       responsibleLabel:session.responsibleLabel,
       scheduledAt:session.scheduledAt,
       rate:sessionRate,
@@ -1102,6 +1186,63 @@ async function analytics(supabase:AnySupabase){
       current.eligible+=eligible.length;
       current.rate=current.eligible ? (current.present*100/current.eligible) : 0;
       groupStats.set(group.id,current);
+    }
+
+    if(session.type==='POS_ENCONTRO_GERAL'){
+      const tiosContext=await tiosContextByPerson(supabase,eligible.map((person:any)=>person.id));
+      for(const person of eligible){
+        const context=tiosContext.get(person.id);
+        if(!context) continue;
+        for(const circle of context.circles||[]){
+          for(const tios of circle.groups||[]){
+            const seenKey=`${session.id}|${tios.id}|${person.id}`;
+            if(postTiosSeen.has(seenKey)) continue;
+            postTiosSeen.add(seenKey);
+
+            const current=postTiosStats.get(tios.id)||{
+              key:tios.id,
+              label:tios.label,
+              sessionIds:new Set<string>(),
+              present:0,
+              eligible:0,
+              circles:new Map<string,any>(),
+            };
+            current.sessionIds.add(session.id);
+            current.eligible+=1;
+            if(confirmedIds.has(person.id)) current.present+=1;
+
+            const circleCurrent=current.circles.get(circle.id)||{
+              id:circle.id,
+              label:circle.label,
+              edition:circle.edition,
+              color:circle.color,
+              present:0,
+              eligible:0,
+              people:new Map<string,any>(),
+            };
+            circleCurrent.eligible+=1;
+            if(confirmedIds.has(person.id)) circleCurrent.present+=1;
+
+            const personCurrent=circleCurrent.people.get(person.id)||{
+              id:person.id,
+              name:person.name,
+              circle:circle.label,
+              eligibleSessions:0,
+              present:0,
+              absences:0,
+              rate:0,
+            };
+            personCurrent.eligibleSessions+=1;
+            if(confirmedIds.has(person.id)) personCurrent.present+=1;
+            else personCurrent.absences+=1;
+            personCurrent.rate=personCurrent.eligibleSessions ? personCurrent.present*100/personCurrent.eligibleSessions : 0;
+            circleCurrent.people.set(person.id,personCurrent);
+
+            current.circles.set(circle.id,circleCurrent);
+            postTiosStats.set(tios.id,current);
+          }
+        }
+      }
     }
 
     for(const person of eligible){
@@ -1141,6 +1282,27 @@ async function analytics(supabase:AnySupabase){
   const people=Array.from(peopleStats.values())
     .sort((a:any,b:any)=>String(a.name).localeCompare(String(b.name),'pt-BR'));
 
+  const postTios=Array.from(postTiosStats.values()).map((group:any)=>({
+    key:group.key,
+    label:group.label,
+    sessions:group.sessionIds.size,
+    present:group.present,
+    eligible:group.eligible,
+    absences:Math.max(0,group.eligible-group.present),
+    rate:group.eligible ? group.present*100/group.eligible : 0,
+    circles:Array.from(group.circles.values()).map((circle:any)=>({
+      id:circle.id,
+      label:circle.label,
+      edition:circle.edition,
+      color:circle.color,
+      present:circle.present,
+      eligible:circle.eligible,
+      absences:Math.max(0,circle.eligible-circle.present),
+      rate:circle.eligible ? circle.present*100/circle.eligible : 0,
+      people:Array.from(circle.people.values()).sort((a:any,b:any)=>String(a.name).localeCompare(String(b.name),'pt-BR')),
+    })).sort((a:any,b:any)=>Number(a.edition)-Number(b.edition)||String(a.color).localeCompare(String(b.color),'pt-BR')),
+  })).sort((a:any,b:any)=>Number(b.rate)-Number(a.rate)||Number(b.present)-Number(a.present)||String(a.label).localeCompare(String(b.label),'pt-BR'));
+
   return {
     summary:{
       closedSessions:sessions.length,
@@ -1152,6 +1314,7 @@ async function analytics(supabase:AnySupabase){
     },
     groups:Array.from(groupStats.values())
       .sort((a:any,b:any)=>String(a.label).localeCompare(String(b.label),'pt-BR')),
+    postTios,
     sessionEvolution:evolution,
     people,
   };
@@ -1572,10 +1735,12 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       const pendings=pendingsResult.data||[];
       const confirmedIds=new Set<string>();
       for(const row of presences) if(row.pessoa_id) confirmedIds.add(clean(row.pessoa_id));
+      const tiosContext=await tiosContextByPerson(supabase,people.map((p:any)=>p.id));
       return {ok:true,data:{success:true,session:{...(await decorateSession(supabase,session,{eligible:people,group,presences,pendings})),people:people.map((p:any)=>({
         id:p.id,
         name:p.name,
         circle:p.circle||'',
+        tiosLabels:Array.isArray(tiosContext.get(p.id)?.labels) ? tiosContext.get(p.id).labels : [],
         hasPhone:Boolean(p.phone),
         phoneLast4:p.phone ? p.phone.slice(-4) : '',
         phone:p.phone || '',
