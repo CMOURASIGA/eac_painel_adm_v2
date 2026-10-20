@@ -374,8 +374,12 @@ async function tiosContextByPerson(supabase:AnySupabase, personIds:string[]) {
       .in('id',groupIds);
     if(groupsError) throw groupsError;
     for(const group of groups||[]){
-      if(group.tipo==='TIOS' && group.ativo!==false){
-        groupsMap.set(clean(group.id),{id:clean(group.id),label:clean(group.nome_exibicao)||'Tios de Círculo'});
+      if(group.tipo==='TIOS'){
+        groupsMap.set(clean(group.id),{
+          id:clean(group.id),
+          label:clean(group.nome_exibicao)||'Tios de Círculo',
+          active:group.ativo!==false,
+        });
       }
     }
   }
