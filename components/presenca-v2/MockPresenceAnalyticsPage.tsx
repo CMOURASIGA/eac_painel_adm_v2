@@ -12,6 +12,7 @@ const MockPresenceAnalyticsPage: React.FC = () => {
   const [notice, setNotice] = useState('');
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
   const [responsibleFilter, setResponsibleFilter] = useState('');
+  const [tiosOrder, setTiosOrder] = useState<'POS' | 'CIRCULO'>('POS');
   const [peopleFilter, setPeopleFilter] = useState('');
   const [peopleStatus, setPeopleStatus] = useState<'TODOS' | 'COM_PRESENCA' | 'COM_FALTAS' | 'SEM_PRESENCA' | 'FREQUENTES'>('TODOS');
 
@@ -42,10 +43,20 @@ const MockPresenceAnalyticsPage: React.FC = () => {
   const groups = Array.isArray(analytics.groups) ? analytics.groups : [];
   const evolution = Array.isArray(analytics.sessionEvolution) ? analytics.sessionEvolution : [];
   const postGroups = groups.filter((group: any) => group.kind === 'POS');
-  const postTiosGroups = (Array.isArray(analytics.postTios) ? analytics.postTios : [])
+  const tiosPerformanceGroups = (Array.isArray(analytics.tiosPerformance) ? analytics.tiosPerformance : [])
     .filter((group: any) => String(group.label || '').toLocaleLowerCase('pt-BR').includes(responsibleFilter.trim().toLocaleLowerCase('pt-BR')))
     .slice()
-    .sort((a: any, b: any) => Number(b.rate || 0) - Number(a.rate || 0) || Number(b.present || 0) - Number(a.present || 0) || String(a.label || '').localeCompare(String(b.label || ''), 'pt-BR'));
+    .sort((a: any, b: any) => {
+      const primary = tiosOrder === 'POS'
+        ? Number(b.postRate || 0) - Number(a.postRate || 0)
+        : Number(b.circleRate || 0) - Number(a.circleRate || 0);
+      if (primary !== 0) return primary;
+      const secondary = tiosOrder === 'POS'
+        ? Number(b.circleRate || 0) - Number(a.circleRate || 0)
+        : Number(b.postRate || 0) - Number(a.postRate || 0);
+      if (secondary !== 0) return secondary;
+      return String(a.label || '').localeCompare(String(b.label || ''), 'pt-BR');
+    });
 
   const filteredPeople = people.filter((person: any) => {
     const matchesText = String(person.name || '').toLocaleLowerCase('pt-BR').includes(peopleFilter.trim().toLocaleLowerCase('pt-BR'))
@@ -117,86 +128,87 @@ const MockPresenceAnalyticsPage: React.FC = () => {
               <div className="rounded-2xl border border-slate-200">
                 <button type="button" onClick={() => toggleSection('circulos')} className="flex w-full items-center justify-between gap-3 p-4 text-left">
                   <div>
-                    <p className="font-bold text-slate-900">Acompanhamento por Tios de Círculo</p>
-                    <p className="text-xs text-slate-500">Drill-down do Pós: casal de tios → círculo → adolescentes.</p>
+                    <p className="font-bold text-slate-900">Desempenho dos Tios de Círculo</p>
+                    <p className="text-xs text-slate-500">Comparativo dos adolescentes no Pós e nas reuniões de círculo.</p>
                   </div>
                   <span className="text-xl font-black text-slate-500">{openSections.circulos ? '−' : '+'}</span>
                 </button>
                 {openSections.circulos && (
                   <div className="border-t border-slate-200 p-4">
-                    <label className="grid gap-1 text-sm font-semibold text-slate-700">
-                      Localizar casal de tios
-                      <input value={responsibleFilter} onChange={(event) => setResponsibleFilter(event.target.value)} placeholder="Digite parte do nome" className="rounded-xl border border-slate-300 px-3 py-3 text-base font-normal" />
-                    </label>
+                    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-end">
+                      <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                        Localizar casal de tios
+                        <input value={responsibleFilter} onChange={(event) => setResponsibleFilter(event.target.value)} placeholder="Digite parte do nome" className="rounded-xl border border-slate-300 px-3 py-3 text-base font-normal" />
+                      </label>
+                      <label className="grid gap-1 text-sm font-semibold text-slate-700">
+                        Ordenar por melhor presença
+                        <select value={tiosOrder} onChange={(event)=>setTiosOrder(event.target.value as 'POS'|'CIRCULO')} className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-medium text-slate-800">
+                          <option value="POS">Pós-encontro</option>
+                          <option value="CIRCULO">Reunião de círculo</option>
+                        </select>
+                      </label>
+                    </div>
+
                     <div className="mt-4 space-y-3">
-                      {postTiosGroups.length === 0 ? <p className="text-sm text-slate-500">Ainda não há dados de Pós vinculados aos tios para o filtro informado.</p> : postTiosGroups.map((group: any) => {
+                      {tiosPerformanceGroups.length === 0 ? <p className="text-sm text-slate-500">Ainda não há dados encerrados suficientes para comparar os Tios.</p> : tiosPerformanceGroups.map((group: any, index: number) => {
                         const groupKey = `tios:${group.key}`;
                         return (
                           <div key={group.key} className="rounded-2xl border border-slate-200">
                             <button type="button" onClick={() => toggleSection(groupKey)} className="flex w-full items-center justify-between gap-3 p-4 text-left">
-                              <div>
-                                <p className="font-bold text-slate-900">{group.label}</p>
-                                <div className="mt-1 flex flex-wrap gap-3 text-xs text-slate-600">
-                                  <span>{group.sessions} reunião(ões) do Pós</span>
-                                  <span>{group.present} presentes</span>
-                                  <span>{group.absences} ausentes</span>
-                                  <span>{group.eligible} elegibilidades</span>
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-700">#{index+1}</span>
+                                  <p className="font-bold text-slate-900">{group.label}</p>
                                 </div>
+                                <p className="mt-1 text-xs text-slate-500">{(group.circles||[]).join(' / ') || 'Círculos não identificados'} · {group.adolescents||0} adolescente(s)</p>
                               </div>
-                              <div className="flex items-center gap-3">
-                                <span className="text-lg font-black text-sky-700">{formatRate(group.rate)}</span>
+                              <div className="flex shrink-0 items-center gap-3">
+                                <div className="grid grid-cols-2 gap-2 text-right">
+                                  <div className="rounded-lg bg-violet-50 px-3 py-2">
+                                    <p className="text-[10px] font-black uppercase text-violet-700">Pós</p>
+                                    <p className="font-black text-violet-800">{formatRate(group.postRate)}</p>
+                                  </div>
+                                  <div className="rounded-lg bg-emerald-50 px-3 py-2">
+                                    <p className="text-[10px] font-black uppercase text-emerald-700">Círculo</p>
+                                    <p className="font-black text-emerald-800">{formatRate(group.circleRate)}</p>
+                                  </div>
+                                </div>
                                 <span className="text-xl font-black text-slate-500">{openSections[groupKey] ? '−' : '+'}</span>
                               </div>
                             </button>
 
                             {openSections[groupKey] && (
-                              <div className="space-y-3 border-t border-slate-200 p-4">
-                                {(group.circles || []).map((circle: any) => {
-                                  const circleKey = `tios:${group.key}:circle:${circle.id}`;
-                                  return (
-                                    <div key={circle.id} className="rounded-xl border border-sky-100 bg-sky-50/40">
-                                      <button type="button" onClick={() => toggleSection(circleKey)} className="flex w-full items-center justify-between gap-3 p-3 text-left">
-                                        <div>
-                                          <p className="font-bold text-slate-900">{circle.label}</p>
-                                          <p className="mt-1 text-xs text-slate-600">{circle.present} presentes · {circle.absences} ausentes · {circle.eligible} elegibilidades</p>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                          <span className="font-black text-emerald-700">{formatRate(circle.rate)}</span>
-                                          <span className="text-lg font-black text-slate-500">{openSections[circleKey] ? '−' : '+'}</span>
-                                        </div>
-                                      </button>
-
-                                      {openSections[circleKey] && (
-                                        <div className="border-t border-sky-100 bg-white p-3">
-                                          <div className="overflow-x-auto">
-                                            <table className="w-full min-w-[620px] text-left text-sm">
-                                              <thead>
-                                                <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
-                                                  <th className="px-2 py-2">Adolescente</th>
-                                                  <th className="px-2 py-2 text-center">Elegível</th>
-                                                  <th className="px-2 py-2 text-center">Presenças</th>
-                                                  <th className="px-2 py-2 text-center">Ausências</th>
-                                                  <th className="px-2 py-2 text-right">Frequência</th>
-                                                </tr>
-                                              </thead>
-                                              <tbody>
-                                                {(circle.people || []).map((person: any) => (
-                                                  <tr key={person.id} className="border-b border-slate-100 last:border-0">
-                                                    <td className="px-2 py-2 font-semibold text-slate-900">{person.name}</td>
-                                                    <td className="px-2 py-2 text-center">{person.eligibleSessions}</td>
-                                                    <td className="px-2 py-2 text-center">{person.present}</td>
-                                                    <td className="px-2 py-2 text-center">{person.absences}</td>
-                                                    <td className="px-2 py-2 text-right font-black">{formatRate(person.rate)}</td>
-                                                  </tr>
-                                                ))}
-                                              </tbody>
-                                            </table>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
+                              <div className="border-t border-slate-200 bg-white p-4">
+                                <div className="mb-4 grid gap-2 sm:grid-cols-2">
+                                  <div className="rounded-xl bg-violet-50 p-3 text-sm text-violet-900"><strong>Pós:</strong> {group.postPresent}/{group.postEligible} presenças elegíveis · {formatRate(group.postRate)}</div>
+                                  <div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900"><strong>Reunião de círculo:</strong> {group.circlePresent}/{group.circleEligible} presenças elegíveis · {formatRate(group.circleRate)}</div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full min-w-[760px] text-left text-sm">
+                                    <thead>
+                                      <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
+                                        <th className="px-3 py-3">Adolescente</th>
+                                        <th className="px-3 py-3">Círculo</th>
+                                        <th className="px-3 py-3 text-center">Pós</th>
+                                        <th className="px-3 py-3 text-right">Freq. Pós</th>
+                                        <th className="px-3 py-3 text-center">Reunião de círculo</th>
+                                        <th className="px-3 py-3 text-right">Freq. círculo</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {(group.people||[]).map((person:any)=>(
+                                        <tr key={person.id} className="border-b border-slate-100 last:border-0">
+                                          <td className="px-3 py-3 font-semibold text-slate-900">{person.name}</td>
+                                          <td className="px-3 py-3 text-slate-600">{person.circle || 'Sem círculo'}</td>
+                                          <td className="px-3 py-3 text-center">{person.postPresent}/{person.postEligible}</td>
+                                          <td className="px-3 py-3 text-right font-black text-violet-700">{formatRate(person.postRate)}</td>
+                                          <td className="px-3 py-3 text-center">{person.circlePresent}/{person.circleEligible}</td>
+                                          <td className="px-3 py-3 text-right font-black text-emerald-700">{formatRate(person.circleRate)}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
                               </div>
                             )}
                           </div>

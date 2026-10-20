@@ -64,6 +64,8 @@ const PresenceResponsiblePage: React.FC = () => {
   const [operationalPreview, setOperationalPreview] = useState<any | null>(null);
   const [postTiosGroups, setPostTiosGroups] = useState<any[]>([]);
   const [postTiosOpen, setPostTiosOpen] = useState<Record<string, boolean>>({});
+  const [tiosAttendanceSummary, setTiosAttendanceSummary] = useState<any>({ people: [], sessions: [], closedSessions: 0 });
+  const [closedDrilldownOpen, setClosedDrilldownOpen] = useState<Record<string, boolean>>({});
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -76,8 +78,14 @@ const PresenceResponsiblePage: React.FC = () => {
       if (data.responsible?.kind === 'POS') {
         const analyticsData = await call('PRESENCA_V2_GET_ANALYTICS');
         setPostTiosGroups(Array.isArray(analyticsData.analytics?.postTios) ? analyticsData.analytics.postTios : []);
+        setTiosAttendanceSummary({ people: [], sessions: [], closedSessions: 0 });
+      } else if (data.responsible?.kind === 'TIOS') {
+        const summaryData = await call('PRESENCA_V2_RESPONSIBLE_TIOS_ATTENDANCE_SUMMARY', { token });
+        setTiosAttendanceSummary(summaryData.summary || { people: [], sessions: [], closedSessions: 0 });
+        setPostTiosGroups([]);
       } else {
         setPostTiosGroups([]);
+        setTiosAttendanceSummary({ people: [], sessions: [], closedSessions: 0 });
       }
     } catch (error: any) {
       setNotice(error?.message || 'Não foi possível carregar as reuniões.');
@@ -85,6 +93,7 @@ const PresenceResponsiblePage: React.FC = () => {
       setResponsibleLabel('');
       setResponsibleKind('');
       setPostTiosGroups([]);
+      setTiosAttendanceSummary({ people: [], sessions: [], closedSessions: 0 });
     } finally {
       setLoading(false);
     }
@@ -402,6 +411,45 @@ const PresenceResponsiblePage: React.FC = () => {
           <h1 className="mt-1 text-2xl font-black sm:text-3xl">{responsibleLabel || 'Carregando responsável…'}</h1>
           <p className="mt-2 max-w-3xl text-sm text-sky-100">Aqui aparecem as reuniões agendadas, abertas e encerradas do seu escopo. O mesmo QR é preservado em caso de reabertura.</p>
         </header>
+
+        {responsibleKind === 'TIOS' && (
+          <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Presença dos adolescentes do círculo</h2>
+                <p className="mt-1 text-sm text-slate-600">Resumo das reuniões encerradas deste casal de Tios, em ordem alfabética.</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-black text-slate-700">{Number(tiosAttendanceSummary.closedSessions||0)} reunião(ões) encerrada(s)</div>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[620px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
+                    <th className="px-3 py-3">Adolescente</th>
+                    <th className="px-3 py-3">Círculo</th>
+                    <th className="px-3 py-3 text-center">Presenças</th>
+                    <th className="px-3 py-3 text-center">Reuniões</th>
+                    <th className="px-3 py-3 text-right">Frequência</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(Array.isArray(tiosAttendanceSummary.people) ? tiosAttendanceSummary.people : []).map((person:any)=>(
+                    <tr key={person.id} className="border-b border-slate-100 last:border-0">
+                      <td className="px-3 py-3 font-bold text-slate-900">{person.name}</td>
+                      <td className="px-3 py-3 text-slate-600">{person.circle || 'Sem círculo'}</td>
+                      <td className="px-3 py-3 text-center font-black text-sky-700">{person.present}</td>
+                      <td className="px-3 py-3 text-center">{person.eligibleSessions}</td>
+                      <td className="px-3 py-3 text-right font-black text-emerald-700">{Number(person.rate||0).toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {(!Array.isArray(tiosAttendanceSummary.people) || tiosAttendanceSummary.people.length===0) && (
+                <p className="py-5 text-center text-sm text-slate-500">Ainda não há reuniões encerradas suficientes para calcular a frequência.</p>
+              )}
+            </div>
+          </section>
+        )}
 
         {responsibleKind === 'POS' && (
           <div className="mt-5 rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
@@ -814,6 +862,37 @@ const PresenceResponsiblePage: React.FC = () => {
                         <span><strong>{session.pendingCount}</strong> pendentes</span>
                         <span><strong>{session.eligibleCount}</strong> elegíveis</span>
                       </div>
+                      {responsibleKind === 'TIOS' && (() => {
+                        const sessionSummary=(Array.isArray(tiosAttendanceSummary.sessions)?tiosAttendanceSummary.sessions:[]).find((item:any)=>item.id===session.id);
+                        const open=Boolean(closedDrilldownOpen[session.id]);
+                        return (
+                          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50">
+                            <button type="button" onClick={()=>setClosedDrilldownOpen((current)=>({...current,[session.id]:!current[session.id]}))} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
+                              <div>
+                                <p className="font-black text-slate-900">Adolescentes presentes</p>
+                                <p className="mt-0.5 text-xs text-slate-500">{sessionSummary?.presentCount ?? session.confirmedCount} presente(s) nesta reunião</p>
+                              </div>
+                              <span className="text-lg font-black text-slate-500">{open?'−':'+'}</span>
+                            </button>
+                            {open && (
+                              <div className="border-t border-slate-200 bg-white p-3">
+                                {(sessionSummary?.people||[]).length ? (
+                                  <div className="grid gap-2 sm:grid-cols-2">
+                                    {(sessionSummary.people||[]).map((person:any)=>(
+                                      <div key={person.id} className="rounded-lg bg-slate-50 px-3 py-2">
+                                        <p className="text-sm font-bold text-slate-900">{person.name}</p>
+                                        <p className="text-xs text-slate-500">{person.circle || 'Sem círculo'}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-slate-500">Nenhuma presença vinculada foi encontrada nesta reunião.</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {(session.responsibleReopens || 0) < 1 ? (
                         <button disabled={busy===session.id} type="button" onClick={() => void execute('PRESENCA_V2_REOPEN_SESSION', session.id, 'Reunião reaberta. O mesmo QR voltou a aceitar check-in.')} className="mt-4 rounded-xl border border-sky-300 bg-sky-50 px-4 py-2 text-sm font-black text-sky-800 disabled:opacity-50">Reabrir reunião</button>
                       ) : <p className="mt-4 text-xs font-semibold text-slate-500">A reabertura do responsável já foi utilizada. Nova reabertura somente pelo ADM.</p>}

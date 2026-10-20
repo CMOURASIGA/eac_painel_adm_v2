@@ -1144,6 +1144,8 @@ async function analytics(supabase:AnySupabase){
   const groupStats=new Map<string,any>();
   const postTiosStats=new Map<string,any>();
   const postTiosSeen=new Set<string>();
+  const tiosPerformanceStats=new Map<string,any>();
+  const tiosPerformanceSeen=new Set<string>();
   const evolution:any[]=[];
   const confirmedUnique=new Set<string>();
   let totalEligible=0;
@@ -1192,6 +1194,45 @@ async function analytics(supabase:AnySupabase){
       groupStats.set(group.id,current);
     }
 
+    if(group?.tipo==='TIOS' && session.type==='REUNIAO_DUPLA_TIOS'){
+      const current=tiosPerformanceStats.get(group.id)||{
+        key:group.id,
+        label:group.nome_exibicao||session.responsibleLabel||'Tios de Círculo',
+        circles:new Set<string>(),
+        people:new Map<string,any>(),
+        postPresent:0,
+        postEligible:0,
+        circlePresent:0,
+        circleEligible:0,
+      };
+      for(const person of eligible){
+        const personId=clean(person.id);
+        if(!personId) continue;
+        const seenKey=`CIRCLE|${session.id}|${group.id}|${personId}`;
+        if(tiosPerformanceSeen.has(seenKey)) continue;
+        tiosPerformanceSeen.add(seenKey);
+        const circleLabel=clean(person.circle);
+        if(circleLabel) current.circles.add(circleLabel);
+        current.circleEligible+=1;
+        if(confirmedIds.has(personId)) current.circlePresent+=1;
+        const personCurrent=current.people.get(personId)||{
+          id:personId,
+          name:clean(person.name),
+          circle:circleLabel,
+          postPresent:0,
+          postEligible:0,
+          circlePresent:0,
+          circleEligible:0,
+        };
+        personCurrent.name=clean(person.name)||personCurrent.name;
+        personCurrent.circle=circleLabel||personCurrent.circle;
+        personCurrent.circleEligible+=1;
+        if(confirmedIds.has(personId)) personCurrent.circlePresent+=1;
+        current.people.set(personId,personCurrent);
+      }
+      tiosPerformanceStats.set(group.id,current);
+    }
+
     if(session.type==='POS_ENCONTRO_GERAL'){
       const tiosContext=await tiosContextByPerson(supabase,eligible.map((person:any)=>person.id));
       for(const person of eligible){
@@ -1202,6 +1243,39 @@ async function analytics(supabase:AnySupabase){
             const seenKey=`${session.id}|${tios.id}|${person.id}`;
             if(postTiosSeen.has(seenKey)) continue;
             postTiosSeen.add(seenKey);
+
+            const performanceSeenKey=`POST|${session.id}|${tios.id}|${person.id}`;
+            if(!tiosPerformanceSeen.has(performanceSeenKey)){
+              tiosPerformanceSeen.add(performanceSeenKey);
+              const performance=tiosPerformanceStats.get(tios.id)||{
+                key:tios.id,
+                label:tios.label,
+                circles:new Set<string>(),
+                people:new Map<string,any>(),
+                postPresent:0,
+                postEligible:0,
+                circlePresent:0,
+                circleEligible:0,
+              };
+              if(circle.label) performance.circles.add(circle.label);
+              performance.postEligible+=1;
+              if(confirmedIds.has(person.id)) performance.postPresent+=1;
+              const performancePerson=performance.people.get(person.id)||{
+                id:person.id,
+                name:person.name,
+                circle:circle.label,
+                postPresent:0,
+                postEligible:0,
+                circlePresent:0,
+                circleEligible:0,
+              };
+              performancePerson.name=person.name||performancePerson.name;
+              performancePerson.circle=circle.label||performancePerson.circle;
+              performancePerson.postEligible+=1;
+              if(confirmedIds.has(person.id)) performancePerson.postPresent+=1;
+              performance.people.set(person.id,performancePerson);
+              tiosPerformanceStats.set(tios.id,performance);
+            }
 
             const current=postTiosStats.get(tios.id)||{
               key:tios.id,
@@ -1307,6 +1381,28 @@ async function analytics(supabase:AnySupabase){
     })).sort((a:any,b:any)=>Number(a.edition)-Number(b.edition)||String(a.color).localeCompare(String(b.color),'pt-BR')),
   })).sort((a:any,b:any)=>Number(b.rate)-Number(a.rate)||Number(b.present)-Number(a.present)||String(a.label).localeCompare(String(b.label),'pt-BR'));
 
+  const tiosPerformance=Array.from(tiosPerformanceStats.values()).map((group:any)=>({
+    key:group.key,
+    label:group.label,
+    circles:Array.from(group.circles.values()).sort((a:any,b:any)=>String(a).localeCompare(String(b),'pt-BR')),
+    adolescents:group.people.size,
+    postPresent:group.postPresent,
+    postEligible:group.postEligible,
+    postRate:group.postEligible ? group.postPresent*100/group.postEligible : 0,
+    circlePresent:group.circlePresent,
+    circleEligible:group.circleEligible,
+    circleRate:group.circleEligible ? group.circlePresent*100/group.circleEligible : 0,
+    people:Array.from(group.people.values()).map((person:any)=>({
+      ...person,
+      postRate:person.postEligible ? person.postPresent*100/person.postEligible : 0,
+      circleRate:person.circleEligible ? person.circlePresent*100/person.circleEligible : 0,
+    })).sort((a:any,b:any)=>String(a.name).localeCompare(String(b.name),'pt-BR')),
+  })).sort((a:any,b:any)=>
+    Number(b.postRate)-Number(a.postRate)
+    || Number(b.circleRate)-Number(a.circleRate)
+    || String(a.label).localeCompare(String(b.label),'pt-BR')
+  );
+
   return {
     summary:{
       closedSessions:sessions.length,
@@ -1319,8 +1415,92 @@ async function analytics(supabase:AnySupabase){
     groups:Array.from(groupStats.values())
       .sort((a:any,b:any)=>String(a.label).localeCompare(String(b.label),'pt-BR')),
     postTios,
+    tiosPerformance,
     sessionEvolution:evolution,
     people,
+  };
+}
+
+async function responsibleTiosAttendanceSummary(supabase:AnySupabase, group:any){
+  if(!group || group.tipo!=='TIOS') throw new Error('Indicadores disponíveis somente para Tios de Círculo.');
+
+  const {data:sessionRows,error:sessionError}=await supabase.from('presenca_sessoes')
+    .select('*')
+    .eq('responsavel_grupo_id',group.id)
+    .eq('status','ENCERRADA')
+    .order('agendada_para',{ascending:false});
+  if(sessionError) throw sessionError;
+
+  const peopleStats=new Map<string,any>();
+  const sessions:any[]=[];
+
+  for(const row of sessionRows||[]){
+    const session=await ensureDueClose(supabase,row);
+    const eligible=await eligiblePeople(supabase,session);
+    const eligibleIds=eligible.map((person:any)=>clean(person.id)).filter(Boolean);
+    const confirmedIds=new Set<string>();
+
+    if(eligibleIds.length){
+      for(let i=0;i<eligibleIds.length;i+=200){
+        const chunk=eligibleIds.slice(i,i+200);
+        const {data:presences,error}=await supabase.from('presencas')
+          .select('pessoa_id')
+          .eq('sessao_id',session.id)
+          .eq('status_presenca','REGISTRADA')
+          .in('pessoa_id',chunk);
+        if(error) throw error;
+        for(const presence of presences||[]) if(presence.pessoa_id) confirmedIds.add(clean(presence.pessoa_id));
+      }
+    }
+
+    const presentPeople=eligible
+      .filter((person:any)=>confirmedIds.has(clean(person.id)))
+      .map((person:any)=>({
+        id:clean(person.id),
+        name:clean(person.name),
+        circle:clean(person.circle),
+      }))
+      .sort((a:any,b:any)=>String(a.name).localeCompare(String(b.name),'pt-BR'));
+
+    sessions.push({
+      id:session.id,
+      title:session.titulo,
+      scheduledAt:session.agendada_para,
+      closedAt:session.encerrada_em,
+      presentCount:presentPeople.length,
+      eligibleCount:eligible.length,
+      people:presentPeople,
+    });
+
+    for(const person of eligible){
+      const id=clean(person.id);
+      if(!id) continue;
+      const current=peopleStats.get(id)||{
+        id,
+        name:clean(person.name),
+        circle:clean(person.circle),
+        eligibleSessions:0,
+        present:0,
+        absences:0,
+        rate:0,
+      };
+      current.name=clean(person.name)||current.name;
+      current.circle=clean(person.circle)||current.circle;
+      current.eligibleSessions+=1;
+      if(confirmedIds.has(id)) current.present+=1;
+      else current.absences+=1;
+      current.rate=current.eligibleSessions ? current.present*100/current.eligibleSessions : 0;
+      peopleStats.set(id,current);
+    }
+  }
+
+  const people=Array.from(peopleStats.values())
+    .sort((a:any,b:any)=>String(a.name).localeCompare(String(b.name),'pt-BR'));
+
+  return {
+    closedSessions:sessions.length,
+    people,
+    sessions,
   };
 }
 
@@ -1338,6 +1518,14 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
       const sessions=(await listSessions(supabase,group.id)).filter((s:any)=>s.status==='AGENDADA'||s.status==='ABERTA'||s.status==='ENCERRADA');
       return {ok:true,data:{success:true,responsible:{id:group.id,label:group.nome_exibicao,kind:group.tipo==='TIOS'?'TIOS':group.tipo==='POS'?'POS':'HISTORICO'},sessions,source:'supabase'}};
+    }
+    if(action==='PRESENCA_V2_RESPONSIBLE_TIOS_ATTENDANCE_SUMMARY'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+      if(group.tipo!=='TIOS') return {ok:true,data:{success:false,error:'Indicadores disponíveis somente para Tios de Círculo.'}};
+      const summary=await responsibleTiosAttendanceSummary(supabase,group);
+      return {ok:true,data:{success:true,summary,source:'supabase'}};
     }
     if(action==='PRESENCA_V2_RESPONSIBLE_OPERATIONAL_CANDIDATES'){
       const token=clean(payload.token);
