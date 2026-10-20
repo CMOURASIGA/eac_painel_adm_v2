@@ -1389,12 +1389,47 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
       if(group.tipo!=='POS') return {ok:true,data:{success:false,error:'A exportação geral de adolescentes está disponível somente para o responsável do Pós.'}};
 
-      const {data:adolescents,error:adolescentsError}=await supabase.from('adolescentes')
-        .select('pessoa_id')
-        .not('pessoa_id','is',null);
+      const [
+        {data:adolescents,error:adolescentsError},
+        {data:historicalMembers,error:historicalMembersError},
+        {data:prioritizedRegistrations,error:prioritizedRegistrationsError},
+      ]=await Promise.all([
+        supabase.from('adolescentes')
+          .select('id,pessoa_id')
+          .not('pessoa_id','is',null),
+        supabase.from('eac_circulo_membros_historicos')
+          .select('pessoa_id')
+          .eq('conciliacao_status','CONCILIADO')
+          .not('pessoa_id','is',null),
+        supabase.from('inscricoes')
+          .select('adolescente_id')
+          .eq('status','PRIORIZADO')
+          .not('adolescente_id','is',null),
+      ]);
       if(adolescentsError) throw adolescentsError;
+      if(historicalMembersError) throw historicalMembersError;
+      if(prioritizedRegistrationsError) throw prioritizedRegistrationsError;
 
-      const ids=Array.from(new Set((adolescents||[]).map((row:any)=>clean(row.pessoa_id)).filter(Boolean)));
+      const adolescentPersonById=new Map<string,string>();
+      for(const adolescent of adolescents||[]){
+        const adolescentId=clean(adolescent.id);
+        const personId=clean(adolescent.pessoa_id);
+        if(adolescentId&&personId) adolescentPersonById.set(adolescentId,personId);
+      }
+
+      const linkedPersonIds=new Set<string>();
+      for(const member of historicalMembers||[]){
+        const personId=clean(member.pessoa_id);
+        if(personId) linkedPersonIds.add(personId);
+      }
+      for(const registration of prioritizedRegistrations||[]){
+        const personId=adolescentPersonById.get(clean(registration.adolescente_id));
+        if(personId) linkedPersonIds.add(personId);
+      }
+
+      const ids=Array.from(new Set((adolescents||[])
+        .map((row:any)=>clean(row.pessoa_id))
+        .filter((personId:string)=>Boolean(personId)&&linkedPersonIds.has(personId))));
       const rows:any[]=[];
       for(let i=0;i<ids.length;i+=200){
         const chunk=ids.slice(i,i+200);
