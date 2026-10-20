@@ -117,6 +117,7 @@ const MockPublicCheckinPage: React.FC = () => {
           <span className="block font-semibold text-slate-800">{person.name}</span>
           {(person.circle || person.hasPhone || person.duplicateCount > 1) && <span className="mt-0.5 block text-xs text-slate-500">
             {person.circle ? `Círculo ${person.circle}` : 'Sem círculo identificado'}
+            {Array.isArray(person.tiosLabels) && person.tiosLabels.length ? ` · Tios: ${person.tiosLabels.join(' / ')}` : ' · Tios de círculo não vinculados'}
             {person.hasPhone ? ` · telefone final ${person.phoneLast4}` : ' · sem telefone cadastrado'}
             {person.duplicateCount > 1 ? ` · cadastro duplicado detectado (${person.duplicateCount})` : ''}
             {person.alreadyPresent ? ' · presença já confirmada' : ''}
@@ -124,6 +125,7 @@ const MockPublicCheckinPage: React.FC = () => {
         </button>)}{matches.length === 0 && <p className="p-3 text-sm text-slate-500">Nome não encontrado entre os participantes habilitados para esta reunião. Procure o responsável.</p>}</div>}
         {selected && <div className="rounded-xl bg-sky-50 p-3 text-sm text-sky-900">
           <div>Identidade selecionada: <strong>{selected.name}</strong>{selected.circle ? ` · círculo ${selected.circle}` : ''}</div>
+          <div className="mt-1 text-xs font-semibold text-sky-800">Tios de círculo: {Array.isArray(selected.tiosLabels) && selected.tiosLabels.length ? selected.tiosLabels.join(' / ') : 'não vinculados'}</div>
           {selected.alreadyPresent
             ? <div className="mt-2 rounded-lg bg-emerald-100 px-3 py-2 text-xs font-bold text-emerald-800">Presença já confirmada nesta reunião.</div>
             : <div className={`mt-2 rounded-lg px-3 py-2 text-xs font-semibold ${selected.hasPhone ? 'bg-white/70 text-sky-900' : 'bg-amber-50 text-amber-800'}`}>{selectedPhoneHint}</div>}
@@ -133,7 +135,7 @@ const MockPublicCheckinPage: React.FC = () => {
           ? 'O telefone atual veio preenchido do cadastro. Se você alterar o número, a mudança será enviada para validação administrativa antes de substituir o cadastro.'
           : selected
             ? 'Como o cadastro está sem telefone, o número informado será incluído após a confirmação desta presença.'
-            : 'Selecione seu nome para carregar o telefone cadastrado e o círculo correspondente.'}</p>
+            : 'Selecione seu nome para carregar o telefone cadastrado, o círculo e os tios de círculo vinculados.'}</p>
         <button disabled={busy || !selected || Boolean(selected?.alreadyPresent)} className="w-full rounded-xl bg-[#044372] px-4 py-3 font-black text-white disabled:opacity-50">{busy ? 'Enviando…' : selected?.alreadyPresent ? 'Presença já confirmada' : selected ? 'Confirmar presença' : 'Selecione seu nome'}</button>
         {message && <p className="rounded-xl bg-slate-100 p-3 text-sm font-semibold text-slate-700">{message}</p>}
       </form>
