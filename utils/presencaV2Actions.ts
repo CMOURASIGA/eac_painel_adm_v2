@@ -1857,7 +1857,7 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       const id=clean(payload.sessionId);
       const session=await sessionRaw(supabase,id);
       if(!session) return {ok:true,data:{success:false,error:'Reunião não encontrada.'}};
-      if(!['AGENDADA','CANCELADA'].includes(session.status)) return {ok:true,data:{success:false,error:'Somente reuniões agendadas ou canceladas podem ser excluídas.'}};
+      if(!['AGENDADA','CANCELADA','ENCERRADA'].includes(session.status)) return {ok:true,data:{success:false,error:'Somente reuniões agendadas, canceladas ou encerradas sem registros podem ser excluídas.'}};
 
       const [{count:presenceCount,error:presenceError},{count:pendingCount,error:pendingError}] = await Promise.all([
         supabase.from('presencas').select('id',{count:'exact',head:true}).eq('sessao_id',id),
