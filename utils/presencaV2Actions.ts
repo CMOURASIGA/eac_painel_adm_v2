@@ -1144,6 +1144,8 @@ async function analytics(supabase:AnySupabase){
   const groupStats=new Map<string,any>();
   const postTiosStats=new Map<string,any>();
   const postTiosSeen=new Set<string>();
+  const tiosPerformanceStats=new Map<string,any>();
+  const tiosPerformanceSeen=new Set<string>();
   const evolution:any[]=[];
   const confirmedUnique=new Set<string>();
   let totalEligible=0;
@@ -1192,6 +1194,45 @@ async function analytics(supabase:AnySupabase){
       groupStats.set(group.id,current);
     }
 
+    if(group?.tipo==='TIOS' && session.type==='REUNIAO_DUPLA_TIOS'){
+      const current=tiosPerformanceStats.get(group.id)||{
+        key:group.id,
+        label:group.nome_exibicao||session.responsibleLabel||'Tios de Círculo',
+        circles:new Set<string>(),
+        people:new Map<string,any>(),
+        postPresent:0,
+        postEligible:0,
+        circlePresent:0,
+        circleEligible:0,
+      };
+      for(const person of eligible){
+        const personId=clean(person.id);
+        if(!personId) continue;
+        const seenKey=`CIRCLE|${session.id}|${group.id}|${personId}`;
+        if(tiosPerformanceSeen.has(seenKey)) continue;
+        tiosPerformanceSeen.add(seenKey);
+        const circleLabel=clean(person.circle);
+        if(circleLabel) current.circles.add(circleLabel);
+        current.circleEligible+=1;
+        if(confirmedIds.has(personId)) current.circlePresent+=1;
+        const personCurrent=current.people.get(personId)||{
+          id:personId,
+          name:clean(person.name),
+          circle:circleLabel,
+          postPresent:0,
+          postEligible:0,
+          circlePresent:0,
+          circleEligible:0,
+        };
+        personCurrent.name=clean(person.name)||personCurrent.name;
+        personCurrent.circle=circleLabel||personCurrent.circle;
+        personCurrent.circleEligible+=1;
+        if(confirmedIds.has(personId)) personCurrent.circlePresent+=1;
+        current.people.set(personId,personCurrent);
+      }
+      tiosPerformanceStats.set(group.id,current);
+    }
+
     if(session.type==='POS_ENCONTRO_GERAL'){
       const tiosContext=await tiosContextByPerson(supabase,eligible.map((person:any)=>person.id));
       for(const person of eligible){
@@ -1202,6 +1243,39 @@ async function analytics(supabase:AnySupabase){
             const seenKey=`${session.id}|${tios.id}|${person.id}`;
             if(postTiosSeen.has(seenKey)) continue;
             postTiosSeen.add(seenKey);
+
+            const performanceSeenKey=`POST|${session.id}|${tios.id}|${person.id}`;
+            if(!tiosPerformanceSeen.has(performanceSeenKey)){
+              tiosPerformanceSeen.add(performanceSeenKey);
+              const performance=tiosPerformanceStats.get(tios.id)||{
+                key:tios.id,
+                label:tios.label,
+                circles:new Set<string>(),
+                people:new Map<string,any>(),
+                postPresent:0,
+                postEligible:0,
+                circlePresent:0,
+                circleEligible:0,
+              };
+              if(circle.label) performance.circles.add(circle.label);
+              performance.postEligible+=1;
+              if(confirmedIds.has(person.id)) performance.postPresent+=1;
+              const performancePerson=performance.people.get(person.id)||{
+                id:person.id,
+                name:person.name,
+                circle:circle.label,
+                postPresent:0,
+                postEligible:0,
+                circlePresent:0,
+                circleEligible:0,
+              };
+              performancePerson.name=person.name||performancePerson.name;
+              performancePerson.circle=circle.label||performancePerson.circle;
+              performancePerson.postEligible+=1;
+              if(confirmedIds.has(person.id)) performancePerson.postPresent+=1;
+              performance.people.set(person.id,performancePerson);
+              tiosPerformanceStats.set(tios.id,performance);
+            }
 
             const current=postTiosStats.get(tios.id)||{
               key:tios.id,
@@ -1307,6 +1381,28 @@ async function analytics(supabase:AnySupabase){
     })).sort((a:any,b:any)=>Number(a.edition)-Number(b.edition)||String(a.color).localeCompare(String(b.color),'pt-BR')),
   })).sort((a:any,b:any)=>Number(b.rate)-Number(a.rate)||Number(b.present)-Number(a.present)||String(a.label).localeCompare(String(b.label),'pt-BR'));
 
+  const tiosPerformance=Array.from(tiosPerformanceStats.values()).map((group:any)=>({
+    key:group.key,
+    label:group.label,
+    circles:Array.from(group.circles.values()).sort((a:any,b:any)=>String(a).localeCompare(String(b),'pt-BR')),
+    adolescents:group.people.size,
+    postPresent:group.postPresent,
+    postEligible:group.postEligible,
+    postRate:group.postEligible ? group.postPresent*100/group.postEligible : 0,
+    circlePresent:group.circlePresent,
+    circleEligible:group.circleEligible,
+    circleRate:group.circleEligible ? group.circlePresent*100/group.circleEligible : 0,
+    people:Array.from(group.people.values()).map((person:any)=>({
+      ...person,
+      postRate:person.postEligible ? person.postPresent*100/person.postEligible : 0,
+      circleRate:person.circleEligible ? person.circlePresent*100/person.circleEligible : 0,
+    })).sort((a:any,b:any)=>String(a.name).localeCompare(String(b.name),'pt-BR')),
+  })).sort((a:any,b:any)=>
+    Number(b.postRate)-Number(a.postRate)
+    || Number(b.circleRate)-Number(a.circleRate)
+    || String(a.label).localeCompare(String(b.label),'pt-BR')
+  );
+
   return {
     summary:{
       closedSessions:sessions.length,
@@ -1319,6 +1415,7 @@ async function analytics(supabase:AnySupabase){
     groups:Array.from(groupStats.values())
       .sort((a:any,b:any)=>String(a.label).localeCompare(String(b.label),'pt-BR')),
     postTios,
+    tiosPerformance,
     sessionEvolution:evolution,
     people,
   };
