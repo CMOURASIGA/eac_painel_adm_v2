@@ -214,12 +214,18 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
       collect(member.pessoa_id);
     }
   } else {
-    const [{ data: circles, error: ce }, { data: enc, error: ee }] = await Promise.all([
+    const [
+      { data: circles, error: ce },
+      { data: enc, error: ee },
+      { data: eac34Encounters, error: e34e },
+    ] = await Promise.all([
       supabase.from('eac_circulos_historicos').select('id,edicao,cor').in('edicao',[35,36,37]),
       supabase.from('encontreiros').select('pessoa_id').eq('classificacao','ADOLESCENTE').eq('status','DISPONIVEL').not('pessoa_id','is',null),
+      supabase.from('encontros').select('id,numero').eq('numero',34),
     ]);
     if (ce) throw ce;
     if (ee) throw ee;
+    if (e34e) throw e34e;
 
     const circleMap=new Map<string,string>((circles||[]).map((circle:any)=>[
       clean(circle.id),
@@ -235,6 +241,30 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
       if(me) throw me;
       for(const member of members||[]){
         collect(member.pessoa_id,circleMap.get(clean(member.circulo_id))||'');
+      }
+    }
+
+    const eac34Ids=Array.from(new Set((eac34Encounters||[]).map((row:any)=>clean(row.id)).filter(Boolean)));
+    if(eac34Ids.length){
+      const {data:eac34Registrations,error:e34re}=await supabase.from('inscricoes')
+        .select('adolescente_id')
+        .in('encontro_id',eac34Ids)
+        .eq('status','PRIORIZADO')
+        .not('adolescente_id','is',null);
+      if(e34re) throw e34re;
+
+      const eac34AdolescentIds=Array.from(new Set((eac34Registrations||[])
+        .map((row:any)=>clean(row.adolescente_id))
+        .filter(Boolean)));
+      if(eac34AdolescentIds.length){
+        const {data:eac34Adolescents,error:e34ae}=await supabase.from('adolescentes')
+          .select('id,pessoa_id')
+          .in('id',eac34AdolescentIds)
+          .not('pessoa_id','is',null);
+        if(e34ae) throw e34ae;
+        for(const adolescent of eac34Adolescents||[]){
+          collect(adolescent.pessoa_id,'EAC 34 · Sem círculo');
+        }
       }
     }
 
