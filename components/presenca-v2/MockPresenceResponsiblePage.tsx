@@ -610,6 +610,41 @@ const PresenceResponsiblePage: React.FC = () => {
                           <div className="rounded-xl bg-slate-50 p-2"><p className="text-[11px] text-slate-500">Confirmados</p><p className="font-black">{session.confirmedCount}</p></div>
                           <div className="rounded-xl bg-slate-50 p-2"><p className="text-[11px] text-slate-500">Pendentes</p><p className="font-black">{session.pendingCount}</p></div>
                         </div>
+                        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50">
+                          <button type="button" onClick={()=>void toggleClosedPresenceList(session.id)} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
+                            <div>
+                              <p className="font-black text-slate-900">Adolescentes presentes</p>
+                              <p className="mt-0.5 text-xs text-slate-500">{session.confirmedCount} confirmado(s) até agora · use para conferir antes de encerrar</p>
+                            </div>
+                            <span className="text-lg font-black text-slate-500">{closedDrilldownOpen[session.id]?'−':'+'}</span>
+                          </button>
+                          {closedDrilldownOpen[session.id] && (
+                            <div className="border-t border-slate-200 bg-white p-3">
+                              {busy===`closed-presence:${session.id}` ? (
+                                <p className="py-4 text-center text-sm font-semibold text-slate-500">Carregando presentes...</p>
+                              ) : (closedPresenceLists[session.id]||[]).length ? (
+                                <>
+                                  <div className="mb-3 flex items-center justify-between gap-3">
+                                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Conferência da presença</p>
+                                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-black text-emerald-800">{(closedPresenceLists[session.id]||[]).length} presentes</span>
+                                  </div>
+                                  <div className="max-h-[420px] overflow-y-auto pr-1">
+                                    <div className="grid gap-2 sm:grid-cols-2">
+                                      {(closedPresenceLists[session.id]||[]).map((person:any)=>(
+                                        <div key={person.id} className="rounded-lg bg-slate-50 px-3 py-2">
+                                          <p className="text-sm font-bold text-slate-900">{person.name}</p>
+                                          <p className="text-xs text-slate-500">{person.circle || 'Sem círculo identificado'}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </>
+                              ) : (
+                                <p className="text-sm text-slate-500">Nenhuma presença confirmada nesta reunião até o momento.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
                         <div className="mt-5 grid gap-2 sm:grid-cols-2">
                           <button type="button" onClick={() => setQrSession(session)} className="w-full rounded-xl bg-[#044372] px-4 py-3 font-black text-white">Exibir QR Code</button>
                           {responsibleKind === 'TIOS' && <button type="button" onClick={() => void loadAttendance(session.id)} className="w-full rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 font-black text-emerald-800">Fazer chamada</button>}
