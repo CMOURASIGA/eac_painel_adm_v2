@@ -356,7 +356,7 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
     for(const worker of adolescentWorkers||[]){
       const personId=clean(worker.pessoa_id);
       if(!personId || knownAnyEac.has(personId)) continue;
-      collect(personId,'Sem EAC · agrupado no 34');
+      collect(personId,'EAC 34 · Sem círculo');
     }
   }
 
@@ -1357,14 +1357,13 @@ async function analytics(supabase:AnySupabase){
       const tiosContext=await tiosContextByPerson(supabase,eligible.map((person:any)=>person.id));
       for(const person of eligible){
         let context=tiosContext.get(person.id);
-        if(!context && (clean(person.circle).includes('EAC 34') || clean(person.circle).includes('Sem EAC'))){
-          const noEac=clean(person.circle).includes('Sem EAC');
+        if(!context && clean(person.circle).includes('EAC 34')){
           context={
             circles:[{
-              id:noEac?'SEM-EAC-AGRUPADO-34':'EAC34-SEM-CIRCULO',
-              edition:noEac?0:34,
-              color:noEac?'Sem EAC':'Sem círculo',
-              label:noEac?'Sem EAC · agrupado no 34':'EAC 34 · Sem círculo',
+              id:'EAC34-SEM-CIRCULO',
+              edition:34,
+              color:'Sem círculo',
+              label:'EAC 34 · Sem círculo',
               groups:[{
                 id:'EAC34-TIOS-GENERICOS',
                 label:'Tios do EAC 34',
