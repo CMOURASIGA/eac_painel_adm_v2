@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="EAC">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fffaf0"/>
+      <stop offset="1" stop-color="#f2e6c9"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" x2="1">
+      <stop offset="0" stop-color="#9a6b20"/>
+      <stop offset=".45" stop-color="#d8b35c"/>
+      <stop offset="1" stop-color="#8c5c18"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="210" fill="none" stroke="#6b4c2d" stroke-width="18"/>
+  <path d="M326 91h78v30h-24v74h-30v-74h-24z" fill="url(#gold)"/>
+  <path d="M122 322c50-20 74-58 96-102 28-57 56-88 103-102" fill="none" stroke="#8a6b32" stroke-width="18" stroke-linecap="round"/>
+  <path d="M154 283c-28-10-45-28-54-55 28-2 50 8 67 30m75-77c-27-7-46-23-57-48 28-5 51 3 70 23m34-33c16-24 37-37 64-38-6 27-21 47-45 60" fill="none" stroke="#72834b" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="256" y="365" text-anchor="middle" font-family="Georgia,serif" font-size="132" font-weight="800" letter-spacing="-8" fill="url(#gold)" stroke="#6b4c2d" stroke-width="3">EAC</text>
+  <text x="256" y="420" text-anchor="middle" font-family="Arial,sans-serif" font-size="34" font-weight="800" letter-spacing="6" fill="#6b4c2d">ENCONTRO</text>
+</svg>
