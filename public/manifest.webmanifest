@@ -1,0 +1,26 @@
+{
+  "id": "/presenca/responsavel",
+  "name": "EAC - Presença",
+  "short_name": "EAC",
+  "description": "Acesso operacional de presença do EAC.",
+  "start_url": "/presenca/responsavel?app=1",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f5f7fb",
+  "theme_color": "#044372",
+  "icons": [
+    {
+      "src": "/eac-app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/eac-app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
