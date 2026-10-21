@@ -63,6 +63,7 @@ const PresenceResponsiblePage: React.FC = () => {
   const [operationalTargetCircleId, setOperationalTargetCircleId] = useState('');
   const [operationalPreview, setOperationalPreview] = useState<any | null>(null);
   const [postTiosGroups, setPostTiosGroups] = useState<any[]>([]);
+  const [postTiosLoaded, setPostTiosLoaded] = useState(false);
   const [postTiosOpen, setPostTiosOpen] = useState<Record<string, boolean>>({});
   const [tiosAttendanceSummary, setTiosAttendanceSummary] = useState<any>({ people: [], sessions: [], closedSessions: 0 });
   const [closedDrilldownOpen, setClosedDrilldownOpen] = useState<Record<string, boolean>>({});
@@ -78,8 +79,8 @@ const PresenceResponsiblePage: React.FC = () => {
       setResponsibleLabel(data.responsible?.label || '');
       setResponsibleKind(data.responsible?.kind || '');
       if (data.responsible?.kind === 'POS') {
-        const analyticsData = await call('PRESENCA_V2_GET_ANALYTICS');
-        setPostTiosGroups(Array.isArray(analyticsData.analytics?.postTios) ? analyticsData.analytics.postTios : []);
+        setPostTiosGroups([]);
+        setPostTiosLoaded(false);
         setTiosAttendanceSummary({ people: [], sessions: [], closedSessions: 0 });
       } else if (data.responsible?.kind === 'TIOS') {
         const summaryData = await call('PRESENCA_V2_RESPONSIBLE_TIOS_ATTENDANCE_SUMMARY', { token });
@@ -142,6 +143,20 @@ const PresenceResponsiblePage: React.FC = () => {
       await refresh();
     } catch (error: any) {
       setNotice(error?.message || 'Não foi possível atualizar a reunião.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const loadPostTiosDrilldown = async () => {
+    setBusy('post-tios-drilldown');
+    try {
+      const analyticsData = await call('PRESENCA_V2_GET_ANALYTICS');
+      setPostTiosGroups(Array.isArray(analyticsData.analytics?.postTios) ? analyticsData.analytics.postTios : []);
+      setPostTiosLoaded(true);
+      setNotice('');
+    } catch (error:any) {
+      setNotice(error?.message || 'Não foi possível carregar o acompanhamento por Tios.');
     } finally {
       setBusy('');
     }
@@ -459,12 +474,19 @@ const PresenceResponsiblePage: React.FC = () => {
 
         {responsibleKind === 'POS' && (
           <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div>
-              <h2 className="text-lg font-black text-slate-900">Acompanhamento por Tios de Círculo</h2>
-              <p className="mt-1 text-sm text-slate-600">Drill-down das reuniões do Pós: casal de tios → círculo → adolescentes.</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-black text-slate-900">Acompanhamento por Tios de Círculo</h2>
+                <p className="mt-1 text-sm text-slate-600">Drill-down das reuniões do Pós: casal de tios → círculo → adolescentes. O processamento é feito somente quando solicitado.</p>
+              </div>
+              <button type="button" disabled={busy==='post-tios-drilldown'} onClick={()=>void loadPostTiosDrilldown()} className="shrink-0 rounded-xl bg-[#044372] px-4 py-3 text-sm font-black text-white disabled:opacity-50">
+                {busy==='post-tios-drilldown'?'Processando...':postTiosLoaded?'Atualizar acompanhamento':'Abrir acompanhamento'}
+              </button>
             </div>
 
-            {postTiosGroups.length === 0 ? (
+            {!postTiosLoaded ? (
+              <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Clique em <strong>Abrir acompanhamento</strong> para processar os Tios, círculos, presentes e ausentes do Pós.</p>
+            ) : postTiosGroups.length === 0 ? (
               <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Ainda não há reuniões encerradas do Pós com dados suficientes para montar o acompanhamento.</p>
             ) : (
               <div className="mt-4 space-y-3">
