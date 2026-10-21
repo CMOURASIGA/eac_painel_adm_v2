@@ -11,15 +11,15 @@
   "theme_color": "#044372",
   "icons": [
     {
-      "src": "/eac-app-icon.svg",
+      "src": "https://i.imgur.com/c5XQ7TW.png",
       "sizes": "any",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/eac-app-icon.svg",
+      "src": "https://i.imgur.com/c5XQ7TW.png",
       "sizes": "any",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "maskable"
     }
   ]
