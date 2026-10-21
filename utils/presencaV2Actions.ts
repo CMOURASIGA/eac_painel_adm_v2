@@ -1671,6 +1671,55 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       rows.sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
       return {ok:true,data:{success:true,rows,total:rows.length,generatedAt:nowIso(),source:'supabase'}};
     }
+    if(action==='PRESENCA_V2_RESPONSIBLE_SESSION_PRESENT_LIST'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+
+      const session=await sessionRaw(supabase,clean(payload.sessionId));
+      if(!session||session.responsavel_grupo_id!==group.id) return {ok:true,data:{success:false,error:'Reunião fora do escopo deste responsável.'}};
+      if(!['ABERTA','ENCERRADA'].includes(session.status)) return {ok:true,data:{success:false,error:'A listagem detalhada fica disponível enquanto a reunião está aberta ou após o encerramento.'}};
+
+      const {data:rows,error:presenceError}=await supabase.from('presencas')
+        .select('id,pessoa_id,nome_digitado,data_presenca,status_presenca')
+        .eq('sessao_id',session.id)
+        .eq('status_presenca','REGISTRADA')
+        .order('data_presenca',{ascending:true});
+      if(presenceError) throw presenceError;
+
+      const presenceRows=rows||[];
+      const personIds=Array.from(new Set(presenceRows.map((row:any)=>clean(row.pessoa_id)).filter(Boolean)));
+      const namesById=new Map<string,string>();
+      for(let i=0;i<personIds.length;i+=200){
+        const chunk=personIds.slice(i,i+200);
+        const {data:peopleRows,error:peopleError}=await supabase.from('pessoas')
+          .select('id,nome_completo')
+          .in('id',chunk);
+        if(peopleError) throw peopleError;
+        for(const person of peopleRows||[]) namesById.set(clean(person.id),clean(person.nome_completo));
+      }
+
+      const eligible=await eligiblePeople(supabase,session);
+      const eligibleById=new Map<string,any>(eligible.map((person:any)=>[clean(person.id),person]));
+      const seen=new Set<string>();
+      const people:any[]=[];
+      for(const row of presenceRows){
+        const personId=clean(row.pessoa_id);
+        const dedupKey=personId||clean(row.id);
+        if(seen.has(dedupKey)) continue;
+        seen.add(dedupKey);
+        const eligiblePerson=eligibleById.get(personId);
+        people.push({
+          id:personId||clean(row.id),
+          personId:personId||null,
+          name:namesById.get(personId)||clean(row.nome_digitado)||'Adolescente',
+          circle:clean(eligiblePerson?.circle)||'',
+          registeredAt:row.data_presenca||null,
+        });
+      }
+      people.sort((a,b)=>String(a.name).localeCompare(String(b.name),'pt-BR'));
+      return {ok:true,data:{success:true,sessionId:session.id,total:people.length,people}};
+    }
     if(action==='PRESENCA_V2_RESPONSIBLE_ATTENDANCE_LIST'){
       const token=clean(payload.token);
       const group=await getGroupByToken(supabase,token);
