@@ -214,36 +214,34 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
       collect(member.pessoa_id);
     }
   } else {
-    // Pós: somente adolescentes. Elegíveis são:
-    // 1) quem ainda não fez EAC;
-    // 2) quem fez EAC 34 ou posterior;
-    // 3) inscrições priorizadas de encontros 34 ou posteriores.
-    // Adultos e participantes conhecidos apenas de EACs anteriores ao 34 ficam fora.
+    // Pós: regra estrita de elegibilidade.
+    // Entra somente:
+    // 1) adolescente com EAC 34 ou posterior (34,35,36,37 e futuros 38+);
+    // 2) encontreiro classificado como ADOLESCENTE/DISPONIVEL sem qualquer EAC conhecido.
+    // Não entra adolescente que tenha apenas EAC anterior ao 34, nem adulto.
     const [
       { data: adolescentRows, error: ae },
-      { data: circles, error: ce },
+      { data: allCircles, error: ce },
       { data: adolescentWorkers, error: ee },
-      { data: encounters34Plus, error: e34e },
+      { data: allEncounters, error: ene },
     ] = await Promise.all([
       supabase.from('adolescentes')
         .select('id,pessoa_id,ja_fez_eac,encontro_anterior')
         .not('pessoa_id','is',null),
       supabase.from('eac_circulos_historicos')
-        .select('id,edicao,cor')
-        .gte('edicao',34),
+        .select('id,edicao,cor'),
       supabase.from('encontreiros')
         .select('pessoa_id')
         .eq('classificacao','ADOLESCENTE')
         .eq('status','DISPONIVEL')
         .not('pessoa_id','is',null),
       supabase.from('encontros')
-        .select('id,numero')
-        .gte('numero',34),
+        .select('id,numero'),
     ]);
     if (ae) throw ae;
     if (ce) throw ce;
     if (ee) throw ee;
-    if (e34e) throw e34e;
+    if (ene) throw ene;
 
     const adolescentByPerson=new Map<string,any>();
     const adolescentById=new Map<string,any>();
@@ -259,68 +257,106 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
       return match ? Number(match[1]) : null;
     };
 
-    // Base canônica de adolescentes: não fez EAC ou fez do 34 em diante.
-    for(const row of adolescentRows||[]){
-      const personId=clean(row.pessoa_id);
-      if(!personId) continue;
-      if(row.ja_fez_eac===false){
-        collect(personId,'Ainda não fez EAC');
-        continue;
-      }
-      const edition=previousEdition(row.encontro_anterior);
-      if(row.ja_fez_eac===true && edition!==null && edition>=34){
-        collect(personId,`EAC ${edition}`);
+    const circleById=new Map<string,any>((allCircles||[]).map((circle:any)=>[
+      clean(circle.id),
+      circle,
+    ]));
+    const allCircleIds=Array.from(circleById.keys());
+    const historicalMemberships:any[]=[];
+    if(allCircleIds.length){
+      for(let i=0;i<allCircleIds.length;i+=200){
+        const chunk=allCircleIds.slice(i,i+200);
+        const {data,error}=await supabase.from('eac_circulo_membros_historicos')
+          .select('pessoa_id,circulo_id')
+          .in('circulo_id',chunk)
+          .not('pessoa_id','is',null);
+        if(error) throw error;
+        historicalMemberships.push(...(data||[]));
       }
     }
 
-    const circleMap=new Map<string,string>((circles||[]).map((circle:any)=>[
-      clean(circle.id),
-      `EAC ${Number(circle.edicao||0)} · ${clean(circle.cor)}`
+    const encountersById=new Map<string,number>((allEncounters||[]).map((row:any)=>[
+      clean(row.id),
+      Number(row.numero||0),
     ]));
-    const circleIds=Array.from(circleMap.keys());
-    if(circleIds.length){
-      const {data:members,error:me}=await supabase.from('eac_circulo_membros_historicos')
-        .select('pessoa_id,circulo_id')
-        .in('circulo_id',circleIds)
-        .not('pessoa_id','is',null);
-      if(me) throw me;
-      for(const member of members||[]){
-        const personId=clean(member.pessoa_id);
-        // Exige vínculo como adolescente para evitar adultos no total do Pós.
-        if(personId && adolescentByPerson.has(personId)){
-          collect(personId,circleMap.get(clean(member.circulo_id))||'');
+    const allEncounterIds=Array.from(encountersById.keys());
+    const prioritizedRegistrations:any[]=[];
+    if(allEncounterIds.length){
+      for(let i=0;i<allEncounterIds.length;i+=200){
+        const chunk=allEncounterIds.slice(i,i+200);
+        const {data,error}=await supabase.from('inscricoes')
+          .select('adolescente_id,encontro_id')
+          .in('encontro_id',chunk)
+          .eq('status','PRIORIZADO')
+          .not('adolescente_id','is',null);
+        if(error) throw error;
+        prioritizedRegistrations.push(...(data||[]));
+      }
+    }
+
+    // Mapeia qualquer evidência conhecida de participação em EAC.
+    const knownAnyEac=new Set<string>();
+    const knownEligibleEac=new Map<string,Set<number>>();
+
+    const markEac=(personId:string, edition:number)=>{
+      const pid=clean(personId);
+      if(!pid || !Number.isFinite(edition) || edition<=0) return;
+      knownAnyEac.add(pid);
+      if(edition<34) return;
+      const editions=knownEligibleEac.get(pid)||new Set<number>();
+      editions.add(edition);
+      knownEligibleEac.set(pid,editions);
+    };
+
+    for(const row of adolescentRows||[]){
+      const personId=clean(row.pessoa_id);
+      if(!personId) continue;
+      const edition=previousEdition(row.encontro_anterior);
+      if(row.ja_fez_eac===true) knownAnyEac.add(personId);
+      if(edition!==null) markEac(personId,edition);
+    }
+
+    for(const member of historicalMemberships){
+      const circle=circleById.get(clean(member.circulo_id));
+      const edition=Number(circle?.edicao||0);
+      markEac(clean(member.pessoa_id),edition);
+    }
+
+    for(const registration of prioritizedRegistrations){
+      const adolescent=adolescentById.get(clean(registration.adolescente_id));
+      const personId=clean(adolescent?.pessoa_id);
+      const edition=encountersById.get(clean(registration.encontro_id))||0;
+      markEac(personId,edition);
+    }
+
+    // Primeiro inclui todos os EACs válidos: 34 em diante.
+    for(const [personId, editions] of knownEligibleEac.entries()){
+      const sorted=Array.from(editions).sort((a,b)=>a-b);
+      for(const edition of sorted){
+        if(edition===34){
+          collect(personId,'EAC 34 · Sem círculo');
+          continue;
+        }
+        const circleLabels=historicalMemberships
+          .filter((member:any)=>clean(member.pessoa_id)===personId)
+          .map((member:any)=>circleById.get(clean(member.circulo_id)))
+          .filter((circle:any)=>Number(circle?.edicao||0)===edition)
+          .map((circle:any)=>`EAC ${edition} · ${clean(circle.cor)}`)
+          .filter(Boolean);
+        if(circleLabels.length){
+          for(const label of circleLabels) collect(personId,label);
+        }else{
+          collect(personId,`EAC ${edition}`);
         }
       }
     }
 
-    const encounterIds=Array.from(new Set((encounters34Plus||[]).map((row:any)=>clean(row.id)).filter(Boolean)));
-    if(encounterIds.length){
-      const {data:registrations,error:re}=await supabase.from('inscricoes')
-        .select('adolescente_id,encontro_id')
-        .in('encontro_id',encounterIds)
-        .eq('status','PRIORIZADO')
-        .not('adolescente_id','is',null);
-      if(re) throw re;
-      const encounterById=new Map<string,number>((encounters34Plus||[]).map((row:any)=>[clean(row.id),Number(row.numero||0)]));
-      for(const registration of registrations||[]){
-        const adolescent=adolescentById.get(clean(registration.adolescente_id));
-        const personId=clean(adolescent?.pessoa_id);
-        const edition=encounterById.get(clean(registration.encontro_id))||0;
-        if(personId) collect(personId,edition===34?'EAC 34 · Sem círculo':`EAC ${edition}`);
-      }
-    }
-
-    // Encontreiros classificados como ADOLESCENTE entram apenas quando não há
-    // evidência de participação anterior ao EAC 34.
+    // Encontreiros adolescentes SEM EAC conhecido também entram na presença.
+    // Para o drill-down dos Tios, ficam agrupados operacionalmente junto do EAC 34.
     for(const worker of adolescentWorkers||[]){
       const personId=clean(worker.pessoa_id);
-      if(!personId) continue;
-      const adolescent=adolescentByPerson.get(personId);
-      if(adolescent){
-        const edition=previousEdition(adolescent.encontro_anterior);
-        if(adolescent.ja_fez_eac===true && edition!==null && edition<34) continue;
-      }
-      collect(personId);
+      if(!personId || knownAnyEac.has(personId)) continue;
+      collect(personId,'EAC 34 · Sem círculo');
     }
   }
 
