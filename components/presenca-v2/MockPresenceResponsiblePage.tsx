@@ -448,7 +448,7 @@ const PresenceResponsiblePage: React.FC = () => {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="font-black text-slate-900">Lista geral de adolescentes</h2>
-                <p className="mt-1 text-sm text-slate-600">Exporte somente adolescentes com EAC vinculado, com nome e telefone normalizado.</p>
+                <p className="mt-1 text-sm text-slate-600">Exporte adolescentes dos EAC 34, 35, 36 e 37, com nome e telefone normalizado.</p>
               </div>
               <button type="button" disabled={busy==='export-adolescents'} onClick={()=>void exportAdolescents()} className="shrink-0 rounded-xl bg-violet-700 px-4 py-3 font-black text-white disabled:opacity-50">
                 {busy==='export-adolescents'?'Gerando...':'Exportar CSV'}
