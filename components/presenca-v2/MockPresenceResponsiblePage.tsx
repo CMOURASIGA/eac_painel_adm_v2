@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { postComunicadosAction } from '../../services/eacApiClient.ts';
 import QrDisplay from './QrDisplay.tsx';
 import Toast from '../Toast.tsx';
+import InstallEacAppPrompt from './InstallEacAppPrompt.tsx';
 
 type Session = {
   id: string;
@@ -33,7 +34,12 @@ const formatDateTime = (value?: string | null) => {
 
 const PresenceResponsiblePage: React.FC = () => {
   const params = new URLSearchParams(window.location.search);
-  const token = params.get('token') || '';
+  const urlToken = params.get('token') || '';
+  const storedToken = (() => {
+    try { return window.localStorage.getItem('eac_presence_responsible_token') || ''; }
+    catch { return ''; }
+  })();
+  const token = urlToken || storedToken;
   const [sessions, setSessions] = useState<Session[]>([]);
   const [responsibleLabel, setResponsibleLabel] = useState('');
   const [responsibleKind, setResponsibleKind] = useState('');
@@ -102,6 +108,11 @@ const PresenceResponsiblePage: React.FC = () => {
       setLoading(false);
     }
   }, [token]);
+
+  useEffect(() => {
+    if (!urlToken) return;
+    try { window.localStorage.setItem('eac_presence_responsible_token', urlToken); } catch {}
+  }, [urlToken]);
 
   useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
@@ -1034,6 +1045,7 @@ const PresenceResponsiblePage: React.FC = () => {
 
       </section>
 
+      <InstallEacAppPrompt />
       {qrSession && <QrDisplay value={checkinUrl(qrSession)} title={qrSession.title} subtitle="Sessão aberta para check-in" onClose={() => setQrSession(null)} />}
     </main>
   );
