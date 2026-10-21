@@ -1678,7 +1678,7 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
 
       const session=await sessionRaw(supabase,clean(payload.sessionId));
       if(!session||session.responsavel_grupo_id!==group.id) return {ok:true,data:{success:false,error:'Reunião fora do escopo deste responsável.'}};
-      if(session.status!=='ENCERRADA') return {ok:true,data:{success:false,error:'A listagem detalhada fica disponível após o encerramento da reunião.'}};
+      if(!['ABERTA','ENCERRADA'].includes(session.status)) return {ok:true,data:{success:false,error:'A listagem detalhada fica disponível enquanto a reunião está aberta ou após o encerramento.'}};
 
       const {data:rows,error:presenceError}=await supabase.from('presencas')
         .select('id,pessoa_id,nome_digitado,data_presenca,status_presenca')
