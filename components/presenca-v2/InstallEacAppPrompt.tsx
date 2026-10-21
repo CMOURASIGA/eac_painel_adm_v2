@@ -97,7 +97,7 @@ const InstallEacAppPrompt: React.FC = () => {
   return (
     <div className="fixed inset-x-3 bottom-3 z-[90] mx-auto max-w-xl rounded-2xl border border-amber-200 bg-white p-4 shadow-2xl sm:bottom-5">
       <div className="flex gap-3">
-        <img src="/eac-app-icon.svg" alt="EAC" className="h-14 w-14 shrink-0 rounded-xl border border-amber-100 bg-amber-50 p-1" />
+        <img src="https://i.imgur.com/c5XQ7TW.png" alt="EAC" className="h-14 w-14 shrink-0 rounded-xl border border-amber-100 bg-amber-50 p-1" />
         <div className="min-w-0 flex-1">
           <p className="font-black text-slate-900">Quer instalar o EAC no telefone?</p>
           <p className="mt-1 text-sm text-slate-600">Assim este acesso fica como um app na sua tela inicial e você não precisa procurar o link novamente.</p>
