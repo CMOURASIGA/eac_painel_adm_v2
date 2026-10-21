@@ -1612,47 +1612,73 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
       if(group.tipo!=='POS') return {ok:true,data:{success:false,error:'A exportação geral de adolescentes está disponível somente para o responsável do Pós.'}};
 
+      // Regra da exportação: somente adolescentes que participaram dos EAC 34, 35, 36 ou 37.
+      // EAC 35-37 vêm do histórico conciliado de círculos.
+      // EAC 34 não possui círculo histórico no fluxo atual e é identificado pela inscrição priorizada no encontro 34.
       const [
-        {data:adolescents,error:adolescentsError},
-        {data:historicalMembers,error:historicalMembersError},
-        {data:prioritizedRegistrations,error:prioritizedRegistrationsError},
+        {data:historicalCircles,error:historicalCirclesError},
+        {data:eac34Encounters,error:eac34EncountersError},
       ]=await Promise.all([
-        supabase.from('adolescentes')
-          .select('id,pessoa_id')
-          .not('pessoa_id','is',null),
-        supabase.from('eac_circulo_membros_historicos')
-          .select('pessoa_id')
-          .eq('conciliacao_status','CONCILIADO')
-          .not('pessoa_id','is',null),
-        supabase.from('inscricoes')
-          .select('adolescente_id')
-          .eq('status','PRIORIZADO')
-          .not('adolescente_id','is',null),
+        supabase.from('eac_circulos_historicos')
+          .select('id,edicao')
+          .in('edicao',[35,36,37]),
+        supabase.from('encontros')
+          .select('id,numero')
+          .eq('numero',34),
       ]);
-      if(adolescentsError) throw adolescentsError;
-      if(historicalMembersError) throw historicalMembersError;
-      if(prioritizedRegistrationsError) throw prioritizedRegistrationsError;
+      if(historicalCirclesError) throw historicalCirclesError;
+      if(eac34EncountersError) throw eac34EncountersError;
 
-      const adolescentPersonById=new Map<string,string>();
-      for(const adolescent of adolescents||[]){
-        const adolescentId=clean(adolescent.id);
-        const personId=clean(adolescent.pessoa_id);
-        if(adolescentId&&personId) adolescentPersonById.set(adolescentId,personId);
-      }
+      const circleIds=Array.from(new Set((historicalCircles||[]).map((row:any)=>clean(row.id)).filter(Boolean)));
+      const eac34Ids=Array.from(new Set((eac34Encounters||[]).map((row:any)=>clean(row.id)).filter(Boolean)));
+
+      const [
+        historicalMembersResult,
+        eac34RegistrationsResult,
+      ]=await Promise.all([
+        circleIds.length
+          ? supabase.from('eac_circulo_membros_historicos')
+              .select('pessoa_id,circulo_id')
+              .in('circulo_id',circleIds)
+              .eq('conciliacao_status','CONCILIADO')
+              .not('pessoa_id','is',null)
+          : Promise.resolve({data:[],error:null}),
+        eac34Ids.length
+          ? supabase.from('inscricoes')
+              .select('adolescente_id,encontro_id')
+              .in('encontro_id',eac34Ids)
+              .eq('status','PRIORIZADO')
+              .not('adolescente_id','is',null)
+          : Promise.resolve({data:[],error:null}),
+      ]);
+      if(historicalMembersResult.error) throw historicalMembersResult.error;
+      if(eac34RegistrationsResult.error) throw eac34RegistrationsResult.error;
 
       const linkedPersonIds=new Set<string>();
-      for(const member of historicalMembers||[]){
+      for(const member of historicalMembersResult.data||[]){
         const personId=clean(member.pessoa_id);
         if(personId) linkedPersonIds.add(personId);
       }
-      for(const registration of prioritizedRegistrations||[]){
-        const personId=adolescentPersonById.get(clean(registration.adolescente_id));
-        if(personId) linkedPersonIds.add(personId);
+
+      const eac34AdolescentIds=Array.from(new Set((eac34RegistrationsResult.data||[])
+        .map((row:any)=>clean(row.adolescente_id))
+        .filter(Boolean)));
+      if(eac34AdolescentIds.length){
+        for(let i=0;i<eac34AdolescentIds.length;i+=200){
+          const chunk=eac34AdolescentIds.slice(i,i+200);
+          const {data:adolescents,error:adolescentsError}=await supabase.from('adolescentes')
+            .select('id,pessoa_id')
+            .in('id',chunk)
+            .not('pessoa_id','is',null);
+          if(adolescentsError) throw adolescentsError;
+          for(const adolescent of adolescents||[]){
+            const personId=clean(adolescent.pessoa_id);
+            if(personId) linkedPersonIds.add(personId);
+          }
+        }
       }
 
-      const ids=Array.from(new Set((adolescents||[])
-        .map((row:any)=>clean(row.pessoa_id))
-        .filter((personId:string)=>Boolean(personId)&&linkedPersonIds.has(personId))));
+      const ids=Array.from(linkedPersonIds);
       const rows:any[]=[];
       for(let i=0;i<ids.length;i+=200){
         const chunk=ids.slice(i,i+200);
@@ -1669,7 +1695,7 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       }
 
       rows.sort((a,b)=>String(a.nome).localeCompare(String(b.nome),'pt-BR'));
-      return {ok:true,data:{success:true,rows,total:rows.length,generatedAt:nowIso(),source:'supabase'}};
+      return {ok:true,data:{success:true,rows,total:rows.length,editions:[34,35,36,37],generatedAt:nowIso(),source:'supabase'}};
     }
     if(action==='PRESENCA_V2_RESPONSIBLE_SESSION_PRESENT_LIST'){
       const token=clean(payload.token);
