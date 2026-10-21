@@ -66,6 +66,7 @@ const PresenceResponsiblePage: React.FC = () => {
   const [postTiosOpen, setPostTiosOpen] = useState<Record<string, boolean>>({});
   const [tiosAttendanceSummary, setTiosAttendanceSummary] = useState<any>({ people: [], sessions: [], closedSessions: 0 });
   const [closedDrilldownOpen, setClosedDrilldownOpen] = useState<Record<string, boolean>>({});
+  const [closedPresenceLists, setClosedPresenceLists] = useState<Record<string, any[]>>({});
   const [tiosSummaryOpen, setTiosSummaryOpen] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -271,6 +272,27 @@ const PresenceResponsiblePage: React.FC = () => {
       setNotice('');
     } catch (error:any) {
       setNotice(error?.message||'Não foi possível carregar a chamada.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const toggleClosedPresenceList = async (sessionId: string) => {
+    const currentlyOpen=Boolean(closedDrilldownOpen[sessionId]);
+    if(currentlyOpen){
+      setClosedDrilldownOpen((current)=>({...current,[sessionId]:false}));
+      return;
+    }
+    setClosedDrilldownOpen((current)=>({...current,[sessionId]:true}));
+    if(closedPresenceLists[sessionId]) return;
+    setBusy(`closed-presence:${sessionId}`);
+    try {
+      const data=await call('PRESENCA_V2_RESPONSIBLE_SESSION_PRESENT_LIST',{token,sessionId});
+      setClosedPresenceLists((current)=>({...current,[sessionId]:Array.isArray(data.people)?data.people:[]}));
+      setNotice('');
+    } catch (error:any) {
+      setClosedDrilldownOpen((current)=>({...current,[sessionId]:false}));
+      setNotice(error?.message||'Não foi possível carregar os adolescentes presentes.');
     } finally {
       setBusy('');
     }
@@ -670,29 +692,40 @@ const PresenceResponsiblePage: React.FC = () => {
                         <span><strong>{session.pendingCount}</strong> pendentes</span>
                         <span><strong>{session.eligibleCount}</strong> elegíveis</span>
                       </div>
-                      {responsibleKind === 'TIOS' && (() => {
-                        const sessionSummary=(Array.isArray(tiosAttendanceSummary.sessions)?tiosAttendanceSummary.sessions:[]).find((item:any)=>item.id===session.id);
+                      {(() => {
                         const open=Boolean(closedDrilldownOpen[session.id]);
+                        const presentPeople=closedPresenceLists[session.id]||[];
+                        const loadingPeople=busy===`closed-presence:${session.id}`;
                         return (
                           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50">
-                            <button type="button" onClick={()=>setClosedDrilldownOpen((current)=>({...current,[session.id]:!current[session.id]}))} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
+                            <button type="button" onClick={()=>void toggleClosedPresenceList(session.id)} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
                               <div>
                                 <p className="font-black text-slate-900">Adolescentes presentes</p>
-                                <p className="mt-0.5 text-xs text-slate-500">{sessionSummary?.presentCount ?? session.confirmedCount} presente(s) nesta reunião</p>
+                                <p className="mt-0.5 text-xs text-slate-500">{session.confirmedCount} presente(s) nesta reunião · toque para {open?'recolher':'ver a lista'}</p>
                               </div>
                               <span className="text-lg font-black text-slate-500">{open?'−':'+'}</span>
                             </button>
                             {open && (
                               <div className="border-t border-slate-200 bg-white p-3">
-                                {(sessionSummary?.people||[]).length ? (
-                                  <div className="grid gap-2 sm:grid-cols-2">
-                                    {(sessionSummary.people||[]).map((person:any)=>(
-                                      <div key={person.id} className="rounded-lg bg-slate-50 px-3 py-2">
-                                        <p className="text-sm font-bold text-slate-900">{person.name}</p>
-                                        <p className="text-xs text-slate-500">{person.circle || 'Sem círculo'}</p>
+                                {loadingPeople ? (
+                                  <p className="py-4 text-center text-sm font-semibold text-slate-500">Carregando presentes...</p>
+                                ) : presentPeople.length ? (
+                                  <>
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Lista de presença</p>
+                                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-black text-emerald-800">{presentPeople.length} presentes</span>
+                                    </div>
+                                    <div className="max-h-[420px] overflow-y-auto pr-1">
+                                      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                                        {presentPeople.map((person:any)=>(
+                                          <div key={person.id} className="rounded-lg bg-slate-50 px-3 py-2">
+                                            <p className="text-sm font-bold text-slate-900">{person.name}</p>
+                                            <p className="text-xs text-slate-500">{person.circle || 'Sem círculo identificado'}</p>
+                                          </div>
+                                        ))}
                                       </div>
-                                    ))}
-                                  </div>
+                                    </div>
+                                  </>
                                 ) : (
                                   <p className="text-sm text-slate-500">Nenhuma presença vinculada foi encontrada nesta reunião.</p>
                                 )}
