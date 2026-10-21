@@ -214,25 +214,70 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
       collect(member.pessoa_id);
     }
   } else {
+    // Pós: somente adolescentes. Elegíveis são:
+    // 1) quem ainda não fez EAC;
+    // 2) quem fez EAC 34 ou posterior;
+    // 3) inscrições priorizadas de encontros 34 ou posteriores.
+    // Adultos e participantes conhecidos apenas de EACs anteriores ao 34 ficam fora.
     const [
+      { data: adolescentRows, error: ae },
       { data: circles, error: ce },
-      { data: enc, error: ee },
-      { data: eac34Encounters, error: e34e },
+      { data: adolescentWorkers, error: ee },
+      { data: encounters34Plus, error: e34e },
     ] = await Promise.all([
-      supabase.from('eac_circulos_historicos').select('id,edicao,cor').in('edicao',[35,36,37]),
-      supabase.from('encontreiros').select('pessoa_id').eq('classificacao','ADOLESCENTE').eq('status','DISPONIVEL').not('pessoa_id','is',null),
-      supabase.from('encontros').select('id,numero').eq('numero',34),
+      supabase.from('adolescentes')
+        .select('id,pessoa_id,ja_fez_eac,encontro_anterior')
+        .not('pessoa_id','is',null),
+      supabase.from('eac_circulos_historicos')
+        .select('id,edicao,cor')
+        .gte('edicao',34),
+      supabase.from('encontreiros')
+        .select('pessoa_id')
+        .eq('classificacao','ADOLESCENTE')
+        .eq('status','DISPONIVEL')
+        .not('pessoa_id','is',null),
+      supabase.from('encontros')
+        .select('id,numero')
+        .gte('numero',34),
     ]);
+    if (ae) throw ae;
     if (ce) throw ce;
     if (ee) throw ee;
     if (e34e) throw e34e;
 
+    const adolescentByPerson=new Map<string,any>();
+    const adolescentById=new Map<string,any>();
+    for(const row of adolescentRows||[]){
+      const personId=clean(row.pessoa_id);
+      const adolescentId=clean(row.id);
+      if(personId) adolescentByPerson.set(personId,row);
+      if(adolescentId) adolescentById.set(adolescentId,row);
+    }
+
+    const previousEdition=(value:any)=>{
+      const match=clean(value).match(/(\d{1,3})/);
+      return match ? Number(match[1]) : null;
+    };
+
+    // Base canônica de adolescentes: não fez EAC ou fez do 34 em diante.
+    for(const row of adolescentRows||[]){
+      const personId=clean(row.pessoa_id);
+      if(!personId) continue;
+      if(row.ja_fez_eac===false){
+        collect(personId,'Ainda não fez EAC');
+        continue;
+      }
+      const edition=previousEdition(row.encontro_anterior);
+      if(row.ja_fez_eac===true && edition!==null && edition>=34){
+        collect(personId,`EAC ${edition}`);
+      }
+    }
+
     const circleMap=new Map<string,string>((circles||[]).map((circle:any)=>[
       clean(circle.id),
-      `EAC ${circle.edicao} · ${circle.cor}`
+      `EAC ${Number(circle.edicao||0)} · ${clean(circle.cor)}`
     ]));
     const circleIds=Array.from(circleMap.keys());
-
     if(circleIds.length){
       const {data:members,error:me}=await supabase.from('eac_circulo_membros_historicos')
         .select('pessoa_id,circulo_id')
@@ -240,35 +285,43 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
         .not('pessoa_id','is',null);
       if(me) throw me;
       for(const member of members||[]){
-        collect(member.pessoa_id,circleMap.get(clean(member.circulo_id))||'');
-      }
-    }
-
-    const eac34Ids=Array.from(new Set((eac34Encounters||[]).map((row:any)=>clean(row.id)).filter(Boolean)));
-    if(eac34Ids.length){
-      const {data:eac34Registrations,error:e34re}=await supabase.from('inscricoes')
-        .select('adolescente_id')
-        .in('encontro_id',eac34Ids)
-        .eq('status','PRIORIZADO')
-        .not('adolescente_id','is',null);
-      if(e34re) throw e34re;
-
-      const eac34AdolescentIds=Array.from(new Set((eac34Registrations||[])
-        .map((row:any)=>clean(row.adolescente_id))
-        .filter(Boolean)));
-      if(eac34AdolescentIds.length){
-        const {data:eac34Adolescents,error:e34ae}=await supabase.from('adolescentes')
-          .select('id,pessoa_id')
-          .in('id',eac34AdolescentIds)
-          .not('pessoa_id','is',null);
-        if(e34ae) throw e34ae;
-        for(const adolescent of eac34Adolescents||[]){
-          collect(adolescent.pessoa_id,'EAC 34 · Sem círculo');
+        const personId=clean(member.pessoa_id);
+        // Exige vínculo como adolescente para evitar adultos no total do Pós.
+        if(personId && adolescentByPerson.has(personId)){
+          collect(personId,circleMap.get(clean(member.circulo_id))||'');
         }
       }
     }
 
-    for(const worker of enc||[]) collect(worker.pessoa_id);
+    const encounterIds=Array.from(new Set((encounters34Plus||[]).map((row:any)=>clean(row.id)).filter(Boolean)));
+    if(encounterIds.length){
+      const {data:registrations,error:re}=await supabase.from('inscricoes')
+        .select('adolescente_id,encontro_id')
+        .in('encontro_id',encounterIds)
+        .eq('status','PRIORIZADO')
+        .not('adolescente_id','is',null);
+      if(re) throw re;
+      const encounterById=new Map<string,number>((encounters34Plus||[]).map((row:any)=>[clean(row.id),Number(row.numero||0)]));
+      for(const registration of registrations||[]){
+        const adolescent=adolescentById.get(clean(registration.adolescente_id));
+        const personId=clean(adolescent?.pessoa_id);
+        const edition=encounterById.get(clean(registration.encontro_id))||0;
+        if(personId) collect(personId,edition===34?'EAC 34 · Sem círculo':`EAC ${edition}`);
+      }
+    }
+
+    // Encontreiros classificados como ADOLESCENTE entram apenas quando não há
+    // evidência de participação anterior ao EAC 34.
+    for(const worker of adolescentWorkers||[]){
+      const personId=clean(worker.pessoa_id);
+      if(!personId) continue;
+      const adolescent=adolescentByPerson.get(personId);
+      if(adolescent){
+        const edition=previousEdition(adolescent.encontro_anterior);
+        if(adolescent.ja_fez_eac===true && edition!==null && edition<34) continue;
+      }
+      collect(personId);
+    }
   }
 
   const allIds=Array.from(ids);
@@ -1267,7 +1320,23 @@ async function analytics(supabase:AnySupabase){
     if(session.type==='POS_ENCONTRO_GERAL'){
       const tiosContext=await tiosContextByPerson(supabase,eligible.map((person:any)=>person.id));
       for(const person of eligible){
-        const context=tiosContext.get(person.id);
+        let context=tiosContext.get(person.id);
+        if(!context && clean(person.circle).includes('EAC 34')){
+          context={
+            circles:[{
+              id:'EAC34-SEM-CIRCULO',
+              edition:34,
+              color:'Sem círculo',
+              label:'EAC 34 · Sem círculo',
+              groups:[{
+                id:'EAC34-TIOS-GENERICOS',
+                label:'Tios do EAC 34',
+                active:true,
+                synthetic:true,
+              }],
+            }],
+          };
+        }
         if(!context) continue;
         for(const circle of context.circles||[]){
           for(const tios of circle.groups||[]){
