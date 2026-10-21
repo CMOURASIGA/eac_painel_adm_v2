@@ -3,6 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#044372" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="EAC" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/eac-app-icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/eac-app-icon.svg" />
+    <script>
+      window.__eacPwaInstallPrompt = null;
+      window.addEventListener('beforeinstallprompt', function (event) {
+        event.preventDefault();
+        window.__eacPwaInstallPrompt = event;
+        window.dispatchEvent(new Event('eac:pwa-install-ready'));
+      });
+    </script>
     <title>EAC - Painel de Operação Segura</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
