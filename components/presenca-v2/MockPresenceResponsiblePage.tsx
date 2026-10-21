@@ -66,6 +66,7 @@ const PresenceResponsiblePage: React.FC = () => {
   const [postTiosLoaded, setPostTiosLoaded] = useState(false);
   const [postTiosOpen, setPostTiosOpen] = useState<Record<string, boolean>>({});
   const [tiosAttendanceSummary, setTiosAttendanceSummary] = useState<any>({ people: [], sessions: [], closedSessions: 0 });
+  const [tiosSummaryLoaded, setTiosSummaryLoaded] = useState(false);
   const [closedDrilldownOpen, setClosedDrilldownOpen] = useState<Record<string, boolean>>({});
   const [closedPresenceLists, setClosedPresenceLists] = useState<Record<string, any[]>>({});
   const [tiosSummaryOpen, setTiosSummaryOpen] = useState(false);
@@ -83,8 +84,8 @@ const PresenceResponsiblePage: React.FC = () => {
         setPostTiosLoaded(false);
         setTiosAttendanceSummary({ people: [], sessions: [], closedSessions: 0 });
       } else if (data.responsible?.kind === 'TIOS') {
-        const summaryData = await call('PRESENCA_V2_RESPONSIBLE_TIOS_ATTENDANCE_SUMMARY', { token });
-        setTiosAttendanceSummary(summaryData.summary || { people: [], sessions: [], closedSessions: 0 });
+        setTiosAttendanceSummary({ people: [], sessions: [], closedSessions: 0 });
+        setTiosSummaryLoaded(false);
         setPostTiosGroups([]);
       } else {
         setPostTiosGroups([]);
@@ -151,12 +152,27 @@ const PresenceResponsiblePage: React.FC = () => {
   const loadPostTiosDrilldown = async () => {
     setBusy('post-tios-drilldown');
     try {
-      const analyticsData = await call('PRESENCA_V2_GET_ANALYTICS');
-      setPostTiosGroups(Array.isArray(analyticsData.analytics?.postTios) ? analyticsData.analytics.postTios : []);
+      const summaryData = await call('PRESENCA_V2_RESPONSIBLE_POS_TIOS_SUMMARY', { token });
+      setPostTiosGroups(Array.isArray(summaryData.groups) ? summaryData.groups : []);
       setPostTiosLoaded(true);
       setNotice('');
     } catch (error:any) {
       setNotice(error?.message || 'Não foi possível carregar o acompanhamento por Tios.');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const loadTiosSummary = async () => {
+    setBusy('tios-summary');
+    try {
+      const summaryData = await call('PRESENCA_V2_RESPONSIBLE_TIOS_ATTENDANCE_SUMMARY', { token });
+      setTiosAttendanceSummary(summaryData.summary || { people: [], sessions: [], closedSessions: 0 });
+      setTiosSummaryLoaded(true);
+      setTiosSummaryOpen(true);
+      setNotice('');
+    } catch (error:any) {
+      setNotice(error?.message || 'Não foi possível carregar a frequência dos adolescentes.');
     } finally {
       setBusy('');
     }
@@ -169,8 +185,8 @@ const PresenceResponsiblePage: React.FC = () => {
       const rows=Array.isArray(data.rows)?data.rows:[];
       const escapeCsv=(value:any)=>`"${String(value??'').replace(/"/g,'""')}"`;
       const csv=[
-        ['nome','telefone_normalizado'].map(escapeCsv).join(';'),
-        ...rows.map((row:any)=>[row.nome,row.telefone_normalizado].map(escapeCsv).join(';'))
+        ['nome','telefone_normalizado','grupo_operacional'].map(escapeCsv).join(';'),
+        ...rows.map((row:any)=>[row.nome,row.telefone_normalizado,row.grupo_operacional].map(escapeCsv).join(';'))
       ].join('\r\n');
       const blob=new Blob(['\ufeff',csv],{type:'text/csv;charset=utf-8;'});
       const url=URL.createObjectURL(blob);
@@ -803,12 +819,29 @@ const PresenceResponsiblePage: React.FC = () => {
         )}
         {responsibleKind === 'TIOS' && (
           <section className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <button type="button" onClick={()=>setTiosSummaryOpen((open)=>!open)} className="flex w-full items-center justify-between gap-3 p-4 text-left">
+            <button
+              type="button"
+              disabled={busy==='tios-summary'}
+              onClick={()=>{
+                if(!tiosSummaryLoaded){
+                  void loadTiosSummary();
+                  return;
+                }
+                setTiosSummaryOpen((open)=>!open);
+              }}
+              className="flex w-full items-center justify-between gap-3 p-4 text-left disabled:opacity-60"
+            >
               <div>
                 <h2 className="text-lg font-black text-slate-900">Frequência dos adolescentes</h2>
-                <p className="mt-1 text-sm text-slate-600">{Array.isArray(tiosAttendanceSummary.people)?tiosAttendanceSummary.people.length:0} adolescente(s) · {Number(tiosAttendanceSummary.closedSessions||0)} reunião(ões) encerrada(s)</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  {busy==='tios-summary'
+                    ? 'Processando frequência...'
+                    : tiosSummaryLoaded
+                      ? `${Array.isArray(tiosAttendanceSummary.people)?tiosAttendanceSummary.people.length:0} adolescente(s) · ${Number(tiosAttendanceSummary.closedSessions||0)} reunião(ões) encerrada(s)`
+                      : 'Clique para calcular somente quando precisar.'}
+                </p>
               </div>
-              <span className="text-xl font-black text-slate-500">{tiosSummaryOpen?'−':'+'}</span>
+              <span className="text-xl font-black text-slate-500">{busy==='tios-summary'?'…':tiosSummaryOpen?'−':'+'}</span>
             </button>
             {tiosSummaryOpen && <div className="border-t border-slate-200 p-4">
             <div className="overflow-x-auto">

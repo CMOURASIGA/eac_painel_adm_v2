@@ -159,6 +159,45 @@ async function eligiblePeople(supabase: AnySupabase, session: any) {
   const sessionType=clean(session?.tipo||session?.type);
   const responsibleGroupId=clean(session?.responsavel_grupo_id||session?.responsibleId);
 
+  const readModelMissing=(error:any)=>['42P01','PGRST204','PGRST205'].includes(clean(error?.code));
+
+  // Fast path: quando as read-model views estão instaladas, uma única consulta
+  // substitui os joins e múltiplas leituras que antes eram refeitos em TypeScript.
+  if(sessionType==='POS_ENCONTRO_GERAL'){
+    const {data,error}=await supabase.from('vw_presenca_pos_elegiveis')
+      .select('pessoa_id,nome,telefone_normalizado,adolescente_id,encontreiro_id,circle_label')
+      .order('nome',{ascending:true});
+    if(!error){
+      return (data||[]).map((row:any)=>({
+        id:clean(row.pessoa_id),
+        name:clean(row.nome),
+        phone:phoneNorm(row.telefone_normalizado),
+        circle:clean(row.circle_label),
+        adolescenteId:row.adolescente_id||null,
+        encontreiroId:row.encontreiro_id||null,
+      }));
+    }
+    if(!readModelMissing(error)) throw error;
+  }
+
+  if(sessionType==='REUNIAO_DUPLA_TIOS' && responsibleGroupId){
+    const {data,error}=await supabase.from('vw_presenca_tios_elegiveis')
+      .select('pessoa_id,nome,telefone_normalizado,adolescente_id,encontreiro_id,circle_label')
+      .eq('grupo_id',responsibleGroupId)
+      .order('nome',{ascending:true});
+    if(!error){
+      return (data||[]).map((row:any)=>({
+        id:clean(row.pessoa_id),
+        name:clean(row.nome),
+        phone:phoneNorm(row.telefone_normalizado),
+        circle:clean(row.circle_label),
+        adolescenteId:row.adolescente_id||null,
+        encontreiroId:row.encontreiro_id||null,
+      }));
+    }
+    if(!readModelMissing(error)) throw error;
+  }
+
   const collect = (personId: string, circle?: string) => {
     const pid=clean(personId);
     if(!pid) return;
@@ -517,18 +556,31 @@ async function tiosContextByPerson(supabase:AnySupabase, personIds:string[]) {
 async function decorateSession(
   supabase: AnySupabase,
   row: any,
-  preloaded: { eligible?: any[]; group?: any; presences?: any[]; pendings?: any[] } = {}
+  preloaded: {
+    eligible?: any[];
+    group?: any;
+    presences?: any[];
+    pendings?: any[];
+    counts?: { eligibleCount: number; confirmedCount: number; pendingCount: number };
+  } = {}
 ) {
   row = await ensureDueClose(supabase,row);
+  const hasCounts=Boolean(preloaded.counts);
   const [group, eligible, pres, pend] = await Promise.all([
     preloaded.group !== undefined ? Promise.resolve(preloaded.group) : getGroup(supabase,row.responsavel_grupo_id),
-    Array.isArray(preloaded.eligible) ? Promise.resolve(preloaded.eligible) : eligiblePeople(supabase,row),
-    Array.isArray(preloaded.presences)
-      ? Promise.resolve({data:preloaded.presences,error:null})
-      : supabase.from('presencas').select('id,pessoa_id').eq('sessao_id',row.id),
-    Array.isArray(preloaded.pendings)
-      ? Promise.resolve({data:preloaded.pendings,error:null})
-      : supabase.from('presenca_pendencias').select('id,status').eq('sessao_id',row.id),
+    hasCounts
+      ? Promise.resolve([])
+      : (Array.isArray(preloaded.eligible) ? Promise.resolve(preloaded.eligible) : eligiblePeople(supabase,row)),
+    hasCounts
+      ? Promise.resolve({data:[],error:null})
+      : (Array.isArray(preloaded.presences)
+          ? Promise.resolve({data:preloaded.presences,error:null})
+          : supabase.from('presencas').select('id,pessoa_id').eq('sessao_id',row.id)),
+    hasCounts
+      ? Promise.resolve({data:[],error:null})
+      : (Array.isArray(preloaded.pendings)
+          ? Promise.resolve({data:preloaded.pendings,error:null})
+          : supabase.from('presenca_pendencias').select('id,status').eq('sessao_id',row.id)),
   ]);
   if(pres.error) throw pres.error;
   if(pend.error) throw pend.error;
@@ -552,9 +604,9 @@ async function decorateSession(
     closeScheduledAt:row.encerramento_programado_em,
     responsibleReopens:Number(row.reaberturas_responsavel||0),
     totalReopens:Number(row.total_reaberturas||0),
-    eligibleCount:eligible.length,
-    confirmedCount:(pres.data||[]).length,
-    pendingCount:(pend.data||[]).filter((x:any)=>x.status==='PENDENTE').length,
+    eligibleCount:preloaded.counts?.eligibleCount ?? eligible.length,
+    confirmedCount:preloaded.counts?.confirmedCount ?? (pres.data||[]).length,
+    pendingCount:preloaded.counts?.pendingCount ?? (pend.data||[]).filter((x:any)=>x.status==='PENDENTE').length,
     publicToken,
   };
 }
@@ -564,8 +616,37 @@ async function listSessions(supabase: AnySupabase, groupId?: string) {
   if(groupId) q=q.eq('responsavel_grupo_id',groupId);
   const {data,error}=await q;
   if(error) throw error;
+
+  const rows=data||[];
+  const countsBySession=new Map<string,{eligibleCount:number;confirmedCount:number;pendingCount:number}>();
+  const ids=rows.map((row:any)=>clean(row.id)).filter(Boolean);
+
+  if(ids.length){
+    for(let i=0;i<ids.length;i+=200){
+      const chunk=ids.slice(i,i+200);
+      const {data:summaryRows,error:summaryError}=await supabase.from('vw_presenca_sessoes_resumo')
+        .select('sessao_id,eligible_count,confirmed_count,pending_count')
+        .in('sessao_id',chunk);
+      if(summaryError){
+        if(!['42P01','PGRST204','PGRST205'].includes(clean(summaryError.code))) throw summaryError;
+        countsBySession.clear();
+        break;
+      }
+      for(const item of summaryRows||[]){
+        countsBySession.set(clean(item.sessao_id),{
+          eligibleCount:Number(item.eligible_count||0),
+          confirmedCount:Number(item.confirmed_count||0),
+          pendingCount:Number(item.pending_count||0),
+        });
+      }
+    }
+  }
+
   const out=[];
-  for(const row of data||[]) out.push(await decorateSession(supabase,row));
+  for(const row of rows){
+    const counts=countsBySession.get(clean(row.id));
+    out.push(await decorateSession(supabase,row,counts?{counts}:{}));
+  }
   return out;
 }
 
@@ -1560,6 +1641,35 @@ async function analytics(supabase:AnySupabase){
 async function responsibleTiosAttendanceSummary(supabase:AnySupabase, group:any){
   if(!group || group.tipo!=='TIOS') throw new Error('Indicadores disponíveis somente para Tios de Círculo.');
 
+  const [{data:fastRows,error:fastError},{count:closedCount,error:closedCountError}]=await Promise.all([
+    supabase.from('vw_presenca_tios_frequencia')
+      .select('pessoa_id,nome,circle_label,eligible_sessions,present,absences,rate')
+      .eq('grupo_id',group.id)
+      .order('nome',{ascending:true}),
+    supabase.from('presenca_sessoes')
+      .select('id',{count:'exact',head:true})
+      .eq('responsavel_grupo_id',group.id)
+      .eq('tipo','REUNIAO_DUPLA_TIOS')
+      .eq('status','ENCERRADA'),
+  ]);
+  if(!fastError && !closedCountError){
+    return {
+      closedSessions:Number(closedCount||0),
+      people:(fastRows||[]).map((row:any)=>({
+        id:clean(row.pessoa_id),
+        name:clean(row.nome),
+        circle:clean(row.circle_label),
+        eligibleSessions:Number(row.eligible_sessions||0),
+        present:Number(row.present||0),
+        absences:Number(row.absences||0),
+        rate:Number(row.rate||0),
+      })),
+      sessions:[],
+    };
+  }
+  if(fastError && !['42P01','PGRST204','PGRST205'].includes(clean(fastError.code))) throw fastError;
+  if(closedCountError) throw closedCountError;
+
   const {data:sessionRows,error:sessionError}=await supabase.from('presenca_sessoes')
     .select('*')
     .eq('responsavel_grupo_id',group.id)
@@ -1640,6 +1750,85 @@ async function responsibleTiosAttendanceSummary(supabase:AnySupabase, group:any)
   };
 }
 
+async function responsiblePosTiosSummary(supabase:AnySupabase){
+  const {data,error}=await supabase.from('vw_presenca_pos_tios_frequencia')
+    .select('group_key,group_label,circle_key,circle_label,edicao,pessoa_id,nome,eligible_sessions,present,absences,rate')
+    .order('group_label',{ascending:true})
+    .order('circle_label',{ascending:true})
+    .order('nome',{ascending:true});
+
+  if(error){
+    if(['42P01','PGRST204','PGRST205'].includes(clean(error.code))){
+      const legacy=await analytics(supabase);
+      return legacy.postTios||[];
+    }
+    throw error;
+  }
+
+  const groups=new Map<string,any>();
+  for(const row of data||[]){
+    const groupKey=clean(row.group_key);
+    const circleKey=clean(row.circle_key);
+    const eligibleSessions=Number(row.eligible_sessions||0);
+    const present=Number(row.present||0);
+    const absences=Number(row.absences||0);
+
+    const group=groups.get(groupKey)||{
+      key:groupKey,
+      label:clean(row.group_label)||'Tios de Círculo',
+      sessions:0,
+      present:0,
+      eligible:0,
+      absences:0,
+      rate:0,
+      circles:new Map<string,any>(),
+    };
+    group.sessions=Math.max(group.sessions,eligibleSessions);
+    group.present+=present;
+    group.eligible+=eligibleSessions;
+    group.absences+=absences;
+
+    const circle=group.circles.get(circleKey)||{
+      id:circleKey,
+      label:clean(row.circle_label),
+      edition:Number(row.edicao||0),
+      color:'',
+      present:0,
+      eligible:0,
+      absences:0,
+      rate:0,
+      people:[],
+    };
+    circle.present+=present;
+    circle.eligible+=eligibleSessions;
+    circle.absences+=absences;
+    circle.people.push({
+      id:clean(row.pessoa_id),
+      name:clean(row.nome),
+      circle:clean(row.circle_label),
+      eligibleSessions,
+      present,
+      absences,
+      rate:Number(row.rate||0),
+    });
+    group.circles.set(circleKey,circle);
+    groups.set(groupKey,group);
+  }
+
+  return Array.from(groups.values()).map((group:any)=>{
+    const circles=Array.from(group.circles.values()).map((circle:any)=>({
+      ...circle,
+      rate:circle.eligible ? circle.present*100/circle.eligible : 0,
+      people:circle.people.sort((a:any,b:any)=>String(a.name).localeCompare(String(b.name),'pt-BR')),
+    }));
+    return {
+      ...group,
+      rate:group.eligible ? group.present*100/group.eligible : 0,
+      circles:circles.sort((a:any,b:any)=>String(a.label).localeCompare(String(b.label),'pt-BR')),
+    };
+  }).sort((a:any,b:any)=>Number(b.rate)-Number(a.rate)||String(a.label).localeCompare(String(b.label),'pt-BR'));
+}
+
 export async function handlePresenceV2Action(supabase: AnySupabase, action: string, payload: JsonObject = {}): Promise<Result> {
   try {
     if(action==='PRESENCA_V2_LIST_RESPONSIBLE_GROUPS'){
@@ -1710,6 +1899,14 @@ export async function handlePresenceV2Action(supabase: AnySupabase, action: stri
       if(group.tipo!=='TIOS') return {ok:true,data:{success:false,error:'Manutenção de adolescentes disponível somente para Tios de Círculo.'}};
       const result=await responsibleCircleMaintenanceApply(supabase,group,payload);
       return {ok:true,data:{success:true,result,source:'supabase'}};
+    }
+    if(action==='PRESENCA_V2_RESPONSIBLE_POS_TIOS_SUMMARY'){
+      const token=clean(payload.token);
+      const group=await getGroupByToken(supabase,token);
+      if(!group) return {ok:true,data:{success:false,error:'Acesso de responsável inválido ou revogado.'}};
+      if(group.tipo!=='POS') return {ok:true,data:{success:false,error:'Acompanhamento por Tios disponível somente para o responsável do Pós.'}};
+      const groups=await responsiblePosTiosSummary(supabase);
+      return {ok:true,data:{success:true,groups,source:'supabase-read-model'}};
     }
     if(action==='PRESENCA_V2_RESPONSIBLE_EXPORT_ADOLESCENTS'){
       const token=clean(payload.token);
