@@ -534,10 +534,33 @@ async function createPending(supabase: AnySupabase, session:any, person:any, nam
   return {row:data,already:false};
 }
 
+async function auditPublicCheckinResult(supabase: AnySupabase, session: any, person: any, status: string, details: any = {}) {
+  if (!session?.id) return;
+  try {
+    await audit(supabase, session.id, 'PUBLIC_CHECKIN_RESULT', 'SYSTEM', session.responsavel_grupo_id || null, {
+      status,
+      pessoaId: person?.id || null,
+      nome: clean(person?.name || details?.enteredName || ''),
+      ...details,
+    });
+  } catch (error) {
+    // Auditoria nunca pode impedir o registro de presença.
+    console.error('[presenca-v2] falha ao auditar check-in público', {
+      sessionId: session.id,
+      personId: person?.id || null,
+      status,
+      error,
+    });
+  }
+}
+
 async function publicCheckin(supabase: AnySupabase,payload:any){
   const id=clean(payload.sessionId);
   const session=await sessionRaw(supabase,id);
-  if(!session||session.status!=='ABERTA') return {status:'SESSION_CLOSED'};
+  if(!session||session.status!=='ABERTA') {
+    if(session) await auditPublicCheckinResult(supabase,session,null,'SESSION_CLOSED',{enteredName:clean(payload.name)});
+    return {status:'SESSION_CLOSED'};
+  }
   const people=await eligiblePeople(supabase,session);
   const person=people.find((p:any)=>p.id===clean(payload.personId))||null;
   const enteredPhone=phoneNorm(payload.phone);
@@ -546,10 +569,14 @@ async function publicCheckin(supabase: AnySupabase,payload:any){
   if(person){
     const {data:already,error}=await supabase.from('presencas').select('id').eq('sessao_id',session.id).eq('pessoa_id',person.id).maybeSingle();
     if(error) throw error;
-    if(already) return {status:'ALREADY_PRESENT'};
+    if(already) {
+      await auditPublicCheckinResult(supabase,session,person,'ALREADY_PRESENT',{presenceId:already.id});
+      return {status:'ALREADY_PRESENT',presenceId:already.id};
+    }
   }
 
   if(!person) {
+    await auditPublicCheckinResult(supabase,session,null,'NOT_ELIGIBLE',{enteredName});
     return {status:'NOT_ELIGIBLE'};
   }
 
@@ -573,11 +600,15 @@ async function publicCheckin(supabase: AnySupabase,payload:any){
 
   if(reason){
     const pending=await createPending(supabase,session,person,enteredName,enteredPhone,reason);
-    return {status:pending.already?'ALREADY_PENDING':'PENDING',reason};
+    const status=pending.already?'ALREADY_PENDING':'PENDING';
+    await auditPublicCheckinResult(supabase,session,person,status,{reason,pendingId:pending.row?.id||null});
+    return {status,reason,pendingId:pending.row?.id||null};
   }
 
-  await insertPresence(supabase,session,person,enteredName,enteredPhone,{phoneAddedToProfile});
-  return {status:'CONFIRMED',phoneAddedToProfile};
+  const saved=await insertPresence(supabase,session,person,enteredName,enteredPhone,{phoneAddedToProfile});
+  if(!saved?.id) throw new Error('A presença não pôde ser confirmada no banco de dados.');
+  await auditPublicCheckinResult(supabase,session,person,'CONFIRMED',{presenceId:saved.id,phoneAddedToProfile});
+  return {status:'CONFIRMED',phoneAddedToProfile,presenceId:saved.id};
 }
 
 async function listPending(supabase:AnySupabase){

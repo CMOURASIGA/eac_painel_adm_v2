@@ -63,18 +63,20 @@ const MockPublicCheckinPage: React.FC = () => {
       const data = await action('PRESENCA_V2_PUBLIC_CHECKIN', { sessionId: session.id, personId: selected?.id || null, name: selected?.name || query, phone });
       const status = data.result?.status;
       if (status === 'CONFIRMED') {
+        const presenceId = String(data.result?.presenceId || '');
+        if (!presenceId) throw new Error('O servidor não confirmou a gravação da presença. Tente novamente.');
         const phoneAdded = Boolean(data.result?.phoneAddedToProfile);
-        setSession((current:any) => current ? ({
-          ...current,
-          people:(current.people||[]).map((person:any) => person.id === selected?.id ? {...person,alreadyPresent:true} : person),
-          confirmedCount:Number(current.confirmedCount||0)+1,
-        }) : current);
+        const refreshed = await action('PRESENCA_V2_GET_PUBLIC_SESSION', { token });
+        const refreshedSession = refreshed?.session;
+        const persisted = Boolean((refreshedSession?.people || []).find((person:any) => person.id === selected?.id)?.alreadyPresent);
+        if (!persisted) throw new Error('A presença não foi localizada após a gravação. Tente novamente ou procure o responsável.');
+        setSession(refreshedSession);
         setMessage(phoneAdded ? 'Presença confirmada e telefone incluído no cadastro.' : 'Presença confirmada nesta reunião.');
         setResultBanner({
           title: 'Presença confirmada',
           detail: phoneAdded
-            ? 'Seu registro foi gravado e o telefone informado foi incluído no cadastro porque estava ausente.'
-            : 'Seu registro foi gravado com sucesso nesta reunião.',
+            ? 'Seu registro foi gravado e verificado no banco. O telefone informado também foi incluído no cadastro.'
+            : 'Seu registro foi gravado e verificado com sucesso nesta reunião.',
           tone: 'success'
         });
       } else if (status === 'ALREADY_PRESENT') {
