@@ -1098,7 +1098,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
           <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden">
             <div className="blue-gradient px-6 md:px-8 py-5 text-white flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-100">Cadastro de Encontreiro</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-100">Montagem de Equipe</p>
                 <h3 className="text-xl md:text-2xl font-black">{formData.id ? 'Editar registro' : 'Novo registro'}</h3>
               </div>
               <button
