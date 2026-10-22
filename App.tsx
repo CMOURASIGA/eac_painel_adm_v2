@@ -375,7 +375,7 @@ const App: React.FC = () => {
     }
     if (currentView === 'encontreiros' && !allowed.includes('encontreiros')) {
       setCurrentView('dashboard');
-      showToast('Seu usuÃ¡rio nÃ£o possui acesso ao mÃ³dulo Cadastro de Encontreiro.', 'error');
+      showToast('Seu usuÃ¡rio nÃ£o possui acesso ao mÃ³dulo Montagem de Equipe.', 'error');
     }
   }, [currentView, user]);
 
