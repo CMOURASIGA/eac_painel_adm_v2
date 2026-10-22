@@ -1353,6 +1353,20 @@ async function analytics(supabase:AnySupabase){
   let totalPresent=0;
   let unlinkedConfirmedCount=0;
 
+  // A edição operacional vem da mesma fonte canônica usada pelo Pós.
+  const editionByPerson=new Map<string,number>();
+  const {data:editionRows,error:editionError}=await supabase.from('vw_presenca_pos_elegiveis')
+    .select('pessoa_id,edicao_operacional');
+  if(!editionError){
+    for(const row of editionRows||[]){
+      const personId=clean(row.pessoa_id);
+      const edition=Number(row.edicao_operacional||0);
+      if(personId&&edition) editionByPerson.set(personId,edition);
+    }
+  }else if(!['42P01','PGRST204','PGRST205'].includes(clean(editionError.code))){
+    throw editionError;
+  }
+
   for(const session of sessions){
     const eligible=await eligiblePeople(supabase,session);
     const confirmed=recordsBySession.get(session.id)||[];
@@ -1545,11 +1559,17 @@ async function analytics(supabase:AnySupabase){
         id:person.id,
         name:person.name,
         circle:person.circle||'',
+        edition:editionByPerson.get(clean(person.id))||0,
         eligibleSessions:0,
         present:0,
         absences:0,
         consecutiveAbsences:0,
         rate:0,
+        postEligible:0,
+        postPresent:0,
+        circleEligible:0,
+        circlePresent:0,
+        lastParticipationAt:null,
       };
 
       current.name=person.name||current.name;
@@ -1561,21 +1581,98 @@ async function analytics(supabase:AnySupabase){
         current.circle=circles.join(' | ');
       }
 
+      if(session.type==='POS_ENCONTRO_GERAL'){
+        current.postEligible+=1;
+        if(confirmedIds.has(person.id)) current.postPresent+=1;
+      }else if(session.type==='REUNIAO_DUPLA_TIOS'){
+        current.circleEligible+=1;
+        if(confirmedIds.has(person.id)) current.circlePresent+=1;
+      }
+
       current.eligibleSessions+=1;
       if(confirmedIds.has(person.id)){
         current.present+=1;
         current.consecutiveAbsences=0;
+        current.lastParticipationAt=session.scheduledAt||current.lastParticipationAt;
       }else{
         current.absences+=1;
         current.consecutiveAbsences+=1;
       }
       current.rate=current.eligibleSessions ? (current.present*100/current.eligibleSessions) : 0;
+      current.postRate=current.postEligible ? current.postPresent*100/current.postEligible : 0;
+      current.circleRate=current.circleEligible ? current.circlePresent*100/current.circleEligible : 0;
+      current.engagementRate=current.rate;
+      current.participationProfile=current.postPresent>0&&current.circlePresent>0
+        ? 'POS_E_CIRCULO'
+        : current.postPresent>0
+          ? 'SOMENTE_POS'
+          : current.circlePresent>0
+            ? 'SOMENTE_CIRCULO'
+            : 'SEM_PARTICIPACAO';
       peopleStats.set(person.id,current);
     }
   }
 
   const people=Array.from(peopleStats.values())
     .sort((a:any,b:any)=>String(a.name).localeCompare(String(b.name),'pt-BR'));
+
+  const generationMap=new Map<number,any>();
+  for(const person of people){
+    const edition=Number(person.edition||0);
+    if(!edition) continue;
+    const current=generationMap.get(edition)||{
+      edition,
+      adolescents:0,
+      active:0,
+      postEligible:0,
+      postPresent:0,
+      circleEligible:0,
+      circlePresent:0,
+      both:0,
+      onlyPost:0,
+      onlyCircle:0,
+      none:0,
+    };
+    current.adolescents+=1;
+    if(Number(person.present||0)>0) current.active+=1;
+    current.postEligible+=Number(person.postEligible||0);
+    current.postPresent+=Number(person.postPresent||0);
+    current.circleEligible+=Number(person.circleEligible||0);
+    current.circlePresent+=Number(person.circlePresent||0);
+    if(person.participationProfile==='POS_E_CIRCULO') current.both+=1;
+    else if(person.participationProfile==='SOMENTE_POS') current.onlyPost+=1;
+    else if(person.participationProfile==='SOMENTE_CIRCULO') current.onlyCircle+=1;
+    else current.none+=1;
+    generationMap.set(edition,current);
+  }
+  const generations=Array.from(generationMap.values())
+    .map((item:any)=>({
+      ...item,
+      activeRate:item.adolescents ? item.active*100/item.adolescents : 0,
+      postRate:item.postEligible ? item.postPresent*100/item.postEligible : 0,
+      circleRate:item.circleEligible ? item.circlePresent*100/item.circleEligible : 0,
+      engagementRate:(item.postEligible+item.circleEligible)
+        ? (item.postPresent+item.circlePresent)*100/(item.postEligible+item.circleEligible)
+        : 0,
+    }))
+    .sort((a:any,b:any)=>Number(a.edition)-Number(b.edition));
+
+  const engagementProfiles={
+    both:people.filter((p:any)=>p.participationProfile==='POS_E_CIRCULO').length,
+    onlyPost:people.filter((p:any)=>p.participationProfile==='SOMENTE_POS').length,
+    onlyCircle:people.filter((p:any)=>p.participationProfile==='SOMENTE_CIRCULO').length,
+    none:people.filter((p:any)=>p.participationProfile==='SEM_PARTICIPACAO').length,
+  };
+
+  const engagementLeaders=people
+    .filter((p:any)=>Number(p.present||0)>0)
+    .slice()
+    .sort((a:any,b:any)=>
+      Number(b.engagementRate||0)-Number(a.engagementRate||0)
+      || Number(b.present||0)-Number(a.present||0)
+      || String(a.name).localeCompare(String(b.name),'pt-BR')
+    )
+    .slice(0,20);
 
   const postTios=Array.from(postTiosStats.values()).map((group:any)=>({
     key:group.key,
@@ -1609,6 +1706,9 @@ async function analytics(supabase:AnySupabase){
     circlePresent:group.circlePresent,
     circleEligible:group.circleEligible,
     circleRate:group.circleEligible ? group.circlePresent*100/group.circleEligible : 0,
+    engagementRate:(group.postEligible+group.circleEligible)
+      ? (group.postPresent+group.circlePresent)*100/(group.postEligible+group.circleEligible)
+      : 0,
     people:Array.from(group.people.values()).map((person:any)=>({
       ...person,
       postRate:person.postEligible ? person.postPresent*100/person.postEligible : 0,
@@ -1633,6 +1733,9 @@ async function analytics(supabase:AnySupabase){
       .sort((a:any,b:any)=>String(a.label).localeCompare(String(b.label),'pt-BR')),
     postTios,
     tiosPerformance,
+    generations,
+    engagementProfiles,
+    engagementLeaders,
     sessionEvolution:evolution,
     people,
   };
