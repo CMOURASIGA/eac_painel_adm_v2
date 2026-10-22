@@ -32,3 +32,7 @@ Código investigado: `components/EncontreiroMontagemPanel.tsx`, branch `fix/mont
 
 ## Publicação programada
 Verificações solicitadas: **22/10/2026 às 16:00 (America/Sao_Paulo)** e, caso a primeira não conclua a publicação, **19:00**. Em ambas, a política de seis correções, os testes e a disponibilidade da plataforma continuam mandatórios. Nunca interpretar o agendamento como autorização para ignorar os gates.
+
+## Exceção expressa de publicação — 22/10/2026
+
+O responsável autorizou expressamente, nesta data, **uma publicação em produção** da versão consolidada da `develop`, apesar do lote inferior a seis correções verificadas e da ausência de execução completa de testes automatizados para o SHA final. A exceção é **pontual**, não revoga a política geral, nem autoriza publicações futuras sem os gates. Escopo: Montagem de Equipe, nomenclatura, pesquisa, indicadores, filtros e ficha de adultos homologados pelo responsável. Exigir confirmação do SHA publicado e do estado READY; se houver erro, declarar o bloqueio sem alegar sucesso.
