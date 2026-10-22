@@ -256,7 +256,38 @@ const MockPresenceAnalyticsPage: React.FC = () => {
                 </label>
               </div>
 
-              <div className="mt-4 overflow-x-auto">
+              <div className="mt-4 space-y-3 md:hidden">
+                {filteredPeople.map((person:any)=>(
+                  <article key={person.id} className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-black text-slate-900">{person.name}</p>
+                        <p className="mt-1 text-xs text-slate-500">EAC {person.edition||'?'} · {person.circle||'Sem círculo'}</p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-sky-50 px-3 py-1 text-sm font-black text-sky-700">{rate(person.engagementRate)}</span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <div className="rounded-xl bg-violet-50 p-3">
+                        <p className="text-[10px] font-black uppercase text-violet-700">Pós</p>
+                        <p className="mt-1 font-black text-violet-900">{person.postPresent}/{person.postEligible} · {rate(person.postRate)}</p>
+                      </div>
+                      <div className="rounded-xl bg-emerald-50 p-3">
+                        <p className="text-[10px] font-black uppercase text-emerald-700">Círculo</p>
+                        <p className="mt-1 font-black text-emerald-900">{person.circlePresent}/{person.circleEligible} · {rate(person.circleRate)}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid gap-2 text-xs text-slate-600">
+                      <p><strong className="text-slate-800">Última presença:</strong> {dateLabel(person.lastParticipationAt)}</p>
+                      <p><strong className="text-slate-800">Leitura:</strong> {person.participationProfile==='POS_E_CIRCULO'?'Pós + círculo':person.participationProfile==='SOMENTE_POS'?'Somente Pós':person.participationProfile==='SOMENTE_CIRCULO'?'Somente círculo':'Sem participação'}</p>
+                    </div>
+                  </article>
+                ))}
+                {filteredPeople.length===0 && <p className="rounded-2xl bg-slate-50 py-6 text-center text-sm text-slate-500">Nenhum adolescente encontrado com os filtros informados.</p>}
+              </div>
+
+              <div className="mt-4 hidden overflow-x-auto md:block">
                 <table className="w-full min-w-[980px] text-left text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
