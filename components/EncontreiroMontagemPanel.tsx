@@ -200,12 +200,30 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
         <div className="max-h-[70vh] overflow-y-auto p-5"><div className="grid gap-2 sm:grid-cols-2">{adults.map(a=><button type="button" onClick={()=>viewAdult(a)} key={a.id} className="rounded-xl border border-slate-200 p-3 text-left hover:border-blue-400"><p className="font-bold text-slate-900">{clean(a.nomeCompleto)}</p><p className="mt-1 text-xs text-slate-500">{clean(a.bairro)||'Bairro não informado'}{clean(a.celularWhatsapp)?` · ${clean(a.celularWhatsapp)}`:''}</p></button>)}</div>{adults.length===0&&<p className="py-8 text-center text-sm text-slate-500">Nenhum adulto classificado no cadastro.</p>}</div>
       </div>
     </div>}
-    {selectedAdult&&<div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/75 p-4" role="dialog" aria-modal="true" aria-label="Dados cadastrais do adulto">
-      <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
-        <div className="mb-4 flex items-start justify-between gap-3"><h4 className="text-xl font-bold">{clean(selectedAdult.nomeCompleto)}</h4><button type="button" onClick={()=>setSelectedAdult(null)} className="rounded-lg border px-3 py-1">Voltar à lista</button></div>
-        <div className="max-h-[65vh] overflow-y-auto space-y-2">
-          {Object.entries(selectedAdult).filter(([key,value])=> !/senha|token|hash|alergia|remedio|saude|alimentacaoEspecial|cpf|documento|responsavel|nascimento/i.test(key) && value!=null && typeof value!=='object' && clean(value)).map(([key,value])=><div className="grid gap-1 border-b py-2 sm:grid-cols-2" key={key}><span className="text-xs font-bold text-slate-500">{key.replace(/([A-Z])/g,' $1')}</span><span className="break-words text-sm">{clean(value)}</span></div>)}
-          <p className="text-xs text-slate-500">Dados sensíveis não são exibidos nesta consulta resumida.</p>
+    {selectedAdult&&<div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/70 p-3 sm:p-6" role="dialog" aria-modal="true" aria-label="Ficha do adulto">
+      <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-slate-50 shadow-2xl">
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-5 sm:px-7">
+          <div className="min-w-0">
+            <p className="mb-1 text-xs font-bold uppercase tracking-wider text-blue-700">Ficha cadastral</p>
+            <h4 className="break-words text-xl font-black text-slate-900 sm:text-2xl">{clean(selectedAdult.nomeCompleto)}</h4>
+            <div className="mt-3 flex flex-wrap gap-2"><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">Adulto</span><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">{clean(selectedAdult.status)||'Status não informado'}</span></div>
+          </div>
+          <button type="button" onClick={()=>setSelectedAdult(null)} aria-label="Voltar à lista de adultos" className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Voltar à lista</button>
+        </header>
+        <div className="min-h-0 overflow-y-auto p-4 sm:p-7">
+          {(()=>{
+            const a=selectedAdult as EncontreiroRecord & Record<string,unknown>;
+            const info=(label:string,value:unknown)=>clean(value)?<div className="min-w-0"><dt className="text-xs font-semibold text-slate-500">{label}</dt><dd className="mt-1 break-words text-sm font-semibold text-slate-900">{clean(value)}</dd></div>:null;
+            const answer=(value:unknown)=>value===true||value==='true'||norm(value)==='sim'?'Sim':value===false||value==='false'||norm(value)==='não'||norm(value)==='nao'?'Não':clean(value);
+            const section=(title:string,rows:React.ReactNode[])=>rows.some(Boolean)?<section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h5 className="mb-4 text-base font-black text-slate-900">{title}</h5><dl className="grid gap-x-5 gap-y-4 sm:grid-cols-2">{rows}</dl></section>:null;
+            return <div className="grid gap-4 md:grid-cols-2">
+              {section('Contato',[info('WhatsApp',a.celularWhatsapp),info('E-mail',a.email)])}
+              {section('Localização',[info('Bairro',a.bairro),info('Endereço',a.enderecoCompleto)])}
+              {section('Participação no EAC',[info('Paróquia onde fez o EAC',a.paroquiaFezEac),info('Já trabalhou em EAC?',answer(a.jaTrabalhouEac)),info('Já coordenou equipe?',answer(a.jaCoordenouEquipe)),info('Deseja trabalhar no próximo EAC?',a.desejaTrabalharProximoEac)])}
+              {section('Vivência pastoral',[info('Frequenta missas?',answer(a.frequentaMissas)),info('Onde frequenta?',a.ondeFrequentaMissas),info('Participa de movimento?',answer(a.participaMovimento)),info('Movimento ou paróquia',a.movimentoParoquia)])}
+              <div className="md:col-span-2">{section('Observações',[info('Observações gerais',a.observacoes),info('Sugestão do último encontro',a.sugestaoUltimoEncontro),info('Dica para o Pós',a.dicaPosEncontro)])||<div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">Nenhuma observação cadastrada.</div>}</div>
+            </div>;
+          })()}
         </div>
       </div>
     </div>}
