@@ -14,7 +14,7 @@ const pct=(value:any)=>{
 };
 const norm=(value:any)=>clean(value).trim().toLocaleLowerCase('pt-BR');
 
-export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
+export default function EncontreiroMontagemPanel({googleWebAppUrl,canEdit=false}:Props){
   const [records,setRecords]=useState<EncontreiroRecord[]>([]);
   const [analytics,setAnalytics]=useState<any>(null);
   const [encontros,setEncontros]=useState<any[]>([]);
@@ -24,6 +24,11 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
   const [loading,setLoading]=useState(true);
   const [message,setMessage]=useState('');
   const [showAdults,setShowAdults]=useState(false);
+  const [selectedAdult,setSelectedAdult]=useState<EncontreiroRecord|null>(null);
+  const [hasSearched,setHasSearched]=useState(false);
+  const [applied,setApplied]=useState({search:'',edition:'TODOS',engagement:'TODOS',experience:'TODOS'});
+  const [page,setPage]=useState(1);
+  const [historyLoading,setHistoryLoading]=useState(false);
   const [search,setSearch]=useState('');
   const [edition,setEdition]=useState('TODOS');
   const [engagement,setEngagement]=useState('TODOS');
@@ -48,7 +53,8 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
       const target=clean(meets[0]?.id);
       setSelectedEncontro(target);
 
-      const histories=new Map<string,HistoryItem[]>();
+      /* Histórico de equipes é consultado apenas após a primeira pesquisa. */
+      /* const histories=new Map<string,HistoryItem[]>();
       const allocated=new Set<string>();
       const settled=await Promise.all(meets.map(async(meet:any)=>{
         const res=await encontreirosService.listarComposicaoEquipe({encontroId:clean(meet.id)},{googleWebAppUrl});
@@ -70,7 +76,7 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
         }
       });
       setHistory(histories);
-      setCurrentAllocated(allocated);
+      setCurrentAllocated(allocated); */
     }catch(error:any){setMessage(error?.message||'Não foi possível carregar a central de montagem.');}
     setLoading(false);
   })(); },[googleWebAppUrl]);
@@ -87,7 +93,33 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
   })();},[selectedEncontro,googleWebAppUrl]);
 
   const adults=useMemo(()=>records.filter(r=>norm(r.classificacao)==='adulto').sort((a,b)=>clean(a.nomeCompleto).localeCompare(clean(b.nomeCompleto),'pt-BR')),[records]);
-  const adolescents=useMemo(()=>records.filter(r=>norm(r.classificacao)==='adolescente'),[records]);
+  const viewAdult=(record:EncontreiroRecord)=>{setSelectedAdult(record);};
+  const searchCandidates=async()=>{
+    setApplied({search,edition,engagement,experience});
+    setPage(1);
+    setHasSearched(true);
+    if(history.size>0)return;
+    setHistoryLoading(true);
+    try{
+      const pairs=await Promise.all(encontros.map(async meet=>({
+        meet,
+        result:await encontreirosService.listarComposicaoEquipe({encontroId:clean(meet.id)},{googleWebAppUrl})
+      })));
+      const histories=new Map<string,HistoryItem[]>();
+      for(const {meet,result} of pairs){
+        if(!result.success)continue;
+        for(const team of result.data?.equipes||[])for(const member of team.membros||[]){
+          const id=clean(member.encontreiroId||member.encontreiro_id);
+          if(!id)continue;
+          const h=histories.get(id)||[];
+          h.push({encontroId:clean(meet.id),encontro:clean(meet.nome||meet.titulo||meet.descricao),equipe:clean(team.nome)||'Equipe',funcao:clean(member.funcao)||'Membro'});
+          histories.set(id,h);
+        }
+      }
+      setHistory(histories);
+    }finally{setHistoryLoading(false);}
+  };
+  const clearSearch=()=>{setSearch('');setEdition('TODOS');setEngagement('TODOS');setExperience('TODOS');setHasSearched(false);setPage(1);};
   const recordByPerson=useMemo(()=>{
     const m=new Map<string,EncontreiroRecord>();
     records.forEach(r=>{if(clean(r.pessoaId))m.set(clean(r.pessoaId),r);});
@@ -100,14 +132,14 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
 
   const editions=Array.from(new Set(people.map((p:any)=>Number(p.edition||0)).filter(Boolean))).sort((a,b)=>a-b);
   const filtered=people.filter((p:any)=>{
-    const q=norm(search);
+    const q=norm(applied.search);
     if(q&&!norm(`${p.name} ${p.circle} ${p.bairro}`).includes(q))return false;
-    if(edition!=='TODOS'&&String(p.edition)!==edition)return false;
-    if(engagement==='ALTO'&&Number(p.engagementRate||0)<75)return false;
+    if(applied.edition!=='TODOS'&&String(p.edition)!==applied.edition)return false;
+    if(applied.engagement==='ALTO'&&Number(p.engagementRate||0)<75)return false;
     if(engagement==='MEDIO'&&(Number(p.engagementRate||0)<40||Number(p.engagementRate||0)>=75))return false;
     if(engagement==='BAIXO'&&Number(p.engagementRate||0)>=40)return false;
     if(engagement==='POS_CIRCULO'&&p.participationProfile!=='POS_E_CIRCULO')return false;
-    if(experience==='PRIMEIRA'&&p.history.length>0)return false;
+    if(applied.experience==='PRIMEIRA'&&p.history.length>0)return false;
     if(experience==='JA_TRABALHOU'&&p.history.length===0)return false;
     if(experience==='DISPONIVEL'&&p.allocated)return false;
     return true;
@@ -117,6 +149,9 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
   const allocatedCount=people.filter((p:any)=>p.allocated).length;
   const availableCount=Math.max(0,eligibleCount-allocatedCount);
   const firstOpportunity=people.filter((p:any)=>p.history.length===0).length;
+  const PAGE_SIZE=30;
+  const pageCount=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));
+  const visible=hasSearched?filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE):[];
   const selectedMeet=encontros.find(e=>clean(e.id)===selectedEncontro);
 
   if(loading)return <div className="rounded-[2rem] border border-slate-200 bg-white p-8 text-center text-sm font-bold text-slate-500">Carregando central de montagem...</div>;
@@ -125,7 +160,7 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
     <div className="rounded-[2.5rem] border border-blue-200 bg-blue-50 p-6 md:p-8">
       <p className="text-[10px] font-black uppercase tracking-widest text-blue-600">Planejamento do próximo encontro</p>
       <div className="mt-2 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div><h3 className="text-2xl font-black text-slate-900">Central de montagem</h3><p className="mt-2 max-w-3xl text-sm font-medium text-slate-600">Escolha adolescentes usando presença no Pós, reuniões de círculo e histórico real de equipes. Adultos permanecem disponíveis como base auxiliar.</p></div>
+        <div><h3 className="text-2xl font-black text-slate-900">Montagem de Equipe</h3><p className="mt-2 max-w-3xl text-sm font-medium text-slate-600">Escolha adolescentes usando presença no Pós, reuniões de círculo e histórico real de equipes. Adultos permanecem disponíveis como base auxiliar.</p></div>
         <label className="grid min-w-[260px] gap-1 text-[10px] font-black uppercase tracking-widest text-slate-500">Encontro em montagem
           <select value={selectedEncontro} onChange={e=>setSelectedEncontro(e.target.value)} className="rounded-2xl border-2 border-white bg-white px-4 py-3 text-sm font-bold normal-case tracking-normal text-slate-800">
             <option value="">Selecione</option>{encontros.map(e=><option key={clean(e.id)} value={clean(e.id)}>{clean(e.nome||e.titulo||e.descricao)}</option>)}
@@ -137,24 +172,28 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-[10px] font-black uppercase text-slate-500">Adolescentes analisados</p><p className="mt-1 text-3xl font-black text-slate-900">{eligibleCount}</p><p className="mt-1 text-xs text-slate-500">Base de engajamento disponível</p></div>
-      <button type="button" onClick={()=>setExperience('DISPONIVEL')} className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-blue-300"><p className="text-[10px] font-black uppercase text-slate-500">Disponíveis</p><p className="mt-1 text-3xl font-black text-emerald-700">{availableCount}</p><p className="mt-1 text-xs text-slate-500">Ainda não alocados em {clean(selectedMeet?.nome)||'este encontro'}</p></button>
+      <button type="button" onClick={()=>{setExperience('DISPONIVEL');setHasSearched(false);}} className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-blue-300"><p className="text-[10px] font-black uppercase text-slate-500">Disponíveis</p><p className="mt-1 text-3xl font-black text-emerald-700">{availableCount}</p><p className="mt-1 text-xs text-slate-500">Ainda não alocados em {clean(selectedMeet?.nome)||'este encontro'}</p></button>
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-[10px] font-black uppercase text-slate-500">Já alocados</p><p className="mt-1 text-3xl font-black text-blue-700">{allocatedCount}</p><p className="mt-1 text-xs text-slate-500">Em alguma equipe do encontro</p></div>
-      <button type="button" onClick={()=>setExperience('PRIMEIRA')} className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-violet-300"><p className="text-[10px] font-black uppercase text-slate-500">Primeira oportunidade</p><p className="mt-1 text-3xl font-black text-violet-700">{firstOpportunity}</p><p className="mt-1 text-xs text-slate-500">Sem histórico de equipe</p></button>
+      <button type="button" onClick={()=>{setExperience('PRIMEIRA');setHasSearched(false);}} className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-violet-300"><p className="text-[10px] font-black uppercase text-slate-500">Primeira oportunidade</p><p className="mt-1 text-3xl font-black text-violet-700">{firstOpportunity}</p><p className="mt-1 text-xs text-slate-500">Sem histórico de equipe</p></button>
       <button type="button" onClick={()=>setShowAdults(true)} className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-amber-300"><p className="text-[10px] font-black uppercase text-slate-500">Adultos cadastrados</p><p className="mt-1 text-3xl font-black text-amber-700">{adults.length}</p><p className="mt-1 text-xs font-bold text-amber-700">Clique para ver os nomes</p></button>
     </div>
 
     <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between"><div><h4 className="font-black text-slate-900">Banco de adolescentes para montagem</h4><p className="text-sm text-slate-500">Ordenado pelo maior engajamento objetivo. A decisão final continua sendo da equipe de montagem.</p></div><p className="text-sm font-black text-blue-700">{filtered.length} candidato(s) no filtro</p></div>
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between"><div><h4 className="font-black text-slate-900">Banco de adolescentes para montagem</h4><p className="text-sm text-slate-500">Ordenado pelo maior engajamento objetivo. A decisão final continua sendo da equipe de montagem.</p></div><p className="text-sm font-black text-blue-700">{hasSearched?`${filtered.length} candidato(s) no filtro`:'Defina os critérios e clique em Pesquisar'}</p></div>
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Nome, círculo ou bairro" className="rounded-xl border border-slate-300 px-3 py-3 text-sm xl:col-span-2"/>
         <select value={edition} onChange={e=>setEdition(e.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm"><option value="TODOS">Todos os EACs</option>{editions.map(e=><option key={e} value={String(e)}>EAC {e}</option>)}</select>
         <select value={engagement} onChange={e=>setEngagement(e.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm"><option value="TODOS">Todo engajamento</option><option value="POS_CIRCULO">Pós + círculo</option><option value="ALTO">Engajamento ≥ 75%</option><option value="MEDIO">Engajamento 40–74%</option><option value="BAIXO">Engajamento &lt; 40%</option></select>
         <select value={experience} onChange={e=>setExperience(e.target.value)} className="rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm"><option value="TODOS">Toda experiência</option><option value="DISPONIVEL">Disponíveis no encontro</option><option value="PRIMEIRA">Primeira oportunidade</option><option value="JA_TRABALHOU">Já trabalhou</option></select>
       </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button type="button" onClick={()=>{void searchCandidates();}} disabled={historyLoading} className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white disabled:opacity-50">{historyLoading?'Consultando histórico...':'Pesquisar'}</button>
+        <button type="button" onClick={clearSearch} className="rounded-xl border border-slate-200 px-6 py-3 text-sm font-bold text-slate-700">Limpar filtros</button>
+      </div>
     </div>
 
     <div className="grid gap-3 lg:grid-cols-2">
-      {filtered.map((p:any)=>{
+      {visible.map((p:any)=>{
         const repeated=p.history.length>=2&&p.history.slice(-2).every((h:HistoryItem)=>h.equipe===p.history[p.history.length-1]?.equipe);
         return <article key={p.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-black text-slate-900">{p.name}</p><p className="mt-1 text-xs text-slate-500">EAC {p.edition||'?'} · {p.circle||'Sem círculo'}{p.bairro?` · ${p.bairro}`:''}</p></div><span className={`shrink-0 rounded-full px-3 py-1 text-sm font-black ${p.allocated?'bg-blue-50 text-blue-700':'bg-emerald-50 text-emerald-700'}`}>{p.allocated?'Já alocado':pct(p.engagementRate)}</span></div>
@@ -162,13 +201,28 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
           <div className="mt-4 border-t border-slate-100 pt-3"><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Histórico de equipes</p>{p.history.length===0?<p className="mt-2 text-sm font-bold text-violet-700">Primeira oportunidade: ainda não trabalhou em equipe registrada.</p>:<div className="mt-2 flex flex-wrap gap-2">{p.history.slice(-4).map((h:HistoryItem,i:number)=><span key={i} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">{h.encontro} · {h.equipe}</span>)}</div>}{repeated&&<p className="mt-2 text-xs font-bold text-amber-700">Atenção: repetição recente da mesma equipe.</p>}</div>
         </article>;
       })}
-      {filtered.length===0&&<p className="lg:col-span-2 rounded-2xl bg-white p-8 text-center text-sm font-bold text-slate-500">Nenhum adolescente encontrado com esses critérios.</p>}
+      {hasSearched&&filtered.length===0&&<p className="lg:col-span-2 rounded-2xl bg-white p-8 text-center text-sm font-bold text-slate-500">Nenhum adolescente encontrado com esses critérios.</p>}
     </div>
+    {!hasSearched&&<p className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">Utilize os filtros e clique em Pesquisar para consultar candidatos.</p>}
+    {hasSearched&&pageCount>1&&<div className="flex items-center justify-center gap-3">
+      <button type="button" disabled={page===1} onClick={()=>setPage(v=>Math.max(1,v-1))} className="rounded-lg border px-4 py-2 disabled:opacity-50">Anterior</button>
+      <span className="text-sm font-bold">Página {page} de {pageCount}</span>
+      <button type="button" disabled={page===pageCount} onClick={()=>setPage(v=>Math.min(pageCount,v+1))} className="rounded-lg border px-4 py-2 disabled:opacity-50">Próxima</button>
+    </div>}
 
     {showAdults&&<div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/75 p-4 backdrop-blur-sm">
       <div className="max-h-[88vh] w-full max-w-3xl overflow-hidden rounded-[2rem] bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b p-5"><div><p className="text-[10px] font-black uppercase tracking-widest text-amber-600">Base auxiliar</p><h4 className="text-xl font-black text-slate-900">Adultos cadastrados ({adults.length})</h4></div><button type="button" onClick={()=>setShowAdults(false)} className="rounded-xl p-2 text-2xl font-black text-slate-500 hover:bg-slate-100">×</button></div>
-        <div className="max-h-[70vh] overflow-y-auto p-5"><div className="grid gap-2 sm:grid-cols-2">{adults.map(a=><div key={a.id} className="rounded-xl border border-slate-200 p-3"><p className="font-bold text-slate-900">{clean(a.nomeCompleto)}</p><p className="mt-1 text-xs text-slate-500">{clean(a.bairro)||'Bairro não informado'}{clean(a.celularWhatsapp)?` · ${clean(a.celularWhatsapp)}`:''}</p></div>)}</div>{adults.length===0&&<p className="py-8 text-center text-sm text-slate-500">Nenhum adulto classificado no cadastro.</p>}</div>
+        <div className="max-h-[70vh] overflow-y-auto p-5"><div className="grid gap-2 sm:grid-cols-2">{adults.map(a=><button type="button" onClick={()=>viewAdult(a)} key={a.id} className="rounded-xl border border-slate-200 p-3 text-left hover:border-blue-400"><p className="font-bold text-slate-900">{clean(a.nomeCompleto)}</p><p className="mt-1 text-xs text-slate-500">{clean(a.bairro)||'Bairro não informado'}{clean(a.celularWhatsapp)?` · ${clean(a.celularWhatsapp)}`:''}</p></button>)}</div>{adults.length===0&&<p className="py-8 text-center text-sm text-slate-500">Nenhum adulto classificado no cadastro.</p>}</div>
+      </div>
+    </div>}
+    {selectedAdult&&<div className="fixed inset-0 z-[140] flex items-center justify-center bg-slate-900/75 p-4" role="dialog" aria-modal="true" aria-label="Dados cadastrais do adulto">
+      <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+        <div className="mb-4 flex items-start justify-between gap-3"><h4 className="text-xl font-bold">{clean(selectedAdult.nomeCompleto)}</h4><button type="button" onClick={()=>setSelectedAdult(null)} className="rounded-lg border px-3 py-1">Voltar à lista</button></div>
+        <div className="max-h-[65vh] overflow-y-auto space-y-2">
+          {Object.entries(selectedAdult).filter(([key,value])=> !/senha|token|hash|alergia|remedio|saude|alimentacaoEspecial|cpf|documento|responsavel|nascimento/i.test(key) && value!=null && typeof value!=='object' && clean(value)).map(([key,value])=><div className="grid gap-1 border-b py-2 sm:grid-cols-2" key={key}><span className="text-xs font-bold text-slate-500">{key.replace(/([A-Z])/g,' $1')}</span><span className="break-words text-sm">{clean(value)}</span></div>)}
+          <p className="text-xs text-slate-500">Dados sensíveis não são exibidos nesta consulta resumida.</p>
+        </div>
       </div>
     </div>}
   </section>;
