@@ -14,7 +14,7 @@ const pct=(value:any)=>{
 };
 const norm=(value:any)=>clean(value).trim().toLocaleLowerCase('pt-BR');
 
-export default function EncontreiroMontagemPanel({googleWebAppUrl,canEdit=false}:Props){
+export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
   const [records,setRecords]=useState<EncontreiroRecord[]>([]);
   const [analytics,setAnalytics]=useState<any>(null);
   const [encontros,setEncontros]=useState<any[]>([]);
@@ -38,7 +38,7 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl,canEdit=false}
     setLoading(true); setMessage('');
     try{
       const [encRes,meetRes,analyticsRes]=await Promise.all([
-        encontreirosService.listar({}, {googleWebAppUrl}),
+        encontreirosService.listar({includeSensitive:false}, {googleWebAppUrl}),
         encontreirosService.listarEncontros({googleWebAppUrl}),
         postComunicadosAction<any>('PRESENCA_V2_GET_ANALYTICS',{}, {googleWebAppUrl}),
       ]);
@@ -53,30 +53,7 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl,canEdit=false}
       const target=clean(meets[0]?.id);
       setSelectedEncontro(target);
 
-      /* Histórico de equipes é consultado apenas após a primeira pesquisa. */
-      /* const histories=new Map<string,HistoryItem[]>();
-      const allocated=new Set<string>();
-      const settled=await Promise.all(meets.map(async(meet:any)=>{
-        const res=await encontreirosService.listarComposicaoEquipe({encontroId:clean(meet.id)},{googleWebAppUrl});
-        return {meet,res};
-      }));
-      settled.forEach(({meet,res})=>{
-        if(!res.success) return;
-        const meetId=clean(meet.id);
-        const meetName=clean(meet.nome||meet.titulo||meet.descricao)||'Encontro';
-        for(const team of (res.data?.equipes||[])){
-          for(const member of (team.membros||[])){
-            const id=clean(member.encontreiroId||member.encontreiro_id);
-            if(!id) continue;
-            const list=histories.get(id)||[];
-            list.push({encontroId:meetId,encontro:meetName,equipe:clean(team.nome)||'Equipe',funcao:clean(member.funcao)||'Membro'});
-            histories.set(id,list);
-            if(meetId===target) allocated.add(id);
-          }
-        }
-      });
-      setHistory(histories);
-      setCurrentAllocated(allocated); */
+      // Composições históricas são solicitadas ao pesquisar.
     }catch(error:any){setMessage(error?.message||'Não foi possível carregar a central de montagem.');}
     setLoading(false);
   })(); },[googleWebAppUrl]);
@@ -97,8 +74,8 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl,canEdit=false}
   const searchCandidates=async()=>{
     setApplied({search,edition,engagement,experience});
     setPage(1);
-    setHasSearched(true);
-    if(history.size>0)return;
+    setHasSearched(false);
+    if(history.size>0){setHasSearched(true);return;}
     setHistoryLoading(true);
     try{
       const pairs=await Promise.all(encontros.map(async meet=>({
@@ -117,7 +94,8 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl,canEdit=false}
         }
       }
       setHistory(histories);
-    }finally{setHistoryLoading(false);}
+    }catch{setMessage('Não foi possível consultar o histórico. Tente pesquisar novamente.');}
+    finally{setHistoryLoading(false);setHasSearched(true);}
   };
   const clearSearch=()=>{setSearch('');setEdition('TODOS');setEngagement('TODOS');setExperience('TODOS');setHasSearched(false);setPage(1);};
   const recordByPerson=useMemo(()=>{
