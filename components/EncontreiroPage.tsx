@@ -6,11 +6,12 @@ import { toCleanString } from '../utils/textEncoding.ts';
 import DataOriginAudit from './DataOriginAudit.tsx';
 import { encontreirosService } from '../services/encontreirosService.ts';
 import EquipesPorEncontroPanel from './EquipesPorEncontroPanel.tsx';
+import EncontreiroMontagemPanel from './EncontreiroMontagemPanel.tsx';
 
 interface EncontreiroPageProps {
   user: User;
   googleWebAppUrl: string;
-  initialView?: 'cadastros' | 'equipes';
+  initialView?: 'montagem' | 'cadastros' | 'equipes';
   initialFilters?: { sexo?: string; faixaEtaria?: string };
 }
 
@@ -283,10 +284,10 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
     dataFimFilter: '',
   });
   const [page, setPage] = useState(1);
-  const [activeView, setActiveView] = useState<'cadastros' | 'equipes'>(initialView);
+  const [activeView, setActiveView] = useState<'montagem' | 'cadastros' | 'equipes'>(initialView || 'montagem');
 
   useEffect(() => {
-    setActiveView(initialView);
+    setActiveView(initialView || 'montagem');
   }, [initialView]);
 
   const [showForm, setShowForm] = useState(false);
@@ -731,8 +732,8 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
     <div className="p-4 md:p-8 max-w-[100rem] mx-auto animate-in fade-in duration-500 pb-24 space-y-6">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <h2 className="text-3xl md:text-4xl font-black tracking-tight text-slate-900 leading-none">{activeView === 'cadastros' ? 'Cadastro de Encontreiros' : 'Equipes por encontro'}</h2>
-           <p className="text-slate-500 font-bold mt-2 text-sm">{activeView === 'cadastros' ? 'Gestao completa de encontreiros com indicadores e filtros.' : 'Organize integrantes por equipe, mantendo o histórico de cada encontro.'}</p>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tight text-slate-900 leading-none">{activeView === 'montagem' ? 'Montagem de Equipe' : activeView === 'cadastros' ? 'Cadastro de Encontreiros' : 'Equipes por encontro'}</h2>
+           <p className="text-slate-500 font-bold mt-2 text-sm">{activeView === 'montagem' ? 'Use presença, histórico e experiência para apoiar a montagem do próximo encontro.' : activeView === 'cadastros' ? 'Gestão completa de encontreiros com indicadores e filtros.' : 'Organize integrantes por equipe, mantendo o histórico de cada encontro.'}</p>
         </div>
         <div className="flex flex-wrap gap-3 w-full md:w-auto">
           {canCreate && (
@@ -760,10 +761,12 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
         </div>
       </header>
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
-        <button type="button" onClick={() => setActiveView('cadastros')} className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${activeView === 'cadastros' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Encontreiros</button>
+        <button type="button" onClick={() => setActiveView('montagem')} className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${activeView === 'montagem' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Montagem de Equipe</button>
+        <button type="button" onClick={() => setActiveView('cadastros')} className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${activeView === 'cadastros' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Banco de pessoas</button>
         <button type="button" onClick={() => setActiveView('equipes')} className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${activeView === 'equipes' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Equipes por encontro</button>
       </div>
 
+      {activeView === 'montagem' && <EncontreiroMontagemPanel googleWebAppUrl={googleWebAppUrl} canEdit={canEdit} />}
       {activeView === 'equipes' && <EquipesPorEncontroPanel records={records} googleWebAppUrl={googleWebAppUrl} canEdit={canEdit} />}
 
       {activeView === 'cadastros' && (<>
@@ -1095,7 +1098,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
           <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden">
             <div className="blue-gradient px-6 md:px-8 py-5 text-white flex items-center justify-between">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-100">Cadastro de Encontreiro</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-100">Montagem de Equipe</p>
                 <h3 className="text-xl md:text-2xl font-black">{formData.id ? 'Editar registro' : 'Novo registro'}</h3>
               </div>
               <button
