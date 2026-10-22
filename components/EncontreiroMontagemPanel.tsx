@@ -29,6 +29,7 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
   const [applied,setApplied]=useState({search:'',edition:'TODOS',engagement:'TODOS',experience:'TODOS'});
   const [page,setPage]=useState(1);
   const [historyLoading,setHistoryLoading]=useState(false);
+  const [historyLoaded,setHistoryLoaded]=useState(false);
   const [search,setSearch]=useState('');
   const [edition,setEdition]=useState('TODOS');
   const [engagement,setEngagement]=useState('TODOS');
@@ -75,7 +76,7 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
     setApplied({search,edition,engagement,experience});
     setPage(1);
     setHasSearched(false);
-    if(history.size>0){setHasSearched(true);return;}
+    if(historyLoaded){setHasSearched(true);return;}
     setHistoryLoading(true);
     try{
       const pairs=await Promise.all(encontros.map(async meet=>({
@@ -94,6 +95,7 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
         }
       }
       setHistory(histories);
+      setHistoryLoaded(true);
     }catch{setMessage('Não foi possível consultar o histórico. Tente pesquisar novamente.');}
     finally{setHistoryLoading(false);setHasSearched(true);}
   };
@@ -152,7 +154,7 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-[10px] font-black uppercase text-slate-500">Adolescentes analisados</p><p className="mt-1 text-3xl font-black text-slate-900">{eligibleCount}</p><p className="mt-1 text-xs text-slate-500">Base de engajamento disponível</p></div>
       <button type="button" onClick={()=>{setExperience('DISPONIVEL');setHasSearched(false);}} className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-blue-300"><p className="text-[10px] font-black uppercase text-slate-500">Disponíveis</p><p className="mt-1 text-3xl font-black text-emerald-700">{availableCount}</p><p className="mt-1 text-xs text-slate-500">Ainda não alocados em {clean(selectedMeet?.nome)||'este encontro'}</p></button>
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><p className="text-[10px] font-black uppercase text-slate-500">Já alocados</p><p className="mt-1 text-3xl font-black text-blue-700">{allocatedCount}</p><p className="mt-1 text-xs text-slate-500">Em alguma equipe do encontro</p></div>
-      <button type="button" onClick={()=>{setExperience('PRIMEIRA');setHasSearched(false);}} className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-violet-300"><p className="text-[10px] font-black uppercase text-slate-500">Primeira oportunidade</p><p className="mt-1 text-3xl font-black text-violet-700">{firstOpportunity}</p><p className="mt-1 text-xs text-slate-500">Sem histórico de equipe</p></button>
+      <button type="button" onClick={()=>{setExperience('PRIMEIRA');setHasSearched(false);}} className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-violet-300"><p className="text-[10px] font-black uppercase text-slate-500">Primeira oportunidade</p><p className="mt-1 text-3xl font-black text-violet-700">{historyLoaded?firstOpportunity:'–'}</p><p className="mt-1 text-xs text-slate-500">{historyLoaded?'Sem histórico de equipe':'Consulte os candidatos para calcular'}</p></button>
       <button type="button" onClick={()=>setShowAdults(true)} className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm hover:border-amber-300"><p className="text-[10px] font-black uppercase text-slate-500">Adultos cadastrados</p><p className="mt-1 text-3xl font-black text-amber-700">{adults.length}</p><p className="mt-1 text-xs font-bold text-amber-700">Clique para ver os nomes</p></button>
     </div>
 
