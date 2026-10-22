@@ -732,7 +732,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
     <div className="p-4 md:p-8 max-w-[100rem] mx-auto animate-in fade-in duration-500 pb-24 space-y-6">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-          <h2 className="text-3xl md:text-4xl font-black tracking-tight text-slate-900 leading-none">{activeView === 'montagem' ? 'Montagem e Encontreiros' : activeView === 'cadastros' ? 'Cadastro de Encontreiros' : 'Equipes por encontro'}</h2>
+          <h2 className="text-3xl md:text-4xl font-black tracking-tight text-slate-900 leading-none">{activeView === 'montagem' ? 'Montagem de Equipe' : activeView === 'cadastros' ? 'Cadastro de Encontreiros' : 'Equipes por encontro'}</h2>
            <p className="text-slate-500 font-bold mt-2 text-sm">{activeView === 'montagem' ? 'Use presença, histórico e experiência para apoiar a montagem do próximo encontro.' : activeView === 'cadastros' ? 'Gestão completa de encontreiros com indicadores e filtros.' : 'Organize integrantes por equipe, mantendo o histórico de cada encontro.'}</p>
         </div>
         <div className="flex flex-wrap gap-3 w-full md:w-auto">
@@ -761,7 +761,7 @@ const EncontreiroPage: React.FC<EncontreiroPageProps> = ({ user, googleWebAppUrl
         </div>
       </header>
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
-        <button type="button" onClick={() => setActiveView('montagem')} className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${activeView === 'montagem' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Montagem</button>
+        <button type="button" onClick={() => setActiveView('montagem')} className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${activeView === 'montagem' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Montagem de Equipe</button>
         <button type="button" onClick={() => setActiveView('cadastros')} className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${activeView === 'cadastros' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Banco de pessoas</button>
         <button type="button" onClick={() => setActiveView('equipes')} className={`px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest ${activeView === 'equipes' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600'}`}>Equipes por encontro</button>
       </div>
