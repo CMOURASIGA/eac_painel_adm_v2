@@ -116,12 +116,12 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
     if(q&&!norm(`${p.name} ${p.circle} ${p.bairro}`).includes(q))return false;
     if(applied.edition!=='TODOS'&&String(p.edition)!==applied.edition)return false;
     if(applied.engagement==='ALTO'&&Number(p.engagementRate||0)<75)return false;
-    if(engagement==='MEDIO'&&(Number(p.engagementRate||0)<40||Number(p.engagementRate||0)>=75))return false;
-    if(engagement==='BAIXO'&&Number(p.engagementRate||0)>=40)return false;
-    if(engagement==='POS_CIRCULO'&&p.participationProfile!=='POS_E_CIRCULO')return false;
+    if(applied.engagement==='MEDIO'&&(Number(p.engagementRate||0)<40||Number(p.engagementRate||0)>=75))return false;
+    if(applied.engagement==='BAIXO'&&Number(p.engagementRate||0)>=40)return false;
+    if(applied.engagement==='POS_CIRCULO'&&p.participationProfile!=='POS_E_CIRCULO')return false;
     if(applied.experience==='PRIMEIRA'&&p.history.length>0)return false;
-    if(experience==='JA_TRABALHOU'&&p.history.length===0)return false;
-    if(experience==='DISPONIVEL'&&p.allocated)return false;
+    if(applied.experience==='JA_TRABALHOU'&&p.history.length===0)return false;
+    if(applied.experience==='DISPONIVEL'&&p.allocated)return false;
     return true;
   }).sort((a:any,b:any)=>Number(b.engagementRate||0)-Number(a.engagementRate||0)||String(a.name).localeCompare(String(b.name),'pt-BR'));
 
