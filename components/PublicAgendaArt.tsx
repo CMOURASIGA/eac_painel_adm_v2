@@ -28,11 +28,11 @@ export default function PublicAgendaArt({month,year,events,format,style,kind,cal
      <div style={{fontSize:horizontal?23:47,color:highlight?'#f02a42':'#b6f527',fontWeight:1000,marginTop:7}}>{month.toUpperCase()} {year}</div>
    </div>
    <div style={{position:'relative',flex:1,display:'grid',gridTemplateColumns:eventColumns,gap:horizontal?9:19,alignContent:'start'}}>
-    {entries.map((event,index)=><section key={event.id} style={{background:'white',border:clean?'1px solid #bfd2e4':'none',minHeight:horizontal?66:kind==='evento'?300:format==='story'?195:185,display:'flex',overflow:'hidden',borderRadius:clean?17:5,transform:clean?'none':index%2?'rotate(1deg)':'rotate(-1deg)',boxShadow:clean?'none':'7px 8px 0 #173c6027'}}>
+    {entries.map((event,index)=><section key={event.id} style={{background:'white',border:clean?'1px solid #bfd2e4':'none',gridColumn:highlight&&index===0&&entries.length>1?'1 / -1':undefined,minHeight:horizontal?66:highlight&&index===0?270:kind==='evento'?300:format==='story'?195:185,display:'flex',overflow:'hidden',borderRadius:clean?17:5,transform:clean?'none':index%2?'rotate(1deg)':'rotate(-1deg)',boxShadow:clean?'none':'7px 8px 0 #173c6027'}}>
       <div style={{background:highlight?['#ffcb07','#ed3248','#08a57e','#ffcb07'][index%4]:['#e92738','#063f7c','#03896e','#ffcf12'][index%4],color:highlight&&index%4===0||index%4===3?'#10284e':'white',width:horizontal?63:112,minWidth:horizontal?63:112,display:'flex',justifyContent:'center',alignItems:'center',flexDirection:'column'}}>
-        <strong style={{fontSize:horizontal?33:55}}>{day(event.inicio)}</strong><span style={{fontSize:23,fontWeight:900}}>{weekDay(event.inicio)}</span>
+        <strong style={{fontSize:horizontal?33:highlight&&index===0?85:55}}>{day(event.inicio)}</strong><span style={{fontSize:23,fontWeight:900}}>{weekDay(event.inicio)}</span>
       </div>
-      <div style={{padding:horizontal?8:18,minWidth:0,alignSelf:'center'}}><strong style={{display:'block',fontSize:horizontal?18:kind==='evento'?36:27,lineHeight:1.12,overflowWrap:'anywhere'}}>{event.atividade}</strong><span style={{display:'block',fontSize:horizontal?13:21,fontWeight:700,marginTop:horizontal?3:13}}>◷ {when(event.inicio)}{event.termino?' - '+when(event.termino):''}</span></div>
+      <div style={{padding:horizontal?8:18,minWidth:0,alignSelf:'center'}}><strong style={{display:'block',fontSize:horizontal?18:highlight&&index===0?39:kind==='evento'?36:27,lineHeight:1.12,overflowWrap:'anywhere'}}>{event.atividade}</strong><span style={{display:'block',fontSize:horizontal?13:21,fontWeight:700,marginTop:horizontal?3:13}}>◷ {when(event.inicio)}{event.termino?' - '+when(event.termino):''}</span></div>
     </section>)}
     {entries.length===0&&<p style={{fontSize:32,background:'white',padding:25}}>Fique ligado! Novos eventos podem entrar na agenda.</p>}
    </div>
