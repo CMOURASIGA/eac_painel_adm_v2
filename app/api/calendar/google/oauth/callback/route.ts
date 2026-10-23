@@ -14,7 +14,8 @@ export async function GET(req:Request){
  const lhs=Buffer.from(state),rhs=Buffer.from(expected);
  if(!secret||!saved||saved!==state||lhs.length!==rhs.length||!timingSafeEqual(lhs,rhs))
    return NextResponse.json({success:false,error:'Estado OAuth inválido ou expirado.'},{status:403,headers:{'Cache-Control':'no-store'}});
- const redirect=new URL('/api/calendar/google/oauth/callback',req.url).toString();
+ const redirect=process.env.EAC_GOOGLE_OAUTH_REDIRECT_URI||'';
+ if(!redirect||new URL(redirect).origin!==url.origin)return NextResponse.json({success:false,error:'URI OAuth de retorno não corresponde ao ambiente.'},{status:403});
  const client=new google.auth.OAuth2(process.env.EAC_GOOGLE_CLIENT_ID,process.env.EAC_GOOGLE_CLIENT_SECRET,redirect);
  const code=url.searchParams.get('code');
  if(!code)return NextResponse.json({success:false,error:'Autorização Google não concluída.'},{status:400,headers:{'Cache-Control':'no-store'}});
