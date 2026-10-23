@@ -182,7 +182,15 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
     return ()=>{active=false;controller.abort();};
   },[year,month,user.email]);
 
-  const allEvents=useMemo(()=>[...internalEvents,...googleEvents],[internalEvents,googleEvents]);
+  const allEvents=useMemo(()=>{
+    const items=[...internalEvents];
+    const seen=new Set(internalEvents.map(e=>[toCleanString(e.atividade).toLocaleLowerCase('pt-BR'),String(e.inicio||'').slice(0,10)].join('|')));
+    for(const event of googleEvents) {
+      const key=[toCleanString(event.atividade).toLocaleLowerCase('pt-BR'),String(event.inicio||'').slice(0,10)].join('|');
+      if(!seen.has(key))items.push(event);
+    }
+    return items;
+  },[internalEvents,googleEvents]);
   const isParishEvent=(ev:CalendarEvent)=>String(ev.origemDado||ev.origem_dado||'').toUpperCase()==='GOOGLE_PAROQUIA';
 
   const changeMonth = (offset: number) => {
@@ -457,7 +465,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
           </div>
           <div className="grid grid-cols-7">{renderCalendar()}</div>
           </> : <div className="p-4 space-y-2">
-            {activeEvents.filter(ev=>calendarView==='lista'||Math.abs((getEventDateParts(ev.inicio)?.d||0)-selectedDay)<7).sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio))).map((ev,i)=><button key={ev.id||i} type="button" onClick={()=>setSelectedDay(getEventDateParts(ev.inicio)?.d||selectedDay)} className="w-full rounded-2xl border border-slate-200 p-4 text-left hover:border-blue-300">
+            {activeEvents.filter(ev=>calendarView==='lista'||(()=>{const first=new Date(year,month,selectedDay).getDate()-new Date(year,month,selectedDay).getDay();const d=getEventDateParts(ev.inicio)?.d||0;return d>=first&&d<first+7;})()).sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio))).map((ev,i)=><button key={ev.id||i} type="button" onClick={()=>setSelectedDay(getEventDateParts(ev.inicio)?.d||selectedDay)} className="w-full rounded-2xl border border-slate-200 p-4 text-left hover:border-blue-300">
               <div className="flex items-center gap-2"><span className="font-black text-slate-800">{toCleanString(ev.atividade)}</span><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${isParishEvent(ev)?'bg-amber-100 text-amber-800':'bg-blue-100 text-blue-800'}`}>{isParishEvent(ev)?'Paróquia':'EAC'}</span></div>
               <p className="mt-1 text-xs text-slate-500">{formatDateTime(ev.inicio)} · {toCleanString(ev.local)||'Local não informado'}</p>
             </button>)}
