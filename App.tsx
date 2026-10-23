@@ -10,6 +10,7 @@ import DispatchesPage from './components/DispatchesPage.tsx';
 import ComunicadosPage from './components/ComunicadosPage.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
 import CalendarPage from './components/CalendarPage.tsx';
+import PublicEacCalendar from './components/PublicEacCalendar.tsx';
 import UserManagementPage from './components/UserManagementPage.tsx';
 import MembersPage from './components/MembersPage.tsx';
 import InscricoesPrioritariasPage from './components/InscricoesPrioritariasPage.tsx';
@@ -617,6 +618,8 @@ const App: React.FC = () => {
       </div>
     );
   }
+
+  if (typeof window !== 'undefined' && ['/publico','/publico/calendario'].includes(window.location.pathname.replace(/\/+$/,'')||'/')) return <PublicEacCalendar />;
 
   if (!user) return (
     <>
