@@ -222,7 +222,7 @@ const Home: React.FC<HomeProps> = ({ user, onNavigate, lastSync, onRefresh, isLo
       { label: 'Encontreiro', desc: 'Formulário de cadastro', action: () => openExternal(`${origin}/encontreiro/form`) },
       { label: 'Presença', desc: 'Registro de presença', action: () => openExternal(`${origin}/presenca/form`) },
       { label: 'Banda do EAC', desc: 'Formulário de interesse', action: () => openExternal(`${origin}/banda/form`) },
-      { label: 'Compra de Camisas', desc: 'Loja oficial do EAC', action: () => openExternal('https://webappcamisa.vercel.app/') },
+      { label: 'Compra de Camisas', desc: 'Loja oficial do EAC', action: () => openExternal(`${origin}/publico/loja`) },
     ];
   }, []);
 
