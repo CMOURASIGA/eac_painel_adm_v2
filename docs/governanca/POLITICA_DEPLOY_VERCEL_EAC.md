@@ -36,3 +36,7 @@ Verificações solicitadas: **22/10/2026 às 16:00 (America/Sao_Paulo)** e, caso
 ## Exceção expressa de publicação — 22/10/2026
 
 O responsável autorizou expressamente, nesta data, **uma publicação em produção** da versão consolidada da `develop`, apesar do lote inferior a seis correções verificadas e da ausência de execução completa de testes automatizados para o SHA final. A exceção é **pontual**, não revoga a política geral, nem autoriza publicações futuras sem os gates. Escopo: Montagem de Equipe, nomenclatura, pesquisa, indicadores, filtros e ficha de adultos homologados pelo responsável. Exigir confirmação do SHA publicado e do estado READY; se houver erro, declarar o bloqueio sem alegar sucesso.
+
+
+## Regra de entrega integral antes do Preview (23/10/2026)
+Uma funcionalidade iniciada deve ser tratada como entrega **vertical completa**: interfaces, integrações externas, sessão e autorização, tratamento de erros, configuração, migração/credenciais, documentação, testes e roteiro de homologação. Não classificar como concluída enquanto a jornada real de ponta a ponta não puder ser exercitada. Consolidar as mudanças numa única janela de deploy após verificações locais/CI; manter o gate anterior de seis correções verificadas ou exceção explícita, e evitar deploys intermediários apenas para inspecionar interface. Dependências que exigem ação externa do operador devem ser identificadas no início, sem prometer validação integral antes delas. Não usar as cotas diárias da Vercel para testes evitáveis de código.
