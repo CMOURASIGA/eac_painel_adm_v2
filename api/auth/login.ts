@@ -27,6 +27,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (calendarRoute === 'events') return googleRead(req,res);
   if (calendarRoute === 'start') return oauthStart(req,res);
   if (calendarRoute === 'callback') return oauthCallback(req,res);
+  if (calendarRoute === 'logout') {
+    if(req.method!=='POST')return send(res,405,{success:false,error:'METHOD_NOT_ALLOWED'});
+    res.setHeader('Set-Cookie','eac_auth_token=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+    return send(res,200,{success:true});
+  }
   if (req.method !== 'POST') return send(res, 405, { success: false, error: 'Metodo nao permitido.' });
 
   try {
@@ -89,6 +94,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     };
 
+    const accessToken=signIn.data.session?.access_token;
+    const expiresIn=Math.min(Math.max(Number(signIn.data.session?.expires_in||3600),60),3600);
+    if(!accessToken)return send(res,500,{success:false,error:'AUTH_SESSION_UNAVAILABLE'});
+    res.setHeader('Cache-Control','no-store');
+    res.setHeader('Set-Cookie',`eac_auth_token=${encodeURIComponent(accessToken)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${expiresIn}`);
     return send(res, 200, { success: true, user });
   } catch (e: any) {
     return send(res, 500, { success: false, error: e?.message || 'Erro interno.' });
