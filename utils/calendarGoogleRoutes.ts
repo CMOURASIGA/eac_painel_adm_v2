@@ -20,17 +20,27 @@ export async function googleRead(req:NextApiRequest,res:NextApiResponse){
  const year=Number(req.query.year),month=Number(req.query.month);
  if(!Number.isInteger(year)||year<2020||year>2100||!Number.isInteger(month)||month<1||month>12)return res.status(400).json({success:false,error:'INVALID_PERIOD'});
  const {EAC_GOOGLE_CLIENT_ID:id,EAC_GOOGLE_CLIENT_SECRET:secret,EAC_GOOGLE_REFRESH_TOKEN:refresh,EAC_PAROQUIA_CALENDAR_ID:calendarId}=process.env;
+ const accountCalendarId=process.env.EAC_GOOGLE_EAC_CALENDAR_ID||'primary';
  if(!id||!secret||!refresh||!calendarId)return res.status(503).json({success:false,error:'NOT_CONFIGURED'});
  try{
  const oauth=new google.auth.OAuth2(id,secret);oauth.setCredentials({refresh_token:refresh});
- const client=google.calendar({version:'v3',auth:oauth});const events:any[]=[];let pageToken:string|undefined;
- do{
- const result=await client.events.list({calendarId,timeMin:new Date(Date.UTC(year,month-1,1)).toISOString(),timeMax:new Date(Date.UTC(year,month,1)).toISOString(),maxResults:2500,singleEvents:true,showDeleted:false,pageToken});
- for(const e of result.data.items||[]){if(e.status==='cancelled'||!e.start)continue;const start=e.start.dateTime||(e.start.date?e.start.date+'T12:00:00':null);if(!start)continue;
- events.push({id:'google:'+e.id,atividade:e.summary||'Evento da paróquia',tipo:'Paróquia',inicio:start,termino:e.end?.dateTime||(e.end?.date?e.end.date+'T12:00:00':start),local:e.location||'',status:'Confirmado',origemDado:'GOOGLE_PAROQUIA',googleReadOnly:true});}
- pageToken=result.data.nextPageToken||undefined;
- }while(pageToken&&events.length<10000);
+ const client=google.calendar({version:'v3',auth:oauth});const events:any[]=[];
+ for(const source of [{id:calendarId,origin:'GOOGLE_PAROQUIA',label:'Paróquia'},{id:accountCalendarId,origin:'GOOGLE_EAC',label:'Google EAC'}]){
+  let pageToken:string|undefined;let received=0;
+  do{
+   const result=await client.events.list({calendarId:source.id,timeMin:new Date(Date.UTC(year,month-1,1)).toISOString(),timeMax:new Date(Date.UTC(year,month,1)).toISOString(),maxResults:2500,singleEvents:true,showDeleted:false,pageToken});
+   for(const e of result.data.items||[]){
+    if(e.status==='cancelled'||!e.start)continue;
+    const start=e.start.dateTime||(e.start.date?e.start.date+'T12:00:00':null);
+    if(!start)continue;
+    events.push({id:'google:'+source.origin+':'+e.id,atividade:e.summary||'Evento sem título',tipo:source.label,inicio:start,termino:e.end?.dateTime||(e.end?.date?e.end.date+'T12:00:00':start),local:e.location||'',status:'Confirmado',origemDado:source.origin,googleReadOnly:true});
+    received++;
+   }
+   pageToken=result.data.nextPageToken||undefined;
+  }while(pageToken&&received<10000);
+ }
  return res.status(200).json({success:true,enabled:true,events});
+
  }catch{return res.status(502).json({success:false,error:'Falha na consulta Google Calendar'});}
 }
 
