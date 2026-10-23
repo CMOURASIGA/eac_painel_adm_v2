@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, View } from '../types.ts';
 import Badge from './Badge.tsx';
+import {NAVIGATION_GROUPS} from '../utils/navigationRoadmap.ts';
 import { sanitizeTextDeep, toCleanString } from '../utils/textEncoding.ts';
 
 interface UserManagementPageProps {
@@ -304,6 +305,17 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentUser, go
                   </div>
                 </div>
 
+                {formData.perfil === 'Simples' && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                  <strong className="block mb-2">Revisão de acessos não administradores</strong>
+                  <p>As permissões abaixo ainda utilizam o cadastro legado. As rotinas novas do EAC precisam de permissões persistidas no Supabase antes de serem atribuídas a usuários. Não habilite acesso contando apenas com opções desta tela.</p>
+                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                    {NAVIGATION_GROUPS.map(group=><div key={group.id} className="rounded-lg border border-amber-100 bg-white p-2">
+                      <strong className="text-xs">{group.label}</strong>
+                      <div className="mt-1 text-xs text-slate-600">{group.items.map(item=>item.label).join(' · ')}</div>
+                    </div>)}
+                  </div>
+                  <p className="mt-2 text-xs font-semibold">A configuração granular desses módulos está em revisão. Nenhum acesso novo é concedido por este quadro.</p>
+                </div>}
                 <div className="space-y-4">
                   <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em] border-b pb-2">Acesso a Módulos</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
