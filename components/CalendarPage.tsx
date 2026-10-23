@@ -227,6 +227,8 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
   const originColor=(ev:CalendarEvent)=>isParishEvent(ev)?'bg-orange-500':isEacGoogleEvent(ev)?'bg-emerald-600':'bg-blue-600';
   const originSoft=(ev:CalendarEvent)=>isParishEvent(ev)?'bg-orange-50 text-orange-800':isEacGoogleEvent(ev)?'bg-emerald-50 text-emerald-800':'bg-blue-50 text-blue-800';
 
+  const goToday = () => { const now=new Date();setCurrentDate(new Date(now.getFullYear(),now.getMonth(),1));setSelectedDay(now.getDate());setExpandedDays([]); };
+
   const changeMonth = (offset: number) => {
     setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + offset, 1));
     setSelectedDay(1);
@@ -453,6 +455,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
           <svg className="w-6 h-6 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7"/></svg>
         </button>
         <div className="text-center">
+          <button type="button" onClick={goToday} className="mb-1 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-800 hover:bg-blue-100">Hoje</button>
           <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tighter">{MONTH_NAMES[month]} <span className="text-blue-600 ml-1">{year}</span></h3>
           <div className="flex items-center justify-center gap-1.5 mt-2">
              <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`}></div>
@@ -648,7 +651,11 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
               }
             </div>
             
-            <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between">
+            <div className="mt-5 border-t border-slate-100 pt-4" aria-label="Resumo do mês por origem">
+              <p className="mb-2 text-xs font-black text-slate-800">Resumo do mês</p>
+              {([{label:'EAC',color:'bg-blue-600',count:activeEvents.filter(ev=>!isExternalEvent(ev)).length},{label:'Paróquia',color:'bg-orange-500',count:activeEvents.filter(isParishEvent).length},{label:'Google EAC',color:'bg-emerald-600',count:activeEvents.filter(isEacGoogleEvent).length}]).map(entry=><div key={entry.label} className="flex items-center gap-2 py-1.5 text-xs text-slate-700"><span className={`h-2.5 w-2.5 rounded-full ${entry.color}`}></span><span className="flex-1">{entry.label}</span><strong>{entry.count}</strong></div>)}
+            </div>
+            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Base de Dados EAC</span>
                <span className="text-[10px] font-black text-blue-600">{activeEvents.length} Atividades no Mês</span>
             </div>
