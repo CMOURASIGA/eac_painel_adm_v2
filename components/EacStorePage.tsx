@@ -1,7 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {createClient} from '@supabase/supabase-js';
 type Product={id:string;name:string;description:string|null;price:number;image_url:string|null;active:boolean;sort_order:number};
-const url=import.meta.env.VITE_SUPABASE_URL||'',anon=import.meta.env.VITE_SUPABASE_ANON_KEY||'';
+const url=(import.meta as any).env?.VITE_SUPABASE_URL||'',anon=(import.meta as any).env?.VITE_SUPABASE_ANON_KEY||'';
 const db=url&&anon?createClient(url,anon):null;
 export default function EacStorePage(){
  const [products,setProducts]=useState<Product[]>([]),[error,setError]=useState(''),[loading,setLoading]=useState(true);
