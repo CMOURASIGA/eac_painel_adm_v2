@@ -62,6 +62,10 @@ const formatDateTime = (value: any) => {
 
 export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProps) {
   const [internalEvents, setInternalEvents] = useState<CalendarEvent[]>([]);
+  const [googleEvents,setGoogleEvents] = useState<CalendarEvent[]>([]);
+  const [googleStatus,setGoogleStatus] = useState('');
+  const [sourceFilter,setSourceFilter] = useState<'Todos'|'EAC'|'Paróquia'>('Todos');
+  const [calendarView,setCalendarView] = useState<'mes'|'semana'|'lista'>('mes');
   const [currentDate, setCurrentDate] = useState(() => {
     try {
       const saved = localStorage.getItem(CALENDAR_MONTH_STORAGE_KEY);
@@ -153,6 +157,34 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
     }
   }, [currentDate]);
 
+  useEffect(()=>{
+    let active=true;
+    const controller=new AbortController();
+    (async()=>{
+      try {
+        const response=await fetch(`/api/calendar/google?year=${year}&month=${month+1}`,{
+          headers:{'x-eac-user-email':user.email||''},
+          signal:controller.signal,
+        });
+        const result=await response.json();
+        if(!active)return;
+        if(!response.ok||!result.success) {
+          setGoogleEvents([]);
+          setGoogleStatus(result.error||'Agenda paroquial indisponível');
+          return;
+        }
+        setGoogleEvents(Array.isArray(result.events)?result.events:[]);
+        setGoogleStatus(result.enabled?'Agenda paroquial sincronizada':'Integração Google ainda não ativada');
+      }catch{
+        if(active){setGoogleEvents([]);setGoogleStatus('Agenda paroquial indisponível');}
+      }
+    })();
+    return ()=>{active=false;controller.abort();};
+  },[year,month,user.email]);
+
+  const allEvents=useMemo(()=>[...internalEvents,...googleEvents],[internalEvents,googleEvents]);
+  const isParishEvent=(ev:CalendarEvent)=>String(ev.origemDado||ev.origem_dado||'').toUpperCase()==='GOOGLE_PAROQUIA';
+
   const changeMonth = (offset: number) => {
     setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + offset, 1));
     setSelectedDay(1);
@@ -166,23 +198,25 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
   };
 
   const activeEvents = useMemo(() => {
-    return internalEvents.filter(ev => {
+    return allEvents.filter(ev => {
+      if(sourceFilter==='EAC'&&isParishEvent(ev))return false;
+      if(sourceFilter==='Paróquia'&&!isParishEvent(ev))return false;
       const parts = getEventDateParts(ev.inicio);
       if (!parts || parts.y !== year || parts.m !== month) return false;
       const statusOk = statusFilter === 'Todos' || normalizeStatus(ev.status) === statusFilter;
       const tipoOk = tipoFilter === 'Todos' || toCleanString(ev.tipo) === tipoFilter;
       return statusOk && tipoOk;
     });
-  }, [internalEvents, year, month, statusFilter, tipoFilter]);
+  }, [allEvents, year, month, statusFilter, tipoFilter, sourceFilter]);
 
   const availableStatuses = useMemo(() => {
     const set = new Set<string>(['Confirmado', 'Agendado', 'A confirmar']);
-    internalEvents.forEach((ev) => {
+    allEvents.forEach((ev) => {
       const v = normalizeStatus(ev.status);
       if (v) set.add(v);
     });
     return ['Todos', ...Array.from(set)];
-  }, [internalEvents]);
+  }, [allEvents]);
 
   const availableTipos = useMemo(() => {
     const set = new Set<string>();
@@ -299,16 +333,16 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
     const totalDays = new Date(year, month + 1, 0).getDate();
     const startDay = new Date(year, month, 1).getDay();
     const days = [];
-    for (let i = 0; i < startDay; i++) days.push(<div key={`empty-${i}`} className="h-16 md:h-32 border border-slate-50 bg-slate-50/20"></div>);
+    for (let i = 0; i < startDay; i++) days.push(<div key={`empty-${i}`} className="h-14 md:h-24 border border-slate-50 bg-slate-50/20"></div>);
     for (let day = 1; day <= totalDays; day++) {
       const dayEvs = activeEvents.filter(ev => getEventDateParts(ev.inicio)?.d === day);
       const isToday = new Date().getDate() === day && new Date().getMonth() === month && new Date().getFullYear() === year;
       days.push(
-        <div key={day} onClick={() => setSelectedDay(day)} className={`h-16 md:h-32 border border-slate-100 p-2 transition-all cursor-pointer relative ${selectedDay === day ? 'bg-blue-50/50 ring-2 ring-blue-500 z-10' : 'hover:bg-slate-50'}`}>
+        <div key={day} onClick={() => setSelectedDay(day)} className={`h-14 md:h-24 border border-slate-100 p-2 transition-all cursor-pointer relative ${selectedDay === day ? 'bg-blue-50/50 ring-2 ring-blue-500 z-10' : 'hover:bg-slate-50'}`}>
           <span className={`text-[10px] md:text-xs font-black flex items-center justify-center w-6 h-6 rounded-full ${isToday ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400'}`}>{day}</span>
           <div className="hidden md:block mt-2 space-y-1">
                 {dayEvs.slice(0, 3).map((ev, idx) => (
-              <div key={idx} className={`text-[8px] p-1.5 rounded-lg font-black truncate text-white shadow-sm transition-transform hover:scale-105 ${getEventTypeColor(ev.tipo)}`}>
+              <div key={idx} className={`text-[8px] p-1.5 rounded-lg font-black truncate text-white shadow-sm transition-transform hover:scale-105 ${isParishEvent(ev)?'bg-amber-600':getEventTypeColor(ev.tipo)}`}>
                 {toCleanString(ev.atividade)}
               </div>
             ))}
@@ -406,18 +440,33 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         </div>
       </div>
 
+      <div className="bg-white border-x border-slate-200 px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Visualização do calendário">
+          {(['mes','semana','lista'] as const).map(v=><button key={v} type="button" onClick={()=>setCalendarView(v)} aria-pressed={calendarView===v} className={`px-4 py-2 rounded-xl text-xs font-black ${calendarView===v?'bg-blue-700 text-white':'bg-slate-100 text-slate-700'}`}>{v==='mes'?'Mês':v==='semana'?'Semana':'Lista'}</button>)}
+        </div>
+        <label className="text-xs font-bold text-slate-600">Origem <select aria-label="Filtrar origem" value={sourceFilter} onChange={e=>setSourceFilter(e.target.value as typeof sourceFilter)} className="ml-2 rounded-xl border border-slate-200 bg-white px-3 py-2"><option>Todos</option><option>EAC</option><option>Paróquia</option></select></label>
+        <p className="w-full text-xs text-slate-500" role="status">{googleStatus}</p>
+      </div>
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-grow bg-white rounded-b-[2.5rem] border border-slate-200 overflow-hidden shadow-2xl shadow-slate-200/5">
+          {calendarView==='mes' ? <>
           <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-900">
             {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
               <div key={d} className="py-5 text-center text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">{d}</div>
             ))}
           </div>
           <div className="grid grid-cols-7">{renderCalendar()}</div>
+          </> : <div className="p-4 space-y-2">
+            {activeEvents.filter(ev=>calendarView==='lista'||Math.abs((getEventDateParts(ev.inicio)?.d||0)-selectedDay)<7).sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio))).map((ev,i)=><button key={ev.id||i} type="button" onClick={()=>setSelectedDay(getEventDateParts(ev.inicio)?.d||selectedDay)} className="w-full rounded-2xl border border-slate-200 p-4 text-left hover:border-blue-300">
+              <div className="flex items-center gap-2"><span className="font-black text-slate-800">{toCleanString(ev.atividade)}</span><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${isParishEvent(ev)?'bg-amber-100 text-amber-800':'bg-blue-100 text-blue-800'}`}>{isParishEvent(ev)?'Paróquia':'EAC'}</span></div>
+              <p className="mt-1 text-xs text-slate-500">{formatDateTime(ev.inicio)} · {toCleanString(ev.local)||'Local não informado'}</p>
+            </button>)}
+            {activeEvents.length===0&&<p className="py-10 text-center text-sm text-slate-500">Nenhum evento encontrado.</p>}
+          </div>}
         </div>
 
         <div className="w-full lg:w-[400px] space-y-6">
-          <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm min-h-[500px] flex flex-col">
+          <div className="bg-white rounded-[2.5rem] p-6 border border-slate-200 shadow-sm min-h-[300px] flex flex-col">
             <div className="flex items-center gap-4 mb-8 pb-6 border-b border-slate-100">
                <div className="bg-blue-100 text-blue-700 w-14 h-14 rounded-[1.5rem] flex items-center justify-center font-black text-2xl shadow-inner shadow-blue-200/50">
                  {selectedDay}
@@ -430,7 +479,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
             
             <div className="space-y-4 flex-grow overflow-y-auto max-h-[600px] pr-2 scrollbar-hide">
              {selectedDayEvents.length === 0 ? (
-                <div className="text-center py-24 bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-100">
+                <div className="text-center py-12 bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-100">
                    <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em] italic">Agenda Livre</p>
                 </div>
               ) : selectedDayEvents.map((ev, i) => (
@@ -441,7 +490,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                         {toCleanString(ev.tipo)}
                       </div>
                       <div className="flex gap-2">
-                         {canEdit && (
+                         {canEdit && !isParishEvent(ev) && (
                            <button
                              onClick={() => {
                                setFormData({ ...ev });
@@ -453,7 +502,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" strokeWidth="3"/></svg>
                            </button>
                          )}
-                         {canDelete && (
+                         {canDelete && !isParishEvent(ev) && (
                            <button 
                              onClick={() => { void handleDeleteEvent(ev); }}
                              className="p-2 rounded-xl transition-all shadow-sm text-red-500 hover:bg-white"
