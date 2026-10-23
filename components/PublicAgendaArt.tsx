@@ -14,17 +14,17 @@ export default function PublicAgendaArt({month,year,events,format,style,kind,cal
  const limit=kind==='evento'?1:kind==='semana'?5:format==='square'?4:format==='story'?7:6;
  const qr=qrcode(0,'M');qr.addData(calendarUrl);qr.make();const qrData=qr.createDataURL(4,2);
  const entries=events.slice(0,limit);
- return <div style={{width,height,background:clean?'#f3f7ff':highlight?'#08447d':'#c79a63',fontFamily:'Arial,sans-serif',padding:48,boxSizing:'border-box',display:'flex',flexDirection:'column',gap:24,color:'#101d32',overflow:'hidden',position:'relative'}}>
+ return <div style={{width,height,background:clean?'#f3f7ff':highlight?'#08447d':'#b98a5b',fontFamily:'Arial,sans-serif',padding:48,boxSizing:'border-box',display:'flex',flexDirection:'column',gap:24,color:'#101d32',overflow:'hidden',position:'relative'}}>
    <div style={{position:'absolute',inset:0,opacity:clean?0.02:highlight?0.17:0.11,backgroundImage:'radial-gradient(#112f56 1.5px,transparent 1.5px)',backgroundSize:'18px 18px',pointerEvents:'none'}}/>
-   <header style={{position:'relative',display:'flex',justifyContent:'space-between',alignItems:'center',background:'white',padding:23,borderRadius:clean?22:4,transform:clean?'none':'rotate(-1deg)'}}>
-     <div><div style={{fontSize:76,fontWeight:1000,color:'#063f7c',lineHeight:1}}>EAC</div><div style={{fontSize:23,fontWeight:900}}>PORCIÚNCULA DE SANT'ANNA</div></div><span style={{padding:'19px 25px',fontSize:27,fontWeight:900,color:'#10284e',background:'#ffca0c'}}>VIVA O EAC!<br/>FAÇA ACONTECER!</span>
+   <header style={{position:'relative',display:'flex',justifyContent:'space-between',alignItems:'center',background:'white',padding:23,borderRadius:clean?22:4,boxShadow:clean?'none':'10px 13px 0 #132a4429',transform:clean?'none':'rotate(-1deg)'}}>
+     <div><div style={{fontSize:76,fontWeight:1000,color:'#063f7c',lineHeight:1}}>EAC</div><div style={{fontSize:23,fontWeight:900}}>PORCIÚNCULA DE SANT'ANNA</div></div><span style={{padding:'19px 25px',fontSize:27,fontWeight:900,color:'#10284e',background:'#ffca0c',transform:'rotate(-4deg)'}}>VIVA O EAC!<br/>FAÇA ACONTECER!</span>
    </header>
    <div style={{background:highlight?'#ffcb07':'#083c78',color:highlight?'#09264e':'white',textAlign:'center',padding:'30px 10px',transform:clean?'none':'rotate(-1.1deg)',position:'relative'}}>
      <div style={{fontSize:79,fontWeight:1000,lineHeight:1.04}}>{kind==='mes'?'AGENDA EAC':kind==='semana'?'ESSA SEMANA NO EAC':'NÃO PERCA!'}</div>
      <div style={{fontSize:47,color:highlight?'#f02a42':'#b6f527',fontWeight:1000,marginTop:7}}>{month.toUpperCase()} {year}</div>
    </div>
    <div style={{position:'relative',flex:1,display:'grid',gridTemplateColumns:kind==='evento'||format==='story'?'1fr':'1fr 1fr',gap:19,alignContent:'start'}}>
-    {entries.map((event,index)=><section key={event.id} style={{background:'white',minHeight:kind==='evento'?240:145,display:'flex',overflow:'hidden',borderRadius:clean?17:5,boxShadow:clean?'none':'7px 8px 0 #173c6027'}}>
+    {entries.map((event,index)=><section key={event.id} style={{background:'white',minHeight:kind==='evento'?240:145,display:'flex',overflow:'hidden',borderRadius:clean?17:5,transform:clean?'none':index%2?'rotate(1deg)':'rotate(-1deg)',boxShadow:clean?'none':'7px 8px 0 #173c6027'}}>
       <div style={{background:highlight?['#ffcb07','#ed3248','#08a57e','#ffcb07'][index%4]:['#e92738','#063f7c','#03896e','#ffcf12'][index%4],color:highlight&&index%4===0||index%4===3?'#10284e':'white',width:112,minWidth:112,display:'flex',justifyContent:'center',alignItems:'center',flexDirection:'column'}}>
         <strong style={{fontSize:55}}>{day(event.inicio)}</strong><span style={{fontSize:23,fontWeight:900}}>{weekDay(event.inicio)}</span>
       </div>
