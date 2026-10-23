@@ -172,7 +172,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         if(!active)return;
         if(!response.ok||!result.success) {
           setGoogleEvents([]);
-          setGoogleStatus(result.error||'Agenda paroquial indisponível');
+          setGoogleStatus(result.error==='GOOGLE_AUTH_SESSION_MISSING'?'Sessão Google ausente. Saia do painel e faça login com uma conta habilitada no Supabase.':result.error==='GOOGLE_AUTH_SERVER_CONFIG_MISSING'?'Integração Google indisponível: verifique as configurações do servidor.':result.error||'Agenda paroquial indisponível');
           return;
         }
         setGoogleEvents(Array.isArray(result.events)?result.events:[]);
