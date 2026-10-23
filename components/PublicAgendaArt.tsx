@@ -1,4 +1,5 @@
 import React from 'react';
+import qrcode from 'qrcode-generator';
 export type PublicArtFormat='feed'|'story'|'square';
 export type PublicArtStyle='colagem'|'clean'|'destaque';
 export type PublicArtKind='mes'|'semana'|'evento';
@@ -11,6 +12,7 @@ export default function PublicAgendaArt({month,year,events,format,style,kind,cal
  const clean=style==='clean', highlight=style==='destaque';
  const width=1080,height=format==='story'?1920:format==='square'?1080:1350;
  const limit=kind==='evento'?1:kind==='semana'?5:format==='square'?4:format==='story'?7:6;
+ const qr=qrcode(0,'M');qr.addData(calendarUrl);qr.make();const qrData=qr.createDataURL(4,2);
  const entries=events.slice(0,limit);
  return <div style={{width,height,background:clean?'#f3f7ff':highlight?'#08447d':'#c79a63',fontFamily:'Arial,sans-serif',padding:48,boxSizing:'border-box',display:'flex',flexDirection:'column',gap:24,color:'#101d32',overflow:'hidden',position:'relative'}}>
    <div style={{position:'absolute',inset:0,opacity:clean?0.02:highlight?0.17:0.11,backgroundImage:'radial-gradient(#112f56 1.5px,transparent 1.5px)',backgroundSize:'18px 18px',pointerEvents:'none'}}/>
@@ -33,7 +35,7 @@ export default function PublicAgendaArt({month,year,events,format,style,kind,cal
    <div style={{position:'relative',padding:'23px',background:'#ffcc0d',textAlign:'center',fontSize:26,fontWeight:900}}>✨ FIQUE LIGADO! NOVOS EVENTOS PODEM ENTRAR NA AGENDA!</div>
    <div style={{position:'relative',background:'#0d172c',color:'white',padding:'25px 28px',display:'flex',alignItems:'center',gap:15,justifyContent:'space-between'}}>
       <div style={{fontWeight:1000,fontSize:33}}>NÃO FIQUE DE FORA!<br/><span style={{color:'#ffcf12'}}>MARQUE NA AGENDA<br/>E CHAME A GALERA!</span><div style={{fontSize:21,marginTop:19}}>ACOMPANHE: @eacporciunculadesantana</div><div style={{fontSize:17,marginTop:10,overflowWrap:'anywhere'}}>{calendarUrl}</div></div>
-      <img src="/mascote-eac.png" alt="" style={{maxHeight:230,maxWidth:205,objectFit:'contain'}}/>
+      <div style={{display:'flex',alignItems:'center',gap:14}}><img src={qrData} alt="QR Code da agenda pública" style={{width:140,height:140,background:'white',padding:7}}/><img src="/mascote-eac.png" alt="" style={{maxHeight:210,maxWidth:170,objectFit:'contain'}}/></div>
    </div>
  </div>;
 }
