@@ -16,7 +16,7 @@ import {
   signIn,
   signOut,
   updateOrderStatus,
-} from '../services/api';
+} from '../services/dashboardGateway';
 import type { DashboardOrder, DashboardSummaryRow, StockRow } from '../types/api';
 
 const ENCONTRO_ID = import.meta.env.VITE_EAC_ENCONTRO_ID || '57a08fa1-29e9-4c35-ab34-eb187f79b13a';
@@ -485,7 +485,7 @@ export default function Dashboard() {
   };
 
   if (authenticated === null) return <div className="min-h-screen bg-background p-8">Carregando...</div>;
-  if (!authenticated) return <Login onLogged={() => setAuthenticated(true)} />;
+  if (!authenticated) return <div role="alert" className="mx-auto max-w-xl rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-950">Acesso à gestão de camisas não autorizado pela sessão EAC. Entre novamente no painel e confira suas permissões. A operação da loja permanece protegida.</div>;
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-7">
