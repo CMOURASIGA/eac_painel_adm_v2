@@ -1,0 +1,32 @@
+/* Identidade visual isolada da loja original; nenhum fluxo de compra é alterado. */
+.eac-store-original {
+  --color-primary:#0f4c81;
+  --color-primary-dark:#0b3b64;
+  --color-primary-light:#e6eff7;
+  --color-accent:#ff4e00;
+  --color-background:#f4f7fa;
+  --color-surface:#fff;
+  --color-text-main:#1a1c1e;
+  --color-text-muted:#6c757d;
+  --color-border-color:#e0e4e9;
+  --color-success:#28a745;
+  --color-danger:#dc3545;
+  --color-warning:#ffc107;
+  font-family:Arial,Helvetica,sans-serif;
+  color:var(--color-text-main);
+  background-color:var(--color-background);
+}
+.eac-store-original .bg-background{background-color:var(--color-background)}
+.eac-store-original .bg-primary{background-color:var(--color-primary)}
+.eac-store-original .bg-primary-dark{background-color:var(--color-primary-dark)}
+.eac-store-original .bg-primary-light{background-color:var(--color-primary-light)}
+.eac-store-original .bg-surface{background-color:var(--color-surface)}
+.eac-store-original .bg-accent{background-color:var(--color-accent)}
+.eac-store-original .text-primary{color:var(--color-primary)}
+.eac-store-original .text-primary-dark{color:var(--color-primary-dark)}
+.eac-store-original .text-text-main{color:var(--color-text-main)}
+.eac-store-original .text-text-muted{color:var(--color-text-muted)}
+.eac-store-original .border-border-color{border-color:var(--color-border-color)}
+.eac-store-original .text-danger{color:var(--color-danger)}
+.eac-store-original .bg-danger{background-color:var(--color-danger)}
+.eac-store-original input,.eac-store-original textarea,.eac-store-original select{font:inherit}
