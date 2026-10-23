@@ -7,7 +7,7 @@ async function call(action:string,args:Record<string,unknown>={},mutate=false){
  return json.data;
 }
 export async function getSession(){const r=await fetch('/api/eac-store/gateway?action=stock',{credentials:'same-origin'});return r.ok?{access_token:'eac-session'}:null}
-export async function signIn(){throw new Error('Use o login do EAC para acessar a loja.')}
+export async function signIn(_email:string,_password:string){throw new Error('Use o login do EAC para acessar a loja.')}
 export async function signOut(){return}
 export async function fetchDashboardSummary(encontroId:string):Promise<DashboardSummaryRow[]>{return call('summary',{encontroId})}
 export async function fetchOrders(encontroId:string):Promise<DashboardOrder[]>{return call('orders',{encontroId})}
