@@ -237,7 +237,9 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
     if (!dateVal) return null;
     const d = new Date(dateVal);
     if (isNaN(d.getTime())) return null;
-    return { y: d.getFullYear(), m: d.getMonth(), d: d.getDate() };
+    const parts = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(d);
+    const get=(type:string)=>Number(parts.find(p=>p.type===type)?.value||0);
+    return {y:get('year'),m:get('month')-1,d:get('day')};
   };
 
   const activeEvents = useMemo(() => {
@@ -272,7 +274,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
   }, [internalEvents]);
 
   const selectedDayEvents = useMemo(() => {
-    return activeEvents.filter(ev => getEventDateParts(ev.inicio)?.d === selectedDay);
+    return activeEvents.filter(ev => getEventDateParts(ev.inicio)?.d === selectedDay).sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio)));
   }, [activeEvents, selectedDay]);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -501,7 +503,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         )}
       </div>
       <div className="flex flex-col lg:flex-row gap-4">
-        <div className="flex-grow bg-white rounded-b-[2.5rem] border border-slate-200 overflow-hidden shadow-2xl shadow-slate-200/5">
+        <div className="min-w-0 flex-grow bg-white rounded-b-[2.5rem] border border-slate-200 overflow-hidden shadow-2xl shadow-slate-200/5">
           {calendarView==='mes' ? <>
           <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-900">
             {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
@@ -524,7 +526,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                     </button>
                     <div className="space-y-2 p-1.5">
                       {dayEvents.map((ev,i)=><button type="button" key={ev.id||i} onClick={()=>setSelectedDay(date.getDate())} className={`block w-full rounded-lg p-2 text-left text-white shadow-sm ${originColor(ev)}`}>
-                        <span className="block text-[10px] font-bold">{new Date(ev.inicio).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>
+                        <span className="block text-[10px] font-bold">{new Date(ev.inicio).toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'})}</span>
                         <span className="mt-1 block break-words text-[11px] font-bold leading-tight">{toCleanString(ev.atividade)}</span>
                         <span className="mt-1 block text-[9px] opacity-90">{originLabel(ev)}</span>
                       </button>)}
@@ -576,7 +578,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                   <div key={i} className={`p-3 rounded-2xl border transition-all hover:shadow-md flex flex-col gap-4 bg-slate-50/30 group relative overflow-hidden`}>
                     <div className={`absolute top-0 left-0 w-1.5 h-full ${originColor(ev)}`}></div>
                     <div className="flex justify-between items-start">
-                      <div className={`px-4 py-1.5 rounded-full text-[9px] font-black text-white uppercase tracking-widest shadow-sm ${getEventTypeColor(ev.tipo)}`}>
+                      <div className={`px-3 py-1 rounded-full text-[9px] font-black text-white uppercase tracking-widest shadow-sm ${originColor(ev)}`}>
                         {originLabel(ev)}
                       </div>
                       <div className="flex gap-2">
@@ -617,7 +619,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                       </div>
                       <div className="flex items-center text-slate-400 gap-4">
                          <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">📍</span> {toCleanString(ev.local) || 'Paróquia'}</p>
-                         <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">ðŸ•’</span> {new Date(ev.inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                         <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">ðŸ•’</span> {new Date(ev.inicio).toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'})}</p>
                          {toCleanString(ev.encontroId) && (
                            <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">#</span> {toCleanString(ev.encontroId)}</p>
                          )}
