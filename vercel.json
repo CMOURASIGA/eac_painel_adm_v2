@@ -4,6 +4,18 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/calendar/google/oauth/start",
+      "destination": "/api/auth/login?eac_google_route=start"
+    },
+    {
+      "source": "/api/calendar/google/oauth/callback",
+      "destination": "/api/auth/login?eac_google_route=callback"
+    },
+    {
+      "source": "/api/calendar/google",
+      "destination": "/api/auth/login?eac_google_route=events"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/"
     }
