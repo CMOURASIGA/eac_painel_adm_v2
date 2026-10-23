@@ -1,3 +1,4 @@
+import {googlePublication} from '../../utils/googlePublication.js';
 import { googleRead, oauthStart, oauthCallback } from '../../utils/calendarGoogleRoutes.js';
 ﻿import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
@@ -27,6 +28,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (calendarRoute === 'events') return googleRead(req, res);
   if (calendarRoute === 'start') return oauthStart(req, res);
   if (calendarRoute === 'callback') return oauthCallback(req, res);
+  if (calendarRoute === 'publication') return googlePublication(req,res);
   if (req.method !== 'POST') return send(res, 405, { success: false, error: 'Metodo nao permitido.' });
 
   try {
