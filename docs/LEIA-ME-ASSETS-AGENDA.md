@@ -1,3 +1,13 @@
+## Situação real dos assets — 23/10/2026
+
+Já existem no repositório público `CMOURASIGA/webappcalendariopublicoeac` os arquivos `public/assets/eac/logo-eac.png` (selo oficial) e `public/assets/eac/menina-eac.png` (personagem). O gerador na develop passou a usar diretamente essas URLs, sem criar imagens falsas.
+
+A personagem é uma ilustração de uma jovem, **não** a fotografia duotone de vários jovens prevista originalmente neste documento. O layout foi adaptado à ilustração, que deve ser aprovada visualmente no PNG exportado.
+
+As quatro fontes WOFF2 listadas abaixo ainda não foram incluídas; o código usa fontes de reserva. Recomenda-se hospedar futuramente os assets no mesmo projeto para evitar dependência do GitHub Raw e validar CORS/exportação html2canvas.
+
+---
+
 # Arte da Agenda EAC: o que precisa existir no projeto
 
 Os dois arquivos `.tsx` já estão prontos. O visual do folder de referência depende de
