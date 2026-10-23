@@ -12,8 +12,8 @@ type Props={month:string;year:number;events:E[];format:PublicArtFormat;style:Pub
 /* Veja o arquivo LEIA-ME-ASSETS.md para a lista e as medidas.         */
 /* ------------------------------------------------------------------ */
 export const ART_ASSETS={
-  seal:'/assets/eac/selo-eac.png',               // selo redondo "Encontro de Adolescentes com Cristo" (PNG transparente)
-  photo:'/assets/eac/foto-jovens-duotone.jpg',   // foto dos jovens já em duotone azul (o html2canvas NÃO aplica filtros CSS)
+  seal:'https://raw.githubusercontent.com/CMOURASIGA/webappcalendariopublicoeac/main/public/assets/eac/logo-eac.png',               // selo redondo "Encontro de Adolescentes com Cristo" (PNG transparente)
+  photo:'https://raw.githubusercontent.com/CMOURASIGA/webappcalendariopublicoeac/main/public/assets/eac/menina-eac.png',   // foto dos jovens já em duotone azul (o html2canvas NÃO aplica filtros CSS)
 };
 const FONT_BASE='/assets/eac/fonts';
 const FONT_CSS=`
@@ -129,11 +129,11 @@ export default function PublicAgendaArt({month,year,events,format,style,kind,cal
   const [line1,line2]=kind==='mes'?['AGENDA','EAC']:kind==='semana'?['SEMANA','NO EAC']:['NÃO','PERCA!'];
   const shape=(p:string)=>t.torn?p:RECT;
   const showPhoto=t.photo;
-  const photoH=S.wide?'100%':'46%';
+  const photoH=S.wide?'75%':'32%';
 
   const photo=showPhoto?<>
-    <Img src={ART_ASSETS.photo} style={{position:'absolute',left:0,right:0,bottom:0,width:'100%',height:photoH,objectFit:'cover',objectPosition:'center top'}}/>
-    <div style={{position:'absolute',left:0,right:0,bottom:0,height:photoH,background:S.wide?'rgba(7,28,64,.72)':`linear-gradient(to bottom,${t.bg} 0%,rgba(0,0,0,0) 38%)`}}/>
+    <Img src={ART_ASSETS.photo} style={{position:'absolute',right:0,bottom:0,width:S.wide?'30%':'38%',height:photoH,objectFit:'contain',objectPosition:'right bottom'}}/>
+
   </>:null;
 
   const wordmark=(size:number)=><div style={{color:C.navy}}>
