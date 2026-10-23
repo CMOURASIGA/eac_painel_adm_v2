@@ -639,7 +639,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col text-slate-900 overflow-x-hidden">
       <MockEnvironmentBanner />
-      <Header user={user} onLogout={() => { setUser(null); localStorage.removeItem('eac_user'); }} onNavigate={handleNavigate} currentView={currentView} />
+      <Header user={user} onLogout={() => { void fetch('/api/auth/logout',{method:'POST',credentials:'same-origin',keepalive:true}); setUser(null); localStorage.removeItem('eac_user'); }} onNavigate={handleNavigate} currentView={currentView} />
       <main className="flex-grow pt-[72px] bg-slate-50 relative">
         {currentView === 'dashboard' && (
           <Home user={user} onNavigate={handleNavigate} lastSync={lastSync} onRefresh={fetchSpreadsheetData} isLoading={isLoadingSheet} />
