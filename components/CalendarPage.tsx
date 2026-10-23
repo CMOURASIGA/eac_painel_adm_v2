@@ -68,6 +68,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
   const [sourceFilter,setSourceFilter] = useState<'Todos'|'EAC'|'Paróquia'|'Google EAC'>('Todos');
   const [calendarView,setCalendarView] = useState<'mes'|'semana'|'lista'>('mes');
   const [expandedDays,setExpandedDays] = useState<number[]>([]);
+  const [expandedDetail,setExpandedDetail] = useState<string|null>(null);
   const [currentDate, setCurrentDate] = useState(() => {
     try {
       const saved = localStorage.getItem(CALENDAR_MONTH_STORAGE_KEY);
@@ -515,30 +516,52 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
           </div>
           <div className="grid grid-cols-7">{renderCalendar()}</div>
           </> : calendarView==='semana' ? (
-            <div className="overflow-x-auto">
-              <div className="min-w-[720px] grid grid-cols-7 divide-x divide-slate-100 border-t border-slate-100" aria-label="Calendário semanal em sete colunas">
-                {Array.from({length:7},(_,idx)=>{
-                  const selected=new Date(year,month,selectedDay);
-                  const date=new Date(selected.getFullYear(),selected.getMonth(),selected.getDate()-selected.getDay()+idx);
-                  const visible=date.getMonth()===month&&date.getFullYear()===year;
-                  const dayEvents=activeEvents.filter(ev=>getEventDateParts(ev.inicio)?.d===date.getDate()&&visible).sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio)));
-                  return <div key={idx} className={`min-h-[380px] bg-white ${visible&&date.getDate()===selectedDay?'bg-blue-50/40':''}`}>
-                    <button type="button" className="sticky top-0 w-full border-b border-slate-100 bg-slate-50 px-2 py-3 text-center" onClick={()=>{if(visible)setSelectedDay(date.getDate());}}>
-                      <span className="block text-[10px] font-bold uppercase text-slate-500">{['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][idx]}</span>
-                      <span className={`mx-auto mt-1 flex h-9 w-9 items-center justify-center rounded-full text-sm font-black ${visible&&date.getDate()===selectedDay?'bg-blue-600 text-white':'text-slate-800'}`}>{date.getDate()}</span>
-                    </button>
-                    <div className="space-y-2 p-1.5">
-                      {dayEvents.map((ev,i)=><button type="button" key={ev.id||i} onClick={()=>setSelectedDay(date.getDate())} className={`block w-full rounded-lg p-2 text-left text-white shadow-sm ${originColor(ev)}`}>
-                        <span className="block text-[10px] font-bold">{new Date(ev.inicio).toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'})}</span>
-                        <span className="mt-1 block break-words text-[11px] font-bold leading-tight">{toCleanString(ev.atividade)}</span>
-                        <span className="mt-1 block text-[9px] opacity-90">{originLabel(ev)}</span>
-                      </button>)}
-                      {dayEvents.length===0&&<p className="pt-4 text-center text-[10px] text-slate-400">Sem eventos</p>}
-                    </div>
-                  </div>;
-                })}
+          <div>
+            <div className="md:hidden flex gap-1 p-2 border-b border-slate-100" aria-label="Dias da semana">
+              {Array.from({length:7},(_,i)=>{
+                const selected=new Date(year,month,selectedDay);
+                const d=new Date(year,month,selectedDay-selected.getDay()+i);
+                const inMonth=d.getMonth()===month;
+                return <button key={i} disabled={!inMonth} type="button" onClick={()=>setSelectedDay(d.getDate())} className={`flex-1 rounded-lg py-2 text-xs font-bold ${inMonth&&d.getDate()===selectedDay?'bg-blue-600 text-white':'bg-slate-100 text-slate-700'} disabled:opacity-40`}>{['D','S','T','Q','Q','S','S'][i]}<span className="block">{d.getDate()}</span></button>;
+              })}
+            </div>
+            <div className="md:hidden divide-y divide-slate-100 p-3">
+              {activeEvents.filter(ev=>getEventDateParts(ev.inicio)?.d===selectedDay).sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio))).map((ev,i)=><div key={ev.id||i} className="flex gap-3 py-3">
+                <span className="w-12 shrink-0 text-xs font-bold">{new Date(ev.inicio).toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'})}</span>
+                <span className={`w-1 rounded-full ${originColor(ev)}`}></span><span className="flex-1 text-sm font-semibold">{toCleanString(ev.atividade)}<span className={`block w-fit rounded-full px-2 py-1 text-[10px] ${originSoft(ev)}`}>{originLabel(ev)}</span></span>
+              </div>)}
+              {!activeEvents.some(ev=>getEventDateParts(ev.inicio)?.d===selectedDay)&&<p className="p-5 text-center text-sm text-slate-500">Sem eventos neste dia.</p>}
+            </div>
+            <div className="hidden md:block overflow-x-auto" aria-label="Calendário semanal com escala de horários">
+              <div className="min-w-[770px]">
+                <div className="grid grid-cols-[50px_repeat(7,minmax(0,1fr))] border-b border-slate-200">
+                  <div className="bg-slate-50"></div>
+                  {Array.from({length:7},(_,i)=>{
+                    const selected=new Date(year,month,selectedDay),d=new Date(year,month,selectedDay-selected.getDay()+i),valid=d.getMonth()===month;
+                    return <button type="button" key={i} disabled={!valid} onClick={()=>setSelectedDay(d.getDate())} className={`border-l border-slate-100 py-3 text-center text-xs font-bold ${valid&&d.getDate()===selectedDay?'bg-blue-50 text-blue-700':'bg-slate-50'}`}>{['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][i]} {d.getDate()}/{d.getMonth()+1}{!valid&&<small className="block text-[9px] text-slate-400">Fora do mês</small>}</button>;
+                  })}
+                </div>
+                <div className="grid grid-cols-[50px_repeat(7,minmax(0,1fr))]">
+                  <div className="relative h-[960px] border-r border-slate-200 bg-slate-50">
+                    {Array.from({length:16},(_,i)=><span key={i} className="absolute right-1 text-[10px] text-slate-500" style={{top:i*60}}>{String(i+7).padStart(2,'0')}:00</span>)}
+                  </div>
+                  {Array.from({length:7},(_,i)=>{
+                    const selected=new Date(year,month,selectedDay),d=new Date(year,month,selectedDay-selected.getDay()+i),valid=d.getMonth()===month;
+                    const events=valid?activeEvents.filter(ev=>getEventDateParts(ev.inicio)?.d===d.getDate()):[];
+                    return <div key={i} className={`relative h-[960px] border-r border-slate-100 ${valid?'':'bg-slate-100/60'}`} style={{backgroundImage:'repeating-linear-gradient(to bottom,transparent 0,transparent 59px,#e2e8f0 59px,#e2e8f0 60px)'}}>
+                      {events.map((ev,j)=>{
+                        const clock=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(ev.inicio));
+                        const [h,m]=clock.split(':').map(Number);
+                        const same=events.filter(other=>new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(other.inicio))===clock);
+                        const pos=same.indexOf(ev),width=100/same.length;
+                        return <button key={ev.id||j} type="button" onClick={()=>setSelectedDay(d.getDate())} title={`${clock}: ${toCleanString(ev.atividade)} — ${originLabel(ev)}`} style={{top:Math.min(920,Math.max(0,(h-7)*60+m)),left:`${pos*width}%`,width:`${width}%`}} className={`absolute z-10 min-h-9 overflow-hidden rounded-md border border-white p-1 text-left text-[10px] text-white shadow-sm ${originColor(ev)}`}><strong>{clock}</strong><span className="block break-words leading-tight">{toCleanString(ev.atividade)}</span></button>;
+                      })}
+                    </div>;
+                  })}
+                </div>
               </div>
             </div>
+          </div>
           ) : (
           <div className="divide-y divide-slate-100 p-3 md:p-4">
             {Array.from(new Set(activeEvents.map(ev=>String(ev.inicio).slice(0,10)))).sort().map(dateKey=>{
@@ -578,8 +601,15 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                    <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em] italic">Agenda Livre</p>
                 </div>
               ) : selectedDayEvents.map((ev, i) => (
-                  <div key={i} className={`p-3 rounded-2xl border transition-all hover:shadow-md flex flex-col gap-4 bg-slate-50/30 group relative overflow-hidden`}>
-                    <div className={`absolute top-0 left-0 w-1.5 h-full ${originColor(ev)}`}></div>
+                  <div key={ev.id||i} className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-3">
+                    <span className={`absolute left-0 top-0 h-full w-1 ${originColor(ev)}`}></span>
+                    <button type="button" className="w-full pl-1 text-left" aria-expanded={expandedDetail===String(ev.id||i)} onClick={()=>setExpandedDetail(prev=>prev===String(ev.id||i)?null:String(ev.id||i))}>
+                      <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${originSoft(ev)}`}>{originLabel(ev)}</span>
+                      <strong className="mt-1 block text-sm leading-tight text-slate-900">{toCleanString(ev.atividade)}</strong>
+                      <span className="mt-1 block text-xs text-slate-500">{formatDateTime(ev.inicio)}</span>
+                      <span className="block text-[10px] font-bold text-blue-700">{expandedDetail===String(ev.id||i)?'Ocultar detalhes':'Ver detalhes'}</span>
+                    </button>
+                    {expandedDetail===String(ev.id||i)&&<div className="mt-3 border-t border-slate-100 pt-3">
                     <div className="flex justify-between items-start">
                       <div className={`px-3 py-1 rounded-full text-[9px] font-black text-white uppercase tracking-widest shadow-sm ${originColor(ev)}`}>
                         {originLabel(ev)}
@@ -645,6 +675,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                           Importado da planilha
                         </p>
                       )}
+                    </div>
                     </div>
                   </div>
                 ))
