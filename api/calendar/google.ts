@@ -5,7 +5,7 @@ export default async function handler(req:NextApiRequest,res:NextApiResponse){
  res.setHeader('Cache-Control','no-store');
  if(req.method!=='GET')return res.status(405).json({success:false,error:'METHOD_NOT_ALLOWED'});
  if(process.env.EAC_GOOGLE_CALENDAR_ENABLED!=='true')return res.status(200).json({success:true,enabled:false,events:[]});
- const token=(req.headers.authorization||'').replace(/^Bearer\s+/i,'');
+ const token=String(req.cookies?.eac_auth_token||'');
  const url=process.env.SUPABASE_URL||'',anon=process.env.SUPABASE_ANON_KEY||'',service=process.env.SUPABASE_SERVICE_ROLE_KEY||'';
  if(!token||!url||!anon||!service)return res.status(401).json({success:false,error:'AUTH_REQUIRED'});
  const authClient=createClient(url,anon,{auth:{persistSession:false}});
