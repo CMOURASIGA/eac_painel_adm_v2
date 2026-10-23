@@ -12,8 +12,8 @@ type Props={month:string;year:number;events:E[];format:PublicArtFormat;style:Pub
 /* Veja o arquivo LEIA-ME-ASSETS.md para a lista e as medidas.         */
 /* ------------------------------------------------------------------ */
 export const ART_ASSETS={
-  seal:'https://raw.githubusercontent.com/CMOURASIGA/webappcalendariopublicoeac/main/public/assets/eac/logo-eac.png',               // selo redondo "Encontro de Adolescentes com Cristo" (PNG transparente)
-  photo:'https://raw.githubusercontent.com/CMOURASIGA/webappcalendariopublicoeac/main/public/assets/eac/menina-eac.png',   // foto dos jovens já em duotone azul (o html2canvas NÃO aplica filtros CSS)
+  seal:'https://i.imgur.com/c5XQ7TW.jpg',               // selo redondo "Encontro de Adolescentes com Cristo" (PNG transparente)
+  photo:'https://i.imgur.com/q3XYZYq.jpg',   // foto dos jovens já em duotone azul (o html2canvas NÃO aplica filtros CSS)
 };
 const FONT_BASE='/assets/eac/fonts';
 const FONT_CSS=`
