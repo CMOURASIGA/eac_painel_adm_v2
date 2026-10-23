@@ -24,3 +24,10 @@ Variáveis **somente no servidor**: `EAC_GOOGLE_CALENDAR_ENABLED=true`, `EAC_GOO
 6. Validar cache, indisponibilidade Google e limites de API; verificar datas com timezone America/Sao_Paulo.
 
 Não publicar na Vercel sem o gate da política de 6 correções ou exceção expressa.
+
+## Fluxo OAuth de configuração (implementado, ainda sem homologação)
+- `POST /api/calendar/google/oauth/start` exige o cabeçalho privado `x-eac-oauth-setup-key` igual à variável `EAC_GOOGLE_OAUTH_SETUP_KEY` (valor aleatório com 32+ caracteres). **Não usar chave em URL, GitHub nem chat.** A resposta inclui URL de autorização e define cookie HttpOnly de estado assinado por HMAC, válido por 10 minutos.
+- `GET /api/calendar/google/oauth/callback` recebe código e estado, exige cookie igual ao estado assinado e troca o código por tokens. O refresh token é retornado **uma única vez ao navegador que concluiu a autorização**, em resposta `no-store`. O operador deve gravá-lo na variável secreta `EAC_GOOGLE_REFRESH_TOKEN` da Vercel sem compartilhar. Não é enviado para banco ou GitHub.
+- Configurar `EAC_GOOGLE_OAUTH_REDIRECT_URI` com `https://<DOMINIO_ESTAVEL_DO_PREVIEW>/api/calendar/google/oauth/callback`; adicionar exatamente essa URI no cliente OAuth no Google Cloud. O domínio deve ser o mesmo do endereço que inicia a autorização.
+- Verificar que a conta Google autorizada é a conta do EAC. **Não expor endpoint de setup em ambientes de produção:** provisionar setup key somente no Preview restrito e excluir a chave depois de concluída a autorização.
+- Não inserir `EAC_GOOGLE_CALENDAR_ENABLED=true` até corrigir a autenticação do GET e aprovar os testes. Os endpoints OAuth de setup são separados da leitura de eventos e não corrigem a identidade baseada em header da rota de consulta.
