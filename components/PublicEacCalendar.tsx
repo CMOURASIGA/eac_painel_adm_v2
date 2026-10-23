@@ -10,9 +10,18 @@ const clock=(v:string)=>new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_P
 export default function PublicEacCalendar(){
  const artRef=useRef<HTMLDivElement|null>(null);
  const [artFormat,setArtFormat]=useState<PublicArtFormat>('feed'),[artStyle,setArtStyle]=useState<PublicArtStyle>('colagem'),[artKind,setArtKind]=useState<PublicArtKind>('mes'),[exporting,setExporting]=useState(false);
- const [date,setDate]=useState(()=>new Date()),[events,setEvents]=useState<E[]>([]),[busy,setBusy]=useState(true),[error,setError]=useState(''),[selected,setSelected]=useState(()=>new Date().getDate()),[view,setView]=useState<'mes'|'lista'>('mes');
+ const [adjacentEvents,setAdjacentEvents]=useState<E[]>([]),[date,setDate]=useState(()=>new Date()),[events,setEvents]=useState<E[]>([]),[busy,setBusy]=useState(true),[error,setError]=useState(''),[selected,setSelected]=useState(()=>new Date().getDate()),[view,setView]=useState<'mes'|'lista'>('mes');
  const year=date.getFullYear(),month=date.getMonth(),days=new Date(year,month+1,0).getDate(),offset=new Date(year,month,1).getDay();
  useEffect(()=>{const ctrl=new AbortController();setBusy(true);fetch('/api/publico/calendario?year='+year+'&month='+(month+1),{signal:ctrl.signal}).then(r=>r.json()).then(x=>{if(!x.success)throw Error(x.error||'Agenda indisponível');setEvents(x.events||[]);setError('')}).catch(e=>{if(!ctrl.signal.aborted)setError(e.message)}).finally(()=>{if(!ctrl.signal.aborted)setBusy(false)});return()=>ctrl.abort()},[year,month]);
+ useEffect(()=>{
+  if(artKind!=='semana'){setAdjacentEvents([]);return;}
+  const ctrl=new AbortController();
+  const neighbors=[new Date(year,month-1,1),new Date(year,month+1,1)];
+  Promise.all(neighbors.map(d=>fetch('/api/publico/calendario?year='+d.getFullYear()+'&month='+(d.getMonth()+1),{signal:ctrl.signal}).then(r=>r.json())))
+   .then(results=>{if(!ctrl.signal.aborted)setAdjacentEvents(results.flatMap(x=>x.success&&Array.isArray(x.events)?x.events:[]))})
+   .catch(()=>{if(!ctrl.signal.aborted)setAdjacentEvents([])});
+  return()=>ctrl.abort();
+ },[year,month,artKind]);
  const key=(d:number)=>year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
  const byDay=(d:number)=>events.filter(e=>parts(e.inicio)===key(d)).sort((a,b)=>a.inicio.localeCompare(b.inicio));
  const move=(n:number)=>{setDate(d=>new Date(d.getFullYear(),d.getMonth()+n,1));setSelected(1)};
@@ -21,7 +30,7 @@ export default function PublicEacCalendar(){
  /* Eventos que entram na arte, conforme o tipo escolhido (sempre em ordem cronológica). */
  const calendarUrl=window.location.origin+'/publico/calendario';
  const artEvents=useMemo(()=>{
-  const sorted=[...events].sort((a,b)=>a.inicio.localeCompare(b.inicio));
+  const sorted=[...events,...(artKind==='semana'?adjacentEvents:[])].sort((a,b)=>a.inicio.localeCompare(b.inicio));
   if(artKind==='evento')return sorted.filter(e=>parts(e.inicio)===key(selected));
   if(artKind==='semana'){
    const start=new Date(year,month,selected);
@@ -31,7 +40,7 @@ export default function PublicEacCalendar(){
   }
   return sorted;
  // eslint-disable-next-line react-hooks/exhaustive-deps
- },[events,artKind,selected,year,month]);
+ },[events,adjacentEvents,artKind,selected,year,month]);
  const artProps={month:MONTH[month],year,events:artEvents,format:artFormat,style:artStyle,kind:artKind,calendarUrl};
  const size=ART_SIZE[artFormat];
  const previewScale=PREVIEW_WIDTH/size.w;
