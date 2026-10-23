@@ -405,15 +405,15 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
 
   return (
     <div className="p-4 md:p-8 max-w-[110rem] mx-auto animate-in fade-in duration-500 pb-24">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
         <div>
           <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight uppercase leading-none">Calendário EAC</h2>
           <p className="text-slate-500 font-medium italic text-xs md:text-sm mt-3">Gestão de Agenda Oficial e Eventos Confirmados.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2">
           <button 
              onClick={handleImportExternos2026}
-             className="px-6 py-4 bg-white border-2 border-slate-200 rounded-2xl font-black text-slate-700 hover:bg-slate-50 shadow-sm transition-all text-[10px] uppercase tracking-widest"
+             className="px-4 py-3 bg-white border-2 border-slate-200 rounded-2xl font-black text-slate-700 hover:bg-slate-50 shadow-sm transition-all text-[10px] uppercase tracking-widest"
           >
             Sincronizar
           </button>
@@ -433,7 +433,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                 });
                 setIsModalOpen(true);
               }}
-              className="px-8 py-4 blue-gradient text-white rounded-2xl font-black shadow-xl hover:scale-105 active:scale-95 transition-all text-[10px] uppercase tracking-widest"
+              className="px-5 py-3 blue-gradient text-white rounded-2xl font-black shadow-xl hover:scale-105 active:scale-95 transition-all text-[10px] uppercase tracking-widest"
             >
               + NOVO EVENTO
             </button>
@@ -441,7 +441,12 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         </div>
       </div>
 
-      <div className="flex items-center justify-between bg-white px-8 py-6 rounded-t-[2.5rem] border border-slate-200 border-b-0">
+      <div aria-label="Legenda das origens" className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+        {([{label:'EAC',color:'bg-blue-600'},{label:'Paróquia',color:'bg-orange-500'},{label:'Google EAC',color:'bg-emerald-600'}] as const).map(entry=><span key={entry.label} className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700"><span className={`h-3 w-3 rounded-full ${entry.color}`}></span>{entry.label}</span>)}
+        <span className="ml-auto text-xs text-slate-500">{activeEvents.length} eventos no período</span>
+      </div>
+
+      <div className="flex items-center justify-between bg-white px-4 py-3 md:px-6 rounded-t-[2.5rem] border border-slate-200 border-b-0">
         <button type="button" onClick={() => changeMonth(-1)} className="p-3 bg-slate-50 rounded-xl hover:text-blue-600 transition-all border border-slate-100 text-slate-400 group">
           <svg className="w-6 h-6 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7"/></svg>
         </button>
@@ -500,7 +505,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
           {calendarView==='mes' ? <>
           <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-900">
             {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
-              <div key={d} className="py-5 text-center text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">{d}</div>
+              <div key={d} className="py-3 text-center text-[10px] font-black text-slate-200 uppercase tracking-[0.2em]">{d}</div>
             ))}
           </div>
           <div className="grid grid-cols-7">{renderCalendar()}</div>
@@ -548,8 +553,8 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         </div>
 
         <div className="w-full lg:w-[320px] xl:w-[340px] shrink-0 space-y-4">
-          <div className="bg-white rounded-[2.5rem] p-6 border border-slate-200 shadow-sm min-h-[300px] flex flex-col">
-            <div className="flex items-center gap-4 mb-8 pb-6 border-b border-slate-100">
+          <div className="bg-white rounded-[2rem] p-4 border border-slate-200 shadow-sm min-h-[300px] flex flex-col">
+            <div className="flex items-center gap-3 mb-4 pb-4 border-b border-slate-100">
                <div className="bg-blue-100 text-blue-700 w-14 h-14 rounded-[1.5rem] flex items-center justify-center font-black text-2xl shadow-inner shadow-blue-200/50">
                  {selectedDay}
                </div>
@@ -559,7 +564,10 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                </div>
             </div>
             
-            <div className="space-y-2 flex-grow overflow-y-auto max-h-[480px] pr-1 scrollbar-hide">
+            <div className="mb-4 grid grid-cols-3 gap-2" aria-label="Resumo por origem do dia">
+              {([{label:'EAC',color:'text-blue-700',count:selectedDayEvents.filter(ev=>!isExternalEvent(ev)).length},{label:'Paróquia',color:'text-orange-700',count:selectedDayEvents.filter(isParishEvent).length},{label:'Google EAC',color:'text-emerald-700',count:selectedDayEvents.filter(isEacGoogleEvent).length}]).map(v=><div key={v.label} className="rounded-xl border border-slate-200 p-2 text-center"><span className={`block text-lg font-black ${v.color}`}>{v.count}</span><span className="text-[10px] text-slate-500">{v.label}</span></div>)}
+            </div>
+            <div className="space-y-2 flex-grow overflow-y-auto max-h-[420px] pr-1 scrollbar-hide">
              {selectedDayEvents.length === 0 ? (
                 <div className="text-center py-12 bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-100">
                    <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em] italic">Agenda Livre</p>
@@ -569,7 +577,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                     <div className={`absolute top-0 left-0 w-1.5 h-full ${originColor(ev)}`}></div>
                     <div className="flex justify-between items-start">
                       <div className={`px-4 py-1.5 rounded-full text-[9px] font-black text-white uppercase tracking-widest shadow-sm ${getEventTypeColor(ev.tipo)}`}>
-                        {toCleanString(ev.tipo)}
+                        {originLabel(ev)}
                       </div>
                       <div className="flex gap-2">
                          {canEdit && !isExternalEvent(ev) && (
