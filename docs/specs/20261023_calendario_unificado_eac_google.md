@@ -42,3 +42,9 @@ Não publicar na Vercel sem o gate da política de 6 correções ou exceção ex
 - **Atenção:** o OAuth do Google com app externo em modo TESTING pode gerar refresh token que expira após sete dias para escopo Calendar; avaliar publicação do consentimento e políticas Google antes de produção.
 - Há 12 entradas `api/*.ts` sob o limite Hobby, mas um novo Preview só deve ser publicado após validação estática e de execução consolidada. Não confundir build Vite com typecheck.
 - Conferir se variável de setup foi realmente removida de Production antes de qualquer disponibilização de fluxo OAuth em produção.
+
+## Refinamento UX fiel ao protótipo aprovado — execução iniciada em 23/10/2026
+
+- Protótipo aprovado pelo responsável: cabeçalho reduzido, legenda EAC azul / Paróquia laranja / Google EAC verde, grade mensal densa com números legíveis e indicador +N, visão semanal real em sete colunas, lista cronológica agrupada por dia, painel do dia com indicadores por origem, layout responsivo.
+- Implementação inicial na `develop`: modo Semana em grade de sete colunas com blocos de horário, modo Lista agrupado por data, barra de origens, contadores por origem para o dia selecionado, tipografia reforçada, cores unificadas e calendário compacto no celular.
+- **Não homologado:** conferir build + typecheck, alternância mensal/semanal/lista, seleção de dias, controle de overflow em 1280x600 e 768x1024, comportamento mobile 390x844, três filtros de origem, eventos Google sem edição/exclusão, calendário lotado e datas em limites do mês. Não publicar Preview apenas para correção isolada; agrupar verificações antes do deploy.
