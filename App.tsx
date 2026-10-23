@@ -10,6 +10,7 @@ import DispatchesPage from './components/DispatchesPage.tsx';
 import ComunicadosPage from './components/ComunicadosPage.tsx';
 import SettingsPage from './components/SettingsPage.tsx';
 import CalendarPage from './components/CalendarPage.tsx';
+import EacStorePage from './components/EacStorePage.tsx';
 import PublicEacCalendar from './components/PublicEacCalendar.tsx';
 import UserManagementPage from './components/UserManagementPage.tsx';
 import MembersPage from './components/MembersPage.tsx';
@@ -42,6 +43,7 @@ import MockPublicCheckinPage from './components/presenca-v2/MockPublicCheckinPag
 import { isMockRuntime } from './services/mock/mockRuntime.ts';
 
 const viewPathMap: Partial<Record<View, string>> = {
+  eac_store: '/eac-store',
   members: '/cadastro',
   presence: '/cadastro/presenca',
   presence_sessions: '/cadastro/presenca/sessoes',
@@ -59,6 +61,7 @@ const viewPathMap: Partial<Record<View, string>> = {
 };
 
 const pathViewMap: Record<string, View> = {
+  '/eac-store': 'eac_store',
   '/cadastro': 'members',
   '/cadastro/presenca': 'presence',
   '/cadastro/presenca/sessoes': 'presence_sessions',
@@ -672,6 +675,7 @@ const App: React.FC = () => {
         {currentView === 'presence' && <MockPresenceAnalyticsPage />}
         {currentView === 'presence_sessions' && <MockPresenceAdminPage />}
         {currentView === 'dispatches' && <DispatchesPage dispatches={dispatches} onExecute={handleExecuteDispatch} onClearStatus={async (d) => { await callApiProxy('CLEAR_DISPATCH_STATUS', { type: d.type }); fetchSpreadsheetData(); }} operator={user.name} />}
+        {currentView === 'eac_store' && <EacStorePage />}
         {currentView === 'calendar' && <CalendarPage googleWebAppUrl={effectiveGoogleWebAppUrl} user={user} />}
         {currentView === 'comunicados' && <ComunicadosPage comunicados={comunicados} onSave={async (c) => { await callApiProxy('SAVE_COMUNICADO', c); fetchSpreadsheetData(); }} onDelete={async (id) => { await callApiProxy('DELETE_COMUNICADO', { id }); fetchSpreadsheetData(); }} onSync={fetchSpreadsheetData} isLoading={isLoadingSheet} user={user} />}
         {currentView === 'logs' && <LogsPage logs={logs} />}
