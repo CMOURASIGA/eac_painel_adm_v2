@@ -64,6 +64,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
   const [internalEvents, setInternalEvents] = useState<CalendarEvent[]>([]);
   const [googleEvents,setGoogleEvents] = useState<CalendarEvent[]>([]);
   const [googleStatus,setGoogleStatus] = useState('');
+  const [googleSetupBusy,setGoogleSetupBusy] = useState(false);
   const [sourceFilter,setSourceFilter] = useState<'Todos'|'EAC'|'Paróquia'|'Google EAC'>('Todos');
   const [calendarView,setCalendarView] = useState<'mes'|'semana'|'lista'>('mes');
   const [currentDate, setCurrentDate] = useState(() => {
@@ -180,6 +181,32 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
     })();
     return ()=>{active=false;controller.abort();};
   },[year,month,user.email]);
+
+  const startGoogleSetup = async () => {
+    const key = window.prompt('Informe a chave privada de configuração OAuth (não será armazenada):');
+    if (!key) return;
+    setGoogleSetupBusy(true);
+    try {
+      const response = await fetch('/api/calendar/google/oauth/start', {
+        method: 'POST',
+        headers: { 'x-eac-oauth-setup-key': key },
+        credentials: 'same-origin',
+      });
+      const data = await response.json();
+      if (!response.ok || !data?.authorizationUrl) {
+        await showAppAlert(data?.error || 'Não foi possível iniciar a autorização Google.');
+        return;
+      }
+      const destination = new URL(data.authorizationUrl);
+      if (destination.protocol !== 'https:' || !['accounts.google.com','accounts.google.com.br'].includes(destination.hostname)) {
+        await showAppAlert('Destino de autorização Google inválido.');
+        return;
+      }
+      window.location.assign(destination.href);
+    } catch {
+      await showAppAlert('Falha de conexão durante a autorização.');
+    } finally { setGoogleSetupBusy(false); }
+  };
 
   const allEvents=useMemo(()=>{
     const items=[...internalEvents];
@@ -458,6 +485,12 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         </div>
         <label className="text-xs font-bold text-slate-600">Origem <select aria-label="Filtrar origem" value={sourceFilter} onChange={e=>setSourceFilter(e.target.value as typeof sourceFilter)} className="ml-2 rounded-xl border border-slate-200 bg-white px-3 py-2"><option>Todos</option><option>EAC</option><option>Paróquia</option><option>Google EAC</option></select></label>
         <p className="w-full text-xs text-slate-500" role="status">{googleStatus}</p>
+        {user.role === 'ADMIN' && googleStatus.includes('não ativada') && (
+          <button type="button" disabled={googleSetupBusy} onClick={startGoogleSetup}
+            className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-900 disabled:opacity-50">
+            {googleSetupBusy ? 'Conectando…' : 'Autorizar conta Google do EAC'}
+          </button>
+        )}
       </div>
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-grow bg-white rounded-b-[2.5rem] border border-slate-200 overflow-hidden shadow-2xl shadow-slate-200/5">
