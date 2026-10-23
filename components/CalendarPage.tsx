@@ -174,7 +174,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         if(!active)return;
         if(!response.ok||!result.success) {
           setGoogleEvents([]);
-          setGoogleStatus(result.error||'Agenda paroquial indisponível');
+          setGoogleStatus((result.error==='AUTH_REQUIRED'||result.error==='GOOGLE_AUTH_SESSION_MISSING')?'Sessão do Google não disponível. Saia e entre novamente no EAC para autenticar as agendas.':result.error==='GOOGLE_AUTH_SERVER_CONFIG_MISSING'?'Configuração da integração Google indisponível no servidor.':result.error||'Agendas Google indisponíveis');
           return;
         }
         setGoogleEvents(Array.isArray(result.events)?result.events:[]);
