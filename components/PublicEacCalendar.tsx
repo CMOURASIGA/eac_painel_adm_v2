@@ -15,9 +15,23 @@ export default function PublicEacCalendar(){
  const byDay=(d:number)=>events.filter(e=>parts(e.inicio)===key(d)).sort((a,b)=>a.inicio.localeCompare(b.inicio));
  const move=(n:number)=>{setDate(d=>new Date(d.getFullYear(),d.getMonth()+n,1));setSelected(1)};
  const today=byDay(selected);
+ const exportArt=async()=>{
+  if(!artRef.current||exporting)return;
+  setExporting(true);
+  try{
+   await document.fonts.ready;
+   const canvas=await html2canvas(artRef.current,{backgroundColor:'#c79a63',scale:1,useCORS:true});
+   const blob=await new Promise<Blob|null>(resolve=>canvas.toBlob(resolve,'image/png'));
+   if(!blob)throw Error('IMAGE_EXPORT_FAILED');
+   const file=new File([blob],'agenda-eac-'+artKind+'-'+artFormat+'.png',{type:'image/png'});
+   if(navigator.share&&navigator.canShare?.({files:[file]}))await navigator.share({files:[file],title:'Agenda EAC'});
+   else{const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=file.name;link.click();window.setTimeout(()=>URL.revokeObjectURL(url),1000)}
+  }catch(err){if(!(err instanceof DOMException&&err.name==='AbortError'))window.alert('Não foi possível gerar a imagem.')}
+  finally{setExporting(false)}
+ };
  const text=`Confira a Agenda EAC de ${MONTH[month]} ${year}! ${window.location.origin}/publico/calendario`;
  return <main className="min-h-screen bg-[#f5f7fc] text-slate-900">
-  <header className="bg-[#0b376a] text-white px-4 py-3"><div className="mx-auto flex max-w-6xl items-center justify-between"><div className="flex items-center gap-2"><img src="/assets/eac/logo-eac.png" alt="EAC" className="h-12 w-12 object-contain"/><div className="font-black">EAC Porciúncula de Sant'Anna<small className="block font-normal">Agenda pública</small></div></div><a href="/" className="rounded-lg border border-white/30 px-3 py-2 text-xs">Área interna</a></div></header>
+  <header className="bg-[#0b376a] text-white px-4 py-3"><div className="mx-auto flex max-w-6xl items-center justify-between"><div className="flex items-center gap-2"><img src="https://raw.githubusercontent.com/CMOURASIGA/webappcalendariopublicoeac/main/public/assets/eac/logo-eac.png" alt="EAC" className="h-12 w-12 object-contain"/><div className="font-black">EAC Porciúncula de Sant'Anna<small className="block font-normal">Agenda pública</small></div></div><a href="/" className="rounded-lg border border-white/30 px-3 py-2 text-xs">Área interna</a></div></header>
   <div className="mx-auto max-w-6xl p-4 md:p-7"><div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-3xl font-black">AGENDA EAC</h1><p className="text-sm text-slate-500">Encontros, reuniões e atividades para a nossa comunidade.</p></div><div className="flex gap-2"><button onClick={()=>navigator.clipboard?.writeText(window.location.href)} className="rounded-xl bg-white px-4 py-2 text-sm font-bold">Copiar link</button><a className="rounded-xl bg-[#0b376a] px-4 py-2 text-sm font-bold text-white" href={'https://wa.me/?text='+encodeURIComponent(text)} target="_blank" rel="noreferrer">Compartilhar</a></div></div>
   <div className="mb-4 flex items-center justify-between rounded-2xl bg-white p-3 shadow-sm"><button onClick={()=>move(-1)} className="rounded-lg bg-slate-100 px-4 py-2" aria-label="Mês anterior">‹</button><h2 className="text-lg font-black">{MONTH[month]} {year}</h2><button onClick={()=>move(1)} className="rounded-lg bg-slate-100 px-4 py-2" aria-label="Próximo mês">›</button></div>
   <div className="mb-4 flex flex-wrap items-end gap-2 rounded-2xl bg-white p-3 shadow-sm" aria-label="Gerador de artes para divulgação">
