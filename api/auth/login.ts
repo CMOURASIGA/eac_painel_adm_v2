@@ -84,6 +84,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
     };
 
+    const accessToken = signIn.data.session?.access_token;
+    if (accessToken) {
+      res.setHeader('Set-Cookie', `eac_auth_token=${encodeURIComponent(accessToken)}; HttpOnly; Secure; SameSite=Lax; Path=/api/calendar/google; Max-Age=${Math.min(3600,signIn.data.session?.expires_in || 3600)}`);
+    }
     return send(res, 200, { success: true, user });
   } catch (e: any) {
     return send(res, 500, { success: false, error: e?.message || 'Erro interno.' });
