@@ -119,7 +119,7 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
     return {...p,encontreiroId:clean(rec?.id),bairro:clean(rec?.bairro),history:history.get(clean(rec?.id))||[],allocated:currentAllocated.has(clean(rec?.id))};
   }).filter((p:any)=>p.encontreiroId),[analytics,recordByPerson,history,currentAllocated]);
 
-  const editions=Array.from(new Set(people.map((p:any)=>Number(p.edition||0)).filter(Boolean))).sort((a,b)=>a-b);
+  const editions=Array.from(new Set<number>(people.map((p:any)=>Number(p.edition||0)).filter((v:number)=>v>0))).sort((a:number,b:number)=>a-b);
   const filtered=useMemo(()=>people.filter((p:any)=>{
     const q=norm(applied.search);
     if(q&&!norm(`${p.name} ${p.circle} ${p.bairro}`).includes(q))return false;
@@ -212,7 +212,7 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
           <div className="min-w-0">
             <p className="mb-1 text-xs font-bold uppercase tracking-wider text-blue-700">Ficha cadastral</p>
             <h4 className="break-words text-xl font-black text-slate-900 sm:text-2xl">{clean(selectedAdult.nomeCompleto)}</h4>
-            <div className="mt-3 flex flex-wrap gap-2"><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">Adulto</span><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">{clean(selectedAdult.status)||'Status não informado'}</span></div>
+            <div className="mt-3 flex flex-wrap gap-2"><span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">Adulto</span><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">{clean((selectedAdult as any).status)||'Status não informado'}</span></div>
           </div>
           <button type="button" onClick={()=>setSelectedAdult(null)} aria-label="Voltar à lista de adultos" className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Voltar à lista</button>
         </header>
