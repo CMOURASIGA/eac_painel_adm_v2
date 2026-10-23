@@ -48,3 +48,9 @@ Não publicar na Vercel sem o gate da política de 6 correções ou exceção ex
 - Protótipo aprovado pelo responsável: cabeçalho reduzido, legenda EAC azul / Paróquia laranja / Google EAC verde, grade mensal densa com números legíveis e indicador +N, visão semanal real em sete colunas, lista cronológica agrupada por dia, painel do dia com indicadores por origem, layout responsivo.
 - Implementação inicial na `develop`: modo Semana em grade de sete colunas com blocos de horário, modo Lista agrupado por data, barra de origens, contadores por origem para o dia selecionado, tipografia reforçada, cores unificadas e calendário compacto no celular.
 - **Não homologado:** conferir build + typecheck, alternância mensal/semanal/lista, seleção de dias, controle de overflow em 1280x600 e 768x1024, comportamento mobile 390x844, três filtros de origem, eventos Google sem edição/exclusão, calendário lotado e datas em limites do mês. Não publicar Preview apenas para correção isolada; agrupar verificações antes do deploy.
+
+## Revisão técnica complementar — 23/10/2026
+- Corrigida consistência da apresentação de horas no fuso America/Sao_Paulo e classificação do dia (evitando deslocamento entre datas UTC e horário local).
+- Corrigida identificação por origem no chip do painel lateral, ordenação cronológica de eventos no dia e largura mínima da coluna principal.
+- Revisão estática: componentes semana, mês, lista e filtros estão presentes no código. **Não houve execução de typecheck, build, nem testes por viewport; estes critérios permanecem PENDING, não PASS.**
+- Não realizar outro deploy antes de passar typecheck/build, confirmar URLs OAuth, variáveis e cenários visuais 1280x600, 768x1024, 390x844; respeitar lote.
