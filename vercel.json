@@ -4,6 +4,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/publico/calendario",
+      "destination": "/api/auth/login?eac_google_route=public"
+    },
+    {
       "source": "/api/calendar/google/publication",
       "destination": "/api/auth/login?eac_google_route=publication"
     },
