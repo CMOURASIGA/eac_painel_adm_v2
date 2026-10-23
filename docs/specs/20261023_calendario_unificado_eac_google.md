@@ -31,3 +31,14 @@ Não publicar na Vercel sem o gate da política de 6 correções ou exceção ex
 - Configurar `EAC_GOOGLE_OAUTH_REDIRECT_URI` com `https://<DOMINIO_ESTAVEL_DO_PREVIEW>/api/calendar/google/oauth/callback`; adicionar exatamente essa URI no cliente OAuth no Google Cloud. O domínio deve ser o mesmo do endereço que inicia a autorização.
 - Verificar que a conta Google autorizada é a conta do EAC. **Não expor endpoint de setup em ambientes de produção:** provisionar setup key somente no Preview restrito e excluir a chave depois de concluída a autorização.
 - Não inserir `EAC_GOOGLE_CALENDAR_ENABLED=true` até corrigir a autenticação do GET e aprovar os testes. Os endpoints OAuth de setup são separados da leitura de eventos e não corrigem a identidade baseada em header da rota de consulta.
+
+## 23/10/2026 — conclusão da implementação para três fontes (pendente homologação)
+
+- Três origens independentes na UI: `EAC`, `Paróquia`, `Google EAC`, além do filtro `Todos`.
+- Leitura `GOOGLE_PAROQUIA` usa `EAC_PAROQUIA_CALENDAR_ID`; leitura `GOOGLE_EAC` usa `EAC_GOOGLE_EAC_CALENDAR_ID` (padrão `primary`). Ambas utilizam a mesma conta OAuth, com escopo somente leitura.
+- API `/api/calendar/google` é roteada via função existente `/api/auth/login` e verifica cookie HttpOnly emitido pelo login Supabase, com validação de identidade remota e autorização de módulo. Usuários que entram por login legado Google Script não possuem sessão Supabase verificável e não podem consultar a API até migração formal de autenticação.
+- O fluxo OAuth de configuração inicial requer `EAC_GOOGLE_OAUTH_SETUP_KEY` **somente no Preview**. Para iniciar, a ferramenta de administração deve efetuar POST com header privado e abrir a `authorizationUrl` na mesma origem da página que recebeu cookie; no callback, o `refreshToken` aparece uma vez e deve ser salvo em variável sensível `EAC_GOOGLE_REFRESH_TOKEN`, nunca em logs ou chat. Ainda não há interface guiada de administração no painel.
+- `EAC_GOOGLE_CALENDAR_ENABLED=false` até a autorização ser concluída e cenários 200, 401, 403, 503 e falhas Google serem testados.
+- **Atenção:** o OAuth do Google com app externo em modo TESTING pode gerar refresh token que expira após sete dias para escopo Calendar; avaliar publicação do consentimento e políticas Google antes de produção.
+- Há 12 entradas `api/*.ts` sob o limite Hobby, mas um novo Preview só deve ser publicado após validação estática e de execução consolidada. Não confundir build Vite com typecheck.
+- Conferir se variável de setup foi realmente removida de Production antes de qualquer disponibilização de fluxo OAuth em produção.
