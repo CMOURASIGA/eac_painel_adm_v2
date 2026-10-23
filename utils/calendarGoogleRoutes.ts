@@ -39,6 +39,32 @@ export async function googleRead(req:NextApiRequest,res:NextApiResponse){
    pageToken=result.data.nextPageToken||undefined;
   }while(pageToken&&received<10000);
  }
+ // Reconcile previously approved snapshots only. New Google events stay PRIVATE.
+ // Deletions/cancellations are withdrawn on the next authenticated monthly refresh.
+ const googleItems=events.filter(e=>e.origemDado==='GOOGLE_EAC');
+ const byId=new Map(googleItems.map(e=>[String(e.id).replace(/^google:GOOGLE_EAC:/,''),e]));
+ const rangeMin=new Date(Date.UTC(year,month-1,1)).toISOString();
+ const rangeMax=new Date(Date.UTC(year,month,1)).toISOString();
+ const {data:publishedRows,error:publishedError}=await db.from('eac_public_google_events')
+   .select('id,google_event_id,atividade,inicio,termino,local')
+   .eq('source','GOOGLE_EAC').eq('publication_status','PUBLICADO')
+   .gte('inicio',rangeMin).lt('inicio',rangeMax);
+ if(!publishedError&&publishedRows){
+   for(const row of publishedRows){
+     const current=byId.get(String(row.google_event_id));
+     if(!current){
+       await db.from('eac_public_google_events')
+         .update({publication_status:'REVOGADO',atualizado_em:new Date().toISOString()}).eq('id',row.id).eq('source','GOOGLE_EAC');
+       continue;
+     }
+     if(row.atividade!==current.atividade||String(row.inicio)!==String(current.inicio)||String(row.local||'')!==String(current.local||'')){
+       await db.from('eac_public_google_events').update({
+         atividade:current.atividade,inicio:current.inicio,termino:current.termino||null,local:current.local||null,
+         atualizado_em:new Date().toISOString()
+       }).eq('id',row.id).eq('source','GOOGLE_EAC').eq('publication_status','PUBLICADO');
+     }
+   }
+ }
  return res.status(200).json({success:true,enabled:true,events});
 
  }catch{return res.status(502).json({success:false,error:'Falha na consulta Google Calendar'});}
