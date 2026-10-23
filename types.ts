@@ -20,6 +20,7 @@ export type View =
   | 'presence'
   | 'presence_sessions'
   | 'dispatches'
+  | 'eac_store'
   | 'calendar'
   | 'comunicados'
   | 'logs'
