@@ -64,6 +64,8 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
   const [internalEvents, setInternalEvents] = useState<CalendarEvent[]>([]);
   const [googleEvents,setGoogleEvents] = useState<CalendarEvent[]>([]);
   const [googleStatus,setGoogleStatus] = useState('');
+  const [publishedGoogle,setPublishedGoogle]=useState<Record<string,string>>({});
+  const [publicationBusy,setPublicationBusy]=useState<string|null>(null);
   const [googleSetupBusy,setGoogleSetupBusy] = useState(false);
   const [sourceFilter,setSourceFilter] = useState<'Todos'|'EAC'|'Paróquia'|'Google EAC'>('Todos');
   const [calendarView,setCalendarView] = useState<'mes'|'semana'|'lista'>('mes');
@@ -183,6 +185,36 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
     })();
     return ()=>{active=false;controller.abort();};
   },[year,month,user.email]);
+
+  const refreshPublicationStatuses=useCallback(async (events:CalendarEvent[])=>{
+    const ids=events.filter(ev=>String(ev.origemDado||ev.origem_dado)==='GOOGLE_EAC').map(ev=>String(ev.id||'').replace(/^google:GOOGLE_EAC:/,'')).filter(Boolean);
+    if(!ids.length){setPublishedGoogle({});return;}
+    try{
+      const response=await fetch('/api/calendar/google/publication?ids='+encodeURIComponent(ids.slice(0,100).join(',')),{credentials:'same-origin'});
+      if(!response.ok)return;
+      const result=await response.json();
+      const next:Record<string,string>={};
+      for(const row of result.events||[])next[String(row.google_event_id)]=String(row.publication_status);
+      setPublishedGoogle(next);
+    }catch{/* Keep publication state unknown on error. */}
+  },[]);
+
+  useEffect(()=>{void refreshPublicationStatuses(googleEvents);},[googleEvents,refreshPublicationStatuses]);
+
+  const changePublication=async(ev:CalendarEvent,action:'approve'|'revoke')=>{
+    if(!isEacGoogleEvent(ev)||user.role!=='ADMIN')return;
+    const googleEventId=String(ev.id||'').replace(/^google:GOOGLE_EAC:/,'');
+    if(!googleEventId)return;
+    if(!window.confirm(action==='approve'?'Autorizar divulgação pública deste evento Google EAC?':'Revogar a divulgação pública deste evento?'))return;
+    setPublicationBusy(googleEventId);
+    try{
+      const response=await fetch('/api/calendar/google/publication',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({action,googleEventId})});
+      const data=await response.json();
+      if(!response.ok||!data.success){await showAppAlert(data.error||'Falha ao salvar aprovação');return;}
+      setPublishedGoogle(prev=>({...prev,[googleEventId]:action==='approve'?'PUBLICADO':'REVOGADO'}));
+    }catch{await showAppAlert('Falha de conexão ao alterar publicação');}
+    finally{setPublicationBusy(null);}
+  };
 
   const startGoogleSetup = async () => {
     const key = window.prompt('Informe a chave privada de configuração OAuth (não será armazenada):');
@@ -609,6 +641,10 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                       <span className="mt-1 block text-xs text-slate-500">{formatDateTime(ev.inicio)}</span>
                       <span className="block text-[10px] font-bold text-blue-700">{expandedDetail===String(ev.id||i)?'Ocultar detalhes':'Ver detalhes'}</span>
                     </button>
+                    {isEacGoogleEvent(ev)&&user.role==='ADMIN'&&<div className="mt-2 border-t border-slate-100 pt-2">
+                      <span className="mb-2 block text-[10px] font-semibold text-slate-500">Divulgação pública: {publishedGoogle[String(ev.id||'').replace(/^google:GOOGLE_EAC:/,'')]||'PENDENTE'}</span>
+                      <button type="button" disabled={publicationBusy!==null} onClick={()=>void changePublication(ev,publishedGoogle[String(ev.id||'').replace(/^google:GOOGLE_EAC:/,'')]==='PUBLICADO'?'revoke':'approve')} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800 disabled:opacity-50">{publishedGoogle[String(ev.id||'').replace(/^google:GOOGLE_EAC:/,'')]==='PUBLICADO'?'Revogar publicação':'Aprovar para público'}</button>
+                    </div>}
                     {expandedDetail===String(ev.id||i)&&<div className="mt-3 border-t border-slate-100 pt-3">
                     <div className="flex justify-between items-start">
                       <div className={`px-3 py-1 rounded-full text-[9px] font-black text-white uppercase tracking-widest shadow-sm ${originColor(ev)}`}>
