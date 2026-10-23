@@ -62,6 +62,13 @@ const formatDateTime = (value: any) => {
 
 export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProps) {
   const [internalEvents, setInternalEvents] = useState<CalendarEvent[]>([]);
+  const [googleEvents,setGoogleEvents] = useState<CalendarEvent[]>([]);
+  const [googleStatus,setGoogleStatus] = useState('');
+  const [googleSetupBusy,setGoogleSetupBusy] = useState(false);
+  const [sourceFilter,setSourceFilter] = useState<'Todos'|'EAC'|'Paróquia'|'Google EAC'>('Todos');
+  const [calendarView,setCalendarView] = useState<'mes'|'semana'|'lista'>('mes');
+  const [expandedDays,setExpandedDays] = useState<number[]>([]);
+  const [expandedDetail,setExpandedDetail] = useState<string|null>(null);
   const [currentDate, setCurrentDate] = useState(() => {
     try {
       const saved = localStorage.getItem(CALENDAR_MONTH_STORAGE_KEY);
@@ -153,36 +160,113 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
     }
   }, [currentDate]);
 
+  useEffect(()=>{
+    let active=true;
+    const controller=new AbortController();
+    (async()=>{
+      try {
+        const response=await fetch(`/api/calendar/google?year=${year}&month=${month+1}`,{
+          signal:controller.signal,
+        });
+        const result=await response.json();
+        if(!active)return;
+        if(!response.ok||!result.success) {
+          setGoogleEvents([]);
+          setGoogleStatus(result.error||'Agenda paroquial indisponível');
+          return;
+        }
+        setGoogleEvents(Array.isArray(result.events)?result.events:[]);
+        setGoogleStatus(result.enabled?'Agendas Google sincronizadas':'Integração Google ainda não ativada');
+      }catch{
+        if(active){setGoogleEvents([]);setGoogleStatus('Agenda paroquial indisponível');}
+      }
+    })();
+    return ()=>{active=false;controller.abort();};
+  },[year,month,user.email]);
+
+
+  const startGoogleSetup = async () => {
+    const key = window.prompt('Informe a chave privada de configuração OAuth (não será armazenada):');
+    if (!key) return;
+    setGoogleSetupBusy(true);
+    try {
+      const response = await fetch('/api/calendar/google/oauth/start', {
+        method: 'POST',
+        headers: { 'x-eac-oauth-setup-key': key },
+        credentials: 'same-origin',
+      });
+      const data = await response.json();
+      if (!response.ok || !data?.authorizationUrl) {
+        await showAppAlert(data?.error || 'Não foi possível iniciar a autorização Google.');
+        return;
+      }
+      const destination = new URL(data.authorizationUrl);
+      if (destination.protocol !== 'https:' || !['accounts.google.com','accounts.google.com.br'].includes(destination.hostname)) {
+        await showAppAlert('Destino de autorização Google inválido.');
+        return;
+      }
+      window.location.assign(destination.href);
+    } catch {
+      await showAppAlert('Falha de conexão durante a autorização.');
+    } finally { setGoogleSetupBusy(false); }
+  };
+
+  const allEvents=useMemo(()=>{
+    const items=[...internalEvents];
+    const seen=new Set<string>();
+    for(const event of googleEvents) {
+      const key=[toCleanString(event.atividade).toLocaleLowerCase('pt-BR'),String(event.inicio||'').slice(0,10)].join('|');
+      if(!seen.has(key))items.push(event);
+      seen.add(key);
+    }
+    return items;
+  },[internalEvents,googleEvents]);
+  const getGoogleSource=(ev:CalendarEvent)=>String(ev.origemDado||ev.origem_dado||'').toUpperCase();
+  const isParishEvent=(ev:CalendarEvent)=>getGoogleSource(ev)==='GOOGLE_PAROQUIA';
+  const isEacGoogleEvent=(ev:CalendarEvent)=>getGoogleSource(ev)==='GOOGLE_EAC';
+  const isExternalEvent=(ev:CalendarEvent)=>isParishEvent(ev)||isEacGoogleEvent(ev);
+  const originLabel=(ev:CalendarEvent)=>isParishEvent(ev)?'Paróquia':isEacGoogleEvent(ev)?'Google EAC':'EAC';
+  const originColor=(ev:CalendarEvent)=>isParishEvent(ev)?'bg-orange-500':isEacGoogleEvent(ev)?'bg-emerald-600':'bg-blue-600';
+  const originSoft=(ev:CalendarEvent)=>isParishEvent(ev)?'bg-orange-50 text-orange-800':isEacGoogleEvent(ev)?'bg-emerald-50 text-emerald-800':'bg-blue-50 text-blue-800';
+
+  const goToday = () => { const now=new Date();setCurrentDate(new Date(now.getFullYear(),now.getMonth(),1));setSelectedDay(now.getDate());setExpandedDays([]); };
+
   const changeMonth = (offset: number) => {
     setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + offset, 1));
     setSelectedDay(1);
+    setExpandedDays([]);
   };
 
   const getEventDateParts = (dateVal: any) => {
     if (!dateVal) return null;
     const d = new Date(dateVal);
     if (isNaN(d.getTime())) return null;
-    return { y: d.getFullYear(), m: d.getMonth(), d: d.getDate() };
+    const parts = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(d);
+    const get=(type:string)=>Number(parts.find(p=>p.type===type)?.value||0);
+    return {y:get('year'),m:get('month')-1,d:get('day')};
   };
 
   const activeEvents = useMemo(() => {
-    return internalEvents.filter(ev => {
+    return allEvents.filter(ev => {
+      if(sourceFilter==='EAC'&&isExternalEvent(ev))return false;
+      if(sourceFilter==='Paróquia'&&!isParishEvent(ev))return false;
+      if(sourceFilter==='Google EAC'&&!isEacGoogleEvent(ev))return false;
       const parts = getEventDateParts(ev.inicio);
       if (!parts || parts.y !== year || parts.m !== month) return false;
       const statusOk = statusFilter === 'Todos' || normalizeStatus(ev.status) === statusFilter;
       const tipoOk = tipoFilter === 'Todos' || toCleanString(ev.tipo) === tipoFilter;
       return statusOk && tipoOk;
     });
-  }, [internalEvents, year, month, statusFilter, tipoFilter]);
+  }, [allEvents, year, month, statusFilter, tipoFilter, sourceFilter]);
 
   const availableStatuses = useMemo(() => {
     const set = new Set<string>(['Confirmado', 'Agendado', 'A confirmar']);
-    internalEvents.forEach((ev) => {
+    allEvents.forEach((ev) => {
       const v = normalizeStatus(ev.status);
       if (v) set.add(v);
     });
     return ['Todos', ...Array.from(set)];
-  }, [internalEvents]);
+  }, [allEvents]);
 
   const availableTipos = useMemo(() => {
     const set = new Set<string>();
@@ -194,7 +278,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
   }, [internalEvents]);
 
   const selectedDayEvents = useMemo(() => {
-    return activeEvents.filter(ev => getEventDateParts(ev.inicio)?.d === selectedDay);
+    return activeEvents.filter(ev => getEventDateParts(ev.inicio)?.d === selectedDay).sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio)));
   }, [activeEvents, selectedDay]);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -299,26 +383,24 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
     const totalDays = new Date(year, month + 1, 0).getDate();
     const startDay = new Date(year, month, 1).getDay();
     const days = [];
-    for (let i = 0; i < startDay; i++) days.push(<div key={`empty-${i}`} className="h-16 md:h-32 border border-slate-50 bg-slate-50/20"></div>);
+    for (let i = 0; i < startDay; i++) days.push(<div key={`empty-${i}`} className="min-h-16 md:min-h-28 border border-slate-100 bg-slate-50/30"></div>);
     for (let day = 1; day <= totalDays; day++) {
       const dayEvs = activeEvents.filter(ev => getEventDateParts(ev.inicio)?.d === day);
       const isToday = new Date().getDate() === day && new Date().getMonth() === month && new Date().getFullYear() === year;
       days.push(
-        <div key={day} onClick={() => setSelectedDay(day)} className={`h-16 md:h-32 border border-slate-100 p-2 transition-all cursor-pointer relative ${selectedDay === day ? 'bg-blue-50/50 ring-2 ring-blue-500 z-10' : 'hover:bg-slate-50'}`}>
-          <span className={`text-[10px] md:text-xs font-black flex items-center justify-center w-6 h-6 rounded-full ${isToday ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400'}`}>{day}</span>
+        <div key={day} onClick={() => setSelectedDay(day)} className={`min-h-16 md:min-h-28 border border-slate-100 p-1.5 md:p-2 transition-all cursor-pointer relative ${selectedDay === day ? 'bg-blue-50/50 ring-2 ring-blue-500 z-10' : 'hover:bg-slate-50'}`}>
+          <span className={`text-[10px] md:text-xs font-black flex items-center justify-center w-6 h-6 rounded-full ${isToday ? 'bg-blue-600 text-white shadow-md' : 'text-slate-800'}`}>{day}</span>
           <div className="hidden md:block mt-2 space-y-1">
-                {dayEvs.slice(0, 3).map((ev, idx) => (
-              <div key={idx} className={`text-[8px] p-1.5 rounded-lg font-black truncate text-white shadow-sm transition-transform hover:scale-105 ${getEventTypeColor(ev.tipo)}`}>
+                {dayEvs.slice(0, expandedDays.includes(day)?dayEvs.length:2).map((ev, idx) => (
+              <div key={idx} className={`text-[8px] p-1.5 rounded-lg font-black truncate text-white shadow-sm transition-transform hover:scale-105 ${originColor(ev)}`}>
                 {toCleanString(ev.atividade)}
               </div>
             ))}
-            {dayEvs.length > 3 && (
-              <div className="text-[7px] font-black text-slate-400 text-center uppercase tracking-widest">+{dayEvs.length - 3} itens</div>
-            )}
+            {dayEvs.length > 2 && (<button type="button" onClick={e=>{e.stopPropagation();setSelectedDay(day);setExpandedDays(prev=>prev.includes(day)?prev.filter(v=>v!==day):[...prev,day]);}} className="text-[10px] font-bold text-blue-700 hover:underline">{expandedDays.includes(day)?'Ver menos':`+${dayEvs.length-2} eventos`}</button>)}
           </div>
           {dayEvs.length > 0 && (
             <div className="md:hidden absolute bottom-1 right-1 flex space-x-0.5">
-               {dayEvs.slice(0, 3).map((_, i) => <div key={i} className="w-1 h-1 rounded-full bg-blue-600"></div>)}
+               {dayEvs.slice(0, 3).map((ev, i) => <div key={i} className={`w-1.5 h-1.5 rounded-full ${originColor(ev)}`}></div>)}
             </div>
           )}
         </div>
@@ -328,16 +410,19 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-[100rem] mx-auto animate-in fade-in duration-500 pb-24">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+    <div className="p-4 md:p-8 max-w-[110rem] mx-auto animate-in fade-in duration-500 pb-24">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
         <div>
           <h2 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight uppercase leading-none">Calendário EAC</h2>
           <p className="text-slate-500 font-medium italic text-xs md:text-sm mt-3">Gestão de Agenda Oficial e Eventos Confirmados.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2">
+          <a href="/publico/calendario" target="_blank" rel="noopener noreferrer" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-[10px] font-black uppercase tracking-wide text-blue-800 hover:bg-blue-100">
+            Ver calendário público ↗
+          </a>
           <button 
              onClick={handleImportExternos2026}
-             className="px-6 py-4 bg-white border-2 border-slate-200 rounded-2xl font-black text-slate-700 hover:bg-slate-50 shadow-sm transition-all text-[10px] uppercase tracking-widest"
+             className="px-4 py-3 bg-white border-2 border-slate-200 rounded-2xl font-black text-slate-700 hover:bg-slate-50 shadow-sm transition-all text-[10px] uppercase tracking-widest"
           >
             Sincronizar
           </button>
@@ -357,7 +442,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                 });
                 setIsModalOpen(true);
               }}
-              className="px-8 py-4 blue-gradient text-white rounded-2xl font-black shadow-xl hover:scale-105 active:scale-95 transition-all text-[10px] uppercase tracking-widest"
+              className="px-5 py-3 blue-gradient text-white rounded-2xl font-black shadow-xl hover:scale-105 active:scale-95 transition-all text-[10px] uppercase tracking-widest"
             >
               + NOVO EVENTO
             </button>
@@ -365,11 +450,17 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         </div>
       </div>
 
-      <div className="flex items-center justify-between bg-white px-8 py-6 rounded-t-[2.5rem] border border-slate-200 border-b-0">
+      <div aria-label="Legenda das origens" className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+        {([{label:'EAC',color:'bg-blue-600'},{label:'Paróquia',color:'bg-orange-500'},{label:'Google EAC',color:'bg-emerald-600'}] as const).map(entry=><span key={entry.label} className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700"><span className={`h-3 w-3 rounded-full ${entry.color}`}></span>{entry.label}</span>)}
+        <span className="ml-auto text-xs text-slate-500">{activeEvents.length} eventos no período</span>
+      </div>
+
+      <div className="flex items-center justify-between bg-white px-4 py-3 md:px-6 rounded-t-[2.5rem] border border-slate-200 border-b-0">
         <button type="button" onClick={() => changeMonth(-1)} className="p-3 bg-slate-50 rounded-xl hover:text-blue-600 transition-all border border-slate-100 text-slate-400 group">
           <svg className="w-6 h-6 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7"/></svg>
         </button>
         <div className="text-center">
+          <button type="button" onClick={goToday} className="mb-1 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[10px] font-bold text-blue-800 hover:bg-blue-100">Hoje</button>
           <h3 className="text-xl md:text-2xl font-black text-slate-900 uppercase tracking-tighter">{MONTH_NAMES[month]} <span className="text-blue-600 ml-1">{year}</span></h3>
           <div className="flex items-center justify-center gap-1.5 mt-2">
              <div className={`w-2 h-2 rounded-full ${isLoading ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`}></div>
@@ -406,19 +497,96 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-8">
-        <div className="flex-grow bg-white rounded-b-[2.5rem] border border-slate-200 overflow-hidden shadow-2xl shadow-slate-200/5">
+      <div className="bg-white border-x border-slate-200 px-5 py-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Visualização do calendário">
+          {(['mes','semana','lista'] as const).map(v=><button key={v} type="button" onClick={()=>setCalendarView(v)} aria-pressed={calendarView===v} className={`px-4 py-2 rounded-xl text-xs font-black ${calendarView===v?'bg-blue-700 text-white':'bg-slate-100 text-slate-700'}`}>{v==='mes'?'Mês':v==='semana'?'Semana':'Lista'}</button>)}
+        </div>
+        <label className="text-xs font-bold text-slate-600">Origem <select aria-label="Filtrar origem" value={sourceFilter} onChange={e=>setSourceFilter(e.target.value as typeof sourceFilter)} className="ml-2 rounded-xl border border-slate-200 bg-white px-3 py-2"><option>Todos</option><option>EAC</option><option>Paróquia</option><option>Google EAC</option></select></label>
+        <p className="w-full text-xs text-slate-500" role="status">{googleStatus}</p>
+        {user.role === 'ADMIN' && googleStatus.includes('não ativada') && (
+          <button type="button" disabled={googleSetupBusy} onClick={startGoogleSetup}
+            className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-900 disabled:opacity-50">
+            {googleSetupBusy ? 'Conectando…' : 'Autorizar conta Google do EAC'}
+          </button>
+        )}
+      </div>
+      <div className="flex flex-col lg:flex-row gap-4">
+        <div className="min-w-0 flex-grow bg-white rounded-b-[2.5rem] border border-slate-200 overflow-hidden shadow-2xl shadow-slate-200/5">
+          {calendarView==='mes' ? <>
           <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-900">
             {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
-              <div key={d} className="py-5 text-center text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">{d}</div>
+              <div key={d} className="py-3 text-center text-[10px] font-black text-slate-200 uppercase tracking-[0.2em]">{d}</div>
             ))}
           </div>
           <div className="grid grid-cols-7">{renderCalendar()}</div>
+          </> : calendarView==='semana' ? (
+          <div>
+            <div className="md:hidden flex gap-1 p-2 border-b border-slate-100" aria-label="Dias da semana">
+              {Array.from({length:7},(_,i)=>{
+                const selected=new Date(year,month,selectedDay);
+                const d=new Date(year,month,selectedDay-selected.getDay()+i);
+                const inMonth=d.getMonth()===month;
+                return <button key={i} disabled={!inMonth} type="button" onClick={()=>setSelectedDay(d.getDate())} className={`flex-1 rounded-lg py-2 text-xs font-bold ${inMonth&&d.getDate()===selectedDay?'bg-blue-600 text-white':'bg-slate-100 text-slate-700'} disabled:opacity-40`}>{['D','S','T','Q','Q','S','S'][i]}<span className="block">{d.getDate()}</span></button>;
+              })}
+            </div>
+            <div className="md:hidden divide-y divide-slate-100 p-3">
+              {activeEvents.filter(ev=>getEventDateParts(ev.inicio)?.d===selectedDay).sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio))).map((ev,i)=><div key={ev.id||i} className="flex gap-3 py-3">
+                <span className="w-12 shrink-0 text-xs font-bold">{new Date(ev.inicio).toLocaleTimeString('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'})}</span>
+                <span className={`w-1 rounded-full ${originColor(ev)}`}></span><span className="flex-1 text-sm font-semibold">{toCleanString(ev.atividade)}<span className={`block w-fit rounded-full px-2 py-1 text-[10px] ${originSoft(ev)}`}>{originLabel(ev)}</span></span>
+              </div>)}
+              {!activeEvents.some(ev=>getEventDateParts(ev.inicio)?.d===selectedDay)&&<p className="p-5 text-center text-sm text-slate-500">Sem eventos neste dia.</p>}
+            </div>
+            <div className="hidden md:block overflow-x-auto" aria-label="Calendário semanal com escala de horários">
+              <div className="min-w-[770px]">
+                <div className="grid grid-cols-[50px_repeat(7,minmax(0,1fr))] border-b border-slate-200">
+                  <div className="bg-slate-50"></div>
+                  {Array.from({length:7},(_,i)=>{
+                    const selected=new Date(year,month,selectedDay),d=new Date(year,month,selectedDay-selected.getDay()+i),valid=d.getMonth()===month;
+                    return <button type="button" key={i} disabled={!valid} onClick={()=>setSelectedDay(d.getDate())} className={`border-l border-slate-100 py-3 text-center text-xs font-bold ${valid&&d.getDate()===selectedDay?'bg-blue-50 text-blue-700':'bg-slate-50'}`}>{['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'][i]} {d.getDate()}/{d.getMonth()+1}{!valid&&<small className="block text-[9px] text-slate-400">Fora do mês</small>}</button>;
+                  })}
+                </div>
+                <div className="grid grid-cols-[50px_repeat(7,minmax(0,1fr))]">
+                  <div className="relative h-[960px] border-r border-slate-200 bg-slate-50">
+                    {Array.from({length:16},(_,i)=><span key={i} className="absolute right-1 text-[10px] text-slate-500" style={{top:i*60}}>{String(i+7).padStart(2,'0')}:00</span>)}
+                  </div>
+                  {Array.from({length:7},(_,i)=>{
+                    const selected=new Date(year,month,selectedDay),d=new Date(year,month,selectedDay-selected.getDay()+i),valid=d.getMonth()===month;
+                    const events=valid?activeEvents.filter(ev=>getEventDateParts(ev.inicio)?.d===d.getDate()):[];
+                    return <div key={i} className={`relative h-[960px] border-r border-slate-100 ${valid?'':'bg-slate-100/60'}`} style={{backgroundImage:'repeating-linear-gradient(to bottom,transparent 0,transparent 59px,#e2e8f0 59px,#e2e8f0 60px)'}}>
+                      {events.map((ev,j)=>{
+                        const clock=new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(ev.inicio));
+                        const [h,m]=clock.split(':').map(Number);
+                        const same=events.filter(other=>new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(other.inicio))===clock);
+                        const pos=same.indexOf(ev),width=100/same.length;
+                        return <button key={ev.id||j} type="button" onClick={()=>setSelectedDay(d.getDate())} title={`${clock}: ${toCleanString(ev.atividade)} — ${originLabel(ev)}`} style={{top:Math.min(920,Math.max(0,(h-7)*60+m)),left:`${pos*width}%`,width:`${width}%`}} className={`absolute z-10 min-h-9 overflow-hidden rounded-md border border-white p-1 text-left text-[10px] text-white shadow-sm ${originColor(ev)}`}><strong>{clock}</strong><span className="block break-words leading-tight">{toCleanString(ev.atividade)}</span></button>;
+                      })}
+                    </div>;
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+          ) : (
+          <div className="divide-y divide-slate-100 p-3 md:p-4">
+            {Array.from(new Set(activeEvents.map(ev=>String(ev.inicio).slice(0,10)))).sort().map(dateKey=>{
+              const byDate=activeEvents.filter(ev=>String(ev.inicio).slice(0,10)===dateKey).sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio)));
+              return <section key={dateKey} className="py-3">
+                <h3 className="mb-2 text-xs font-black text-slate-700">{new Date(dateKey+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</h3>
+                <div className="space-y-2">{byDate.map((ev,i)=><button key={ev.id||i} type="button" onClick={()=>setSelectedDay(getEventDateParts(ev.inicio)?.d||selectedDay)} className="flex w-full items-center gap-3 rounded-xl border border-slate-200 p-3 text-left hover:border-blue-300">
+                  <span className="w-12 shrink-0 text-xs font-bold text-slate-700">{new Date(ev.inicio).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>
+                  <span className={`h-10 w-1 shrink-0 rounded-full ${originColor(ev)}`}></span>
+                  <span className="min-w-0 flex-1"><span className="block text-sm font-bold text-slate-900">{toCleanString(ev.atividade)}</span><span className="block text-xs text-slate-500">{toCleanString(ev.local)||'Local não informado'}</span></span>
+                  <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${originSoft(ev)}`}>{originLabel(ev)}</span>
+                </button>)}</div>
+              </section>;
+            })}
+            {activeEvents.length===0&&<p className="py-10 text-center text-sm text-slate-500">Nenhum evento encontrado.</p>}
+          </div>)}
         </div>
 
-        <div className="w-full lg:w-[400px] space-y-6">
-          <div className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm min-h-[500px] flex flex-col">
-            <div className="flex items-center gap-4 mb-8 pb-6 border-b border-slate-100">
+        <div className="w-full lg:w-[320px] xl:w-[340px] shrink-0 space-y-4">
+          <div className="bg-white rounded-[2rem] p-4 border border-slate-200 shadow-sm min-h-[300px] flex flex-col">
+            <div className="flex items-center gap-3 mb-4 pb-4 border-b border-slate-100">
                <div className="bg-blue-100 text-blue-700 w-14 h-14 rounded-[1.5rem] flex items-center justify-center font-black text-2xl shadow-inner shadow-blue-200/50">
                  {selectedDay}
                </div>
@@ -428,20 +596,30 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                </div>
             </div>
             
-            <div className="space-y-4 flex-grow overflow-y-auto max-h-[600px] pr-2 scrollbar-hide">
+            <div className="mb-4 grid grid-cols-3 gap-2" aria-label="Resumo por origem do dia">
+              {([{label:'EAC',color:'text-blue-700',count:selectedDayEvents.filter(ev=>!isExternalEvent(ev)).length},{label:'Paróquia',color:'text-orange-700',count:selectedDayEvents.filter(isParishEvent).length},{label:'Google EAC',color:'text-emerald-700',count:selectedDayEvents.filter(isEacGoogleEvent).length}]).map(v=><div key={v.label} className="rounded-xl border border-slate-200 p-2 text-center"><span className={`block text-lg font-black ${v.color}`}>{v.count}</span><span className="text-[10px] text-slate-500">{v.label}</span></div>)}
+            </div>
+            <div className="space-y-2 flex-grow overflow-y-auto max-h-[420px] pr-1 scrollbar-hide">
              {selectedDayEvents.length === 0 ? (
-                <div className="text-center py-24 bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-100">
+                <div className="text-center py-12 bg-slate-50/50 rounded-[2rem] border-2 border-dashed border-slate-100">
                    <p className="text-[10px] text-slate-300 font-black uppercase tracking-[0.3em] italic">Agenda Livre</p>
                 </div>
               ) : selectedDayEvents.map((ev, i) => (
-                  <div key={i} className={`p-6 rounded-[2rem] border transition-all hover:shadow-xl flex flex-col gap-4 bg-slate-50/30 group relative overflow-hidden`}>
-                    <div className={`absolute top-0 left-0 w-1.5 h-full ${getEventTypeColor(ev.tipo)}`}></div>
+                  <div key={ev.id||i} className="relative overflow-hidden rounded-xl border border-slate-200 bg-white p-3">
+                    <span className={`absolute left-0 top-0 h-full w-1 ${originColor(ev)}`}></span>
+                    <button type="button" className="w-full pl-1 text-left" aria-expanded={expandedDetail===String(ev.id||i)} onClick={()=>setExpandedDetail(prev=>prev===String(ev.id||i)?null:String(ev.id||i))}>
+                      <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${originSoft(ev)}`}>{originLabel(ev)}</span>
+                      <strong className="mt-1 block text-sm leading-tight text-slate-900">{toCleanString(ev.atividade)}</strong>
+                      <span className="mt-1 block text-xs text-slate-500">{formatDateTime(ev.inicio)}</span>
+                      <span className="block text-[10px] font-bold text-blue-700">{expandedDetail===String(ev.id||i)?'Ocultar detalhes':'Ver detalhes'}</span>
+                    </button>
+                    {expandedDetail===String(ev.id||i)&&<div className="mt-3 border-t border-slate-100 pt-3">
                     <div className="flex justify-between items-start">
-                      <div className={`px-4 py-1.5 rounded-full text-[9px] font-black text-white uppercase tracking-widest shadow-sm ${getEventTypeColor(ev.tipo)}`}>
-                        {toCleanString(ev.tipo)}
+                      <div className={`px-3 py-1 rounded-full text-[9px] font-black text-white uppercase tracking-widest shadow-sm ${originColor(ev)}`}>
+                        {originLabel(ev)}
                       </div>
                       <div className="flex gap-2">
-                         {canEdit && (
+                         {canEdit && !isExternalEvent(ev) && (
                            <button
                              onClick={() => {
                                setFormData({ ...ev });
@@ -453,7 +631,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" strokeWidth="3"/></svg>
                            </button>
                          )}
-                         {canDelete && (
+                         {canDelete && !isExternalEvent(ev) && (
                            <button 
                              onClick={() => { void handleDeleteEvent(ev); }}
                              className="p-2 rounded-xl transition-all shadow-sm text-red-500 hover:bg-white"
@@ -478,7 +656,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                       </div>
                       <div className="flex items-center text-slate-400 gap-4">
                          <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">📍</span> {toCleanString(ev.local) || 'Paróquia'}</p>
-                         <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">ðŸ•’</span> {new Date(ev.inicio).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                         <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">ðŸ•’</span> {new Date(ev.inicio).toLocaleTimeString('pt-BR', {timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'})}</p>
                          {toCleanString(ev.encontroId) && (
                            <p className="text-[10px] font-bold flex items-center gap-1.5"><span className="opacity-50">#</span> {toCleanString(ev.encontroId)}</p>
                          )}
@@ -502,12 +680,17 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                         </p>
                       )}
                     </div>
+                    </div>}
                   </div>
                 ))
               }
             </div>
             
-            <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between">
+            <div className="mt-5 border-t border-slate-100 pt-4" aria-label="Resumo do mês por origem">
+              <p className="mb-2 text-xs font-black text-slate-800">Resumo do mês</p>
+              {([{label:'EAC',color:'bg-blue-600',count:activeEvents.filter(ev=>!isExternalEvent(ev)).length},{label:'Paróquia',color:'bg-orange-500',count:activeEvents.filter(isParishEvent).length},{label:'Google EAC',color:'bg-emerald-600',count:activeEvents.filter(isEacGoogleEvent).length}]).map(entry=><div key={entry.label} className="flex items-center gap-2 py-1.5 text-xs text-slate-700"><span className={`h-2.5 w-2.5 rounded-full ${entry.color}`}></span><span className="flex-1">{entry.label}</span><strong>{entry.count}</strong></div>)}
+            </div>
+            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Base de Dados EAC</span>
                <span className="text-[10px] font-black text-blue-600">{activeEvents.length} Atividades no Mês</span>
             </div>
