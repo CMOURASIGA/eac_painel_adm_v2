@@ -31,6 +31,7 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
   const [historyLoading,setHistoryLoading]=useState(false);
   const [historyLoaded,setHistoryLoaded]=useState(false);
   const [allocationLoading,setAllocationLoading]=useState(false);
+  const [historyDurationMs,setHistoryDurationMs]=useState<number|null>(null);
   const [search,setSearch]=useState('');
   const [edition,setEdition]=useState('TODOS');
   const [engagement,setEngagement]=useState('TODOS');
@@ -81,11 +82,14 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
     setHasSearched(false);
     if(historyLoaded){setHasSearched(true);return;}
     setHistoryLoading(true);
+    const started=performance.now();
     try{
-      const pairs=await Promise.all(encontros.map(async meet=>({
-        meet,
-        result:await encontreirosService.listarComposicaoEquipe({encontroId:clean(meet.id)},{googleWebAppUrl})
-      })));
+      // Limite de concorrência para não saturar a API com todos os encontros simultaneamente.
+      const pairs: Array<{meet:any;result:any}> = [];
+      for(let i=0;i<encontros.length;i+=4){
+        const batch=await Promise.all(encontros.slice(i,i+4).map(async meet=>({meet,result:await encontreirosService.listarComposicaoEquipe({encontroId:clean(meet.id)},{googleWebAppUrl})})));
+        pairs.push(...batch);
+      }
       const histories=new Map<string,HistoryItem[]>();
       for(const {meet,result} of pairs){
         if(!result.success)throw new Error(result.error||'Falha no histórico de equipes');
@@ -99,6 +103,7 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
       }
       setHistory(histories);
       setHistoryLoaded(true);
+      setHistoryDurationMs(Math.round(performance.now()-started));
       setHasSearched(true);
     }catch{setMessage('Não foi possível consultar o histórico. Tente pesquisar novamente.');}
     finally{setHistoryLoading(false);}
@@ -174,6 +179,7 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
         <button type="button" onClick={()=>{void searchCandidates();}} disabled={historyLoading} className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white disabled:opacity-50">{historyLoading?'Consultando histórico...':'Pesquisar'}</button>
         <button type="button" onClick={clearSearch} className="rounded-xl border border-slate-200 px-6 py-3 text-sm font-bold text-slate-700">Limpar filtros</button>
       </div>
+      {historyDurationMs!==null&&<p className="mt-2 text-xs text-slate-500">Histórico consultado em {(historyDurationMs/1000).toFixed(1)} s.</p>}
     </div>
 
     <div className="grid gap-3 lg:grid-cols-2">
@@ -219,9 +225,9 @@ export default function EncontreiroMontagemPanel({googleWebAppUrl}:Props){
             return <div className="grid gap-4 md:grid-cols-2">
               {section('Contato',[info('WhatsApp',a.celularWhatsapp),info('E-mail',a.email)])}
               {section('Localização',[info('Bairro',a.bairro),info('Endereço',a.enderecoCompleto)])}
-              {section('Participação no EAC',[info('Paróquia onde fez o EAC',a.paroquiaFezEac),info('Já trabalhou em EAC?',answer(a.jaTrabalhouEac)),info('Já coordenou equipe?',answer(a.jaCoordenouEquipe)),info('Deseja trabalhar no próximo EAC?',a.desejaTrabalharProximoEac)])}
-              {section('Vivência pastoral',[info('Frequenta missas?',answer(a.frequentaMissas)),info('Onde frequenta?',a.ondeFrequentaMissas),info('Participa de movimento?',answer(a.participaMovimento)),info('Movimento ou paróquia',a.movimentoParoquia)])}
-              <div className="md:col-span-2">{section('Observações',[info('Observações gerais',a.observacoes),info('Sugestão do último encontro',a.sugestaoUltimoEncontro),info('Dica para o Pós',a.dicaPosEncontro)])||<div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">Nenhuma observação cadastrada.</div>}</div>
+              {section('Participação no EAC',[info('Paróquia onde fez o EAC',a.paroquiaFezEac),info('Já trabalhou em EAC?',answer(a.jaTrabalhouEac)),info('Já coordenou equipe?',answer(a.jaCoordenouEquipe)),info('Pais fizeram algum encontro?',answer(a.paisFizeramEncontro))])}
+              {section('Vivência pastoral',[info('Frequenta missas?',answer(a.frequentaMissas)),info('Onde frequenta?',a.ondeMissas),info('Participa de movimento?',answer(a.participaMovimento)),info('Movimento ou paróquia',a.movimentoParoquia)])}
+              <div className="md:col-span-2">{section('Observações',[info('Sugestão do último encontro',a.sugestaoUltimoEncontro),info('Dica para o Pós',a.dicaPosEncontro)])||<div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">Nenhuma observação cadastrada.</div>}</div>
             </div>;
           })()}
         </div>
