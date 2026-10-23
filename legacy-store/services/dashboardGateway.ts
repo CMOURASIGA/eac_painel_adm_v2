@@ -6,7 +6,15 @@ async function call(action:string,args:Record<string,unknown>={},mutate=false){
  if(!response.ok||!json.success)throw new Error(json.error||'STORE_REQUEST_FAILED');
  return json.data;
 }
-export async function getSession(){const r=await fetch('/api/eac-store/gateway?action=stock',{credentials:'same-origin'});return r.ok?{access_token:'eac-session'}:null}
+export async function getSession(){
+ const r=await fetch('/api/eac-store/gateway?action=stock',{credentials:'same-origin'});
+ if(r.ok)return {access_token:'eac-session'};
+ const response=await r.json().catch(()=>({error:'STORE_REQUEST_FAILED'}));
+ if(r.status===503||response.error==='STORE_BRIDGE_NOT_CONFIGURED')throw new Error('STORE_BRIDGE_NOT_CONFIGURED');
+ if(r.status===401)throw new Error('EAC_SESSION_REQUIRED');
+ if(r.status===403)throw new Error('STORE_ACCESS_DENIED');
+ throw new Error(response.error||'STORE_REQUEST_FAILED');
+}
 export async function signIn(_email:string,_password:string){throw new Error('Use o login do EAC para acessar a loja.')}
 export async function signOut(){return}
 export async function fetchDashboardSummary(encontroId:string):Promise<DashboardSummaryRow[]>{return call('summary',{encontroId})}
