@@ -31,6 +31,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (calendarRoute === 'start') return oauthStart(req, res);
   if (calendarRoute === 'callback') return oauthCallback(req, res);
   if (calendarRoute === 'publication') return googlePublication(req,res);
+  if(calendarRoute==='logout'){
+    if(req.method!=='POST')return res.status(405).json({success:false,error:'METHOD_NOT_ALLOWED'});
+    res.setHeader('Set-Cookie','eac_auth_token=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+    return res.status(200).json({success:true});
+  }
   if (calendarRoute === 'public') return publicEacCalendar(req,res);
   if (calendarRoute === 'store-products') return eacStoreProducts(req,res);
   if (req.method !== 'POST') return send(res, 405, { success: false, error: 'Metodo nao permitido.' });
