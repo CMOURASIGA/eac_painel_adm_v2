@@ -62,6 +62,7 @@ export const NAVIGATION_GROUPS: NavigationGroup[] = [
       { label: 'Comunicados', view: 'comunicados', enabled: true, description: 'Mensagens e avisos publicados.' },
       { label: 'Disparos', view: 'dispatches', enabled: true, description: 'Execução de envios em massa.' },
       { label: 'Calendário', view: 'calendar', enabled: true, description: 'Agenda pública de eventos.' },
+      { label: 'EAC Store', view: 'eac_store', enabled: true, description: 'Produtos, loja e operação de camisas.' },
     ],
   },
   {
@@ -111,6 +112,7 @@ export function canAccessView(view: View, isAdmin: boolean, allowedModules: stri
     case 'presence_sessions': return allowed.includes('presence');
     case 'dispatches': return allowed.includes('dispatches');
     case 'calendar': return allowed.includes('calendar');
+    case 'eac_store': return allowed.includes('eac_store');
     case 'comunicados': return allowed.includes('comunicados');
     case 'logs': return allowed.includes('logs');
     case 'users': return allowed.includes('users');
