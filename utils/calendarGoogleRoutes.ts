@@ -9,7 +9,8 @@ export async function googleRead(req:NextApiRequest,res:NextApiResponse){
  if(process.env.EAC_GOOGLE_CALENDAR_ENABLED!=='true')return res.status(200).json({success:true,enabled:false,events:[]});
  const token=String(req.cookies?.eac_auth_token||'');
  const url=process.env.SUPABASE_URL||'',anon=process.env.SUPABASE_ANON_KEY||'',service=process.env.SUPABASE_SERVICE_ROLE_KEY||'';
- if(!token||!url||!anon||!service)return res.status(401).json({success:false,error:'AUTH_REQUIRED'});
+ if(!url||!anon||!service)return res.status(503).json({success:false,error:'GOOGLE_AUTH_SERVER_CONFIG_MISSING'});
+ if(!token)return res.status(401).json({success:false,error:'GOOGLE_AUTH_SESSION_MISSING'});
  const authClient=createClient(url,anon,{auth:{persistSession:false}});
  const identity=await authClient.auth.getUser(token);
  if(identity.error||!identity.data.user?.email)return res.status(401).json({success:false,error:'AUTH_INVALID'});
