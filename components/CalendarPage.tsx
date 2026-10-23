@@ -712,7 +712,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
                         </p>
                       )}
                     </div>
-                    </div>
+                    </div>}
                   </div>
                 ))
               }
