@@ -31,7 +31,7 @@ export async function GET(req:Request) {
     return NextResponse.json({success:false,error:'Período inválido.'},{status:400});
   }
   const timeMin=new Date(Date.UTC(year,month-1,1)).toISOString();
-  const timeMax=new Date(Date.UTC(year,month+1,1)).toISOString(); // includes day-boundary overlapping events
+  const timeMax=new Date(Date.UTC(year,month,1)).toISOString(); // exclusivo: primeiro dia do mês seguinte
   const key=c.calendarId+':'+year+':'+month;
   if(cached?.key===key&&cached.expiry>Date.now()) return NextResponse.json({success:true,enabled:true,events:cached.events,syncedFrom:'cache'},{headers:{'Cache-Control':'private, max-age=60'}});
   try {
@@ -44,8 +44,8 @@ export async function GET(req:Request) {
       const result=await calendar.events.list({calendarId:c.calendarId,timeMin,timeMax,singleEvents:true,maxResults:2500,pageToken,showDeleted:false});
       for(const e of result.data.items||[]){
         if(e.status==='cancelled'||!e.start) continue;
-        const start=e.start.dateTime||e.start.date;
-        const end=e.end?.dateTime||e.end?.date||start;
+        const start=e.start.dateTime||(e.start.date ? e.start.date+'T12:00:00' : undefined);
+        const end=e.end?.dateTime||(e.end?.date ? e.end.date+'T12:00:00' : undefined)||start;
         if(!start)continue;
         events.push({id:'google:'+e.id,atividade:e.summary||'Evento da paróquia',tipo:'Paróquia',inicio:start,termino:end||start,local:e.location||'',status:'Confirmado',origemDado:'GOOGLE_PAROQUIA',googleReadOnly:true});
       }
