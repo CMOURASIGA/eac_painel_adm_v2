@@ -64,7 +64,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
   const [internalEvents, setInternalEvents] = useState<CalendarEvent[]>([]);
   const [googleEvents,setGoogleEvents] = useState<CalendarEvent[]>([]);
   const [googleStatus,setGoogleStatus] = useState('');
-  const [sourceFilter,setSourceFilter] = useState<'Todos'|'EAC'|'Paróquia'>('Todos');
+  const [sourceFilter,setSourceFilter] = useState<'Todos'|'EAC'|'Paróquia'|'Google EAC'>('Todos');
   const [calendarView,setCalendarView] = useState<'mes'|'semana'|'lista'>('mes');
   const [currentDate, setCurrentDate] = useState(() => {
     try {
@@ -163,7 +163,6 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
     (async()=>{
       try {
         const response=await fetch(`/api/calendar/google?year=${year}&month=${month+1}`,{
-          headers:{'x-eac-user-email':user.email||''},
           signal:controller.signal,
         });
         const result=await response.json();
@@ -174,7 +173,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
           return;
         }
         setGoogleEvents(Array.isArray(result.events)?result.events:[]);
-        setGoogleStatus(result.enabled?'Agenda paroquial sincronizada':'Integração Google ainda não ativada');
+        setGoogleStatus(result.enabled?'Agendas Google sincronizadas':'Integração Google ainda não ativada');
       }catch{
         if(active){setGoogleEvents([]);setGoogleStatus('Agenda paroquial indisponível');}
       }
@@ -184,14 +183,18 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
 
   const allEvents=useMemo(()=>{
     const items=[...internalEvents];
-    const seen=new Set(internalEvents.map(e=>[toCleanString(e.atividade).toLocaleLowerCase('pt-BR'),String(e.inicio||'').slice(0,10)].join('|')));
+    const seen=new Set<string>();
     for(const event of googleEvents) {
       const key=[toCleanString(event.atividade).toLocaleLowerCase('pt-BR'),String(event.inicio||'').slice(0,10)].join('|');
       if(!seen.has(key))items.push(event);
+      seen.add(key);
     }
     return items;
   },[internalEvents,googleEvents]);
-  const isParishEvent=(ev:CalendarEvent)=>String(ev.origemDado||ev.origem_dado||'').toUpperCase()==='GOOGLE_PAROQUIA';
+  const getGoogleSource=(ev:CalendarEvent)=>String(ev.origemDado||ev.origem_dado||'').toUpperCase();
+  const isParishEvent=(ev:CalendarEvent)=>getGoogleSource(ev)==='GOOGLE_PAROQUIA';
+  const isEacGoogleEvent=(ev:CalendarEvent)=>getGoogleSource(ev)==='GOOGLE_EAC';
+  const isExternalEvent=(ev:CalendarEvent)=>isParishEvent(ev)||isEacGoogleEvent(ev);
 
   const changeMonth = (offset: number) => {
     setCurrentDate((prev) => new Date(prev.getFullYear(), prev.getMonth() + offset, 1));
@@ -207,8 +210,9 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
 
   const activeEvents = useMemo(() => {
     return allEvents.filter(ev => {
-      if(sourceFilter==='EAC'&&isParishEvent(ev))return false;
+      if(sourceFilter==='EAC'&&isExternalEvent(ev))return false;
       if(sourceFilter==='Paróquia'&&!isParishEvent(ev))return false;
+      if(sourceFilter==='Google EAC'&&!isEacGoogleEvent(ev))return false;
       const parts = getEventDateParts(ev.inicio);
       if (!parts || parts.y !== year || parts.m !== month) return false;
       const statusOk = statusFilter === 'Todos' || normalizeStatus(ev.status) === statusFilter;
@@ -350,7 +354,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
           <span className={`text-[10px] md:text-xs font-black flex items-center justify-center w-6 h-6 rounded-full ${isToday ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400'}`}>{day}</span>
           <div className="hidden md:block mt-2 space-y-1">
                 {dayEvs.slice(0, 3).map((ev, idx) => (
-              <div key={idx} className={`text-[8px] p-1.5 rounded-lg font-black truncate text-white shadow-sm transition-transform hover:scale-105 ${isParishEvent(ev)?'bg-amber-600':getEventTypeColor(ev.tipo)}`}>
+              <div key={idx} className={`text-[8px] p-1.5 rounded-lg font-black truncate text-white shadow-sm transition-transform hover:scale-105 ${isParishEvent(ev)?'bg-amber-600':isEacGoogleEvent(ev)?'bg-violet-600':getEventTypeColor(ev.tipo)}`}>
                 {toCleanString(ev.atividade)}
               </div>
             ))}
@@ -452,7 +456,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         <div className="flex flex-wrap gap-2" role="group" aria-label="Visualização do calendário">
           {(['mes','semana','lista'] as const).map(v=><button key={v} type="button" onClick={()=>setCalendarView(v)} aria-pressed={calendarView===v} className={`px-4 py-2 rounded-xl text-xs font-black ${calendarView===v?'bg-blue-700 text-white':'bg-slate-100 text-slate-700'}`}>{v==='mes'?'Mês':v==='semana'?'Semana':'Lista'}</button>)}
         </div>
-        <label className="text-xs font-bold text-slate-600">Origem <select aria-label="Filtrar origem" value={sourceFilter} onChange={e=>setSourceFilter(e.target.value as typeof sourceFilter)} className="ml-2 rounded-xl border border-slate-200 bg-white px-3 py-2"><option>Todos</option><option>EAC</option><option>Paróquia</option></select></label>
+        <label className="text-xs font-bold text-slate-600">Origem <select aria-label="Filtrar origem" value={sourceFilter} onChange={e=>setSourceFilter(e.target.value as typeof sourceFilter)} className="ml-2 rounded-xl border border-slate-200 bg-white px-3 py-2"><option>Todos</option><option>EAC</option><option>Paróquia</option><option>Google EAC</option></select></label>
         <p className="w-full text-xs text-slate-500" role="status">{googleStatus}</p>
       </div>
       <div className="flex flex-col lg:flex-row gap-8">
@@ -466,7 +470,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
           <div className="grid grid-cols-7">{renderCalendar()}</div>
           </> : <div className="p-4 space-y-2">
             {activeEvents.filter(ev=>calendarView==='lista'||(()=>{const first=new Date(year,month,selectedDay).getDate()-new Date(year,month,selectedDay).getDay();const d=getEventDateParts(ev.inicio)?.d||0;return d>=first&&d<first+7;})()).sort((a,b)=>String(a.inicio).localeCompare(String(b.inicio))).map((ev,i)=><button key={ev.id||i} type="button" onClick={()=>setSelectedDay(getEventDateParts(ev.inicio)?.d||selectedDay)} className="w-full rounded-2xl border border-slate-200 p-4 text-left hover:border-blue-300">
-              <div className="flex items-center gap-2"><span className="font-black text-slate-800">{toCleanString(ev.atividade)}</span><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${isParishEvent(ev)?'bg-amber-100 text-amber-800':'bg-blue-100 text-blue-800'}`}>{isParishEvent(ev)?'Paróquia':'EAC'}</span></div>
+              <div className="flex items-center gap-2"><span className="font-black text-slate-800">{toCleanString(ev.atividade)}</span><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${isParishEvent(ev)?'bg-amber-100 text-amber-800':isEacGoogleEvent(ev)?'bg-violet-100 text-violet-800':'bg-blue-100 text-blue-800'}`}>{isParishEvent(ev)?'Paróquia':isEacGoogleEvent(ev)?'Google EAC':'EAC'}</span></div>
               <p className="mt-1 text-xs text-slate-500">{formatDateTime(ev.inicio)} · {toCleanString(ev.local)||'Local não informado'}</p>
             </button>)}
             {activeEvents.length===0&&<p className="py-10 text-center text-sm text-slate-500">Nenhum evento encontrado.</p>}
