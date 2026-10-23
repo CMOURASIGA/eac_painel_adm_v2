@@ -279,6 +279,7 @@ function StatusDrawer({
 
 export default function Dashboard() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const [accessDiagnostic, setAccessDiagnostic] = useState('');
   const [tab, setTab] = useState<Tab>('visao');
   const [summary, setSummary] = useState<DashboardSummaryRow[]>([]);
   const [orders, setOrders] = useState<DashboardOrder[]>([]);
@@ -294,7 +295,7 @@ export default function Dashboard() {
   const [statusOrder, setStatusOrder] = useState<DashboardOrder | null>(null);
   const [resendingId, setResendingId] = useState<string | null>(null);
 
-  useEffect(() => { getSession().then((session) => setAuthenticated(Boolean(session))); }, []);
+  useEffect(() => { getSession().then((session) => setAuthenticated(Boolean(session))).catch((err) => {setAccessDiagnostic(err instanceof Error ? err.message : 'STORE_REQUEST_FAILED');setAuthenticated(false);}); }, []);
 
   const load = async () => {
     setLoading(true);
@@ -485,7 +486,7 @@ export default function Dashboard() {
   };
 
   if (authenticated === null) return <div className="min-h-screen bg-background p-8">Carregando...</div>;
-  if (!authenticated) return <div role="alert" className="mx-auto max-w-xl rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-950">Acesso à gestão de camisas não autorizado pela sessão EAC. Entre novamente no painel e confira suas permissões. A operação da loja permanece protegida.</div>;
+  if (!authenticated) return <div role="alert" className="mx-auto max-w-xl rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-950">{accessDiagnostic === 'STORE_BRIDGE_NOT_CONFIGURED' ? 'A integração segura com o banco original de camisas ainda não está configurada neste ambiente. O fluxo público original permanece preservado; o dashboard não pode ser liberado sem a conexão server-side.' : accessDiagnostic === 'EAC_SESSION_REQUIRED' ? 'Sua sessão do EAC precisa ser renovada. Saia do painel e faça login novamente.' : accessDiagnostic === 'STORE_ACCESS_DENIED' ? 'Este perfil não possui autorização para operar o EAC Store.' : 'Não foi possível validar o acesso ao EAC Store. Verifique a sessão e as permissões.'}</div>;
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-7">
