@@ -106,13 +106,13 @@ function Card({e,i,h,big}:{e:E;i:number;h:number;big?:boolean}){
       <span style={{fontWeight:900,fontSize:h*.19,marginTop:4}}>{weekDay(e.inicio)}</span>
     </div>
     <div style={{flex:1,minWidth:0,padding:'0 24px',display:'flex',flexDirection:'column',justifyContent:'center',gap:big?14:8,color:C.navy}}>
-      <strong style={{fontWeight:900,fontSize:big?58:h*.32,lineHeight:1.1,overflowWrap:'anywhere'}}>{e.atividade}</strong>
-      <span style={{display:'flex',alignItems:'center',gap:10,fontWeight:800,fontSize:big?34:h*.25}}>
+      <strong style={{fontWeight:900,fontSize:big?40:h*.26,lineHeight:1.1,overflowWrap:'anywhere'}}>{e.atividade}</strong>
+      <span style={{display:'flex',alignItems:'center',gap:10,fontWeight:800,fontSize:big?27:h*.19}}>
         <Icon name="clock" size={big?34:h*.25} color={C.navy}/>{clock(e.inicio)}{e.termino?' - '+clock(e.termino):''}
       </span>
       {big&&<span style={{display:'flex',alignItems:'center',gap:10,fontWeight:800,fontSize:30}}><Icon name="pin" size={30} color={C.navy}/>{e.local||'Local a confirmar'}</span>}
     </div>
-    <div style={{display:'flex',alignItems:'center',paddingRight:big?40:26}}><Icon name={iconFor(e.atividade)} size={big?96:h*.52} color={C.navy} stroke={1.8}/></div>
+    <div style={{display:'flex',alignItems:'center',paddingRight:big?40:26}}><Icon name={iconFor(e.atividade)} size={big?72:h*.38} color={C.navy} stroke={1.8}/></div>
   </section>;
 }
 
@@ -126,25 +126,26 @@ export default function PublicAgendaArt({month,year,events,format,style,kind,cal
   const extra=Math.max(0,events.length-entries.length);
   const qrData=useMemo(()=>{const qr=qrcode(0,'M');qr.addData(calendarUrl);qr.make();return qr.createDataURL(8,2)},[calendarUrl]);
   const shownUrl=calendarUrl.replace(/^https?:\/\//,'').replace(/\/$/,'');
+  const displayUrl=shownUrl.length>40?'ESCANEIE O QR CODE':shownUrl;
   const [line1,line2]=kind==='mes'?['AGENDA','EAC']:kind==='semana'?['SEMANA','NO EAC']:['NÃO','PERCA!'];
   const shape=(p:string)=>t.torn?p:RECT;
   const showPhoto=t.photo;
-  const photoH=S.wide?'75%':'32%';
+  const photoH=S.wide?'50%':'23%';
 
   const photo=showPhoto?<>
     <Img src={ART_ASSETS.photo} style={{position:'absolute',right:0,bottom:0,width:S.wide?'30%':'38%',height:photoH,objectFit:'contain',objectPosition:'right bottom'}}/>
 
   </>:null;
 
-  const wordmark=(size:number)=><div style={{color:C.navy}}>
-    <div style={{fontFamily:FONT_BLOCK,fontSize:size,lineHeight:.9,letterSpacing:-2}}>EAC</div>
-    <div style={{fontFamily:FONT_BLOCK,fontSize:size*.24,lineHeight:1.12,marginTop:6}}>PORCIÚNCULA<br/>DE SANT'ANNA</div>
+  const wordmark=(size:number)=><div style={{color:C.navy,minWidth:0,overflow:'visible'}}>
+    <div style={{fontFamily:FONT_BLOCK,fontSize:size*.77,lineHeight:1,letterSpacing:0}}>EAC</div>
+    <div style={{fontFamily:FONT_BLOCK,fontSize:size*.16,lineHeight:1.3,marginTop:6}}>PORCIÚNCULA<br/>DE SANT'ANNA</div>
   </div>;
 
   const seal=(size:number)=><Img src={ART_ASSETS.seal} alt="Selo oficial do EAC" style={{width:size,height:size,objectFit:'contain',flexShrink:0}}/>;
 
   const urlPill=(size:number)=><div style={{display:'inline-flex',alignItems:'center',gap:12,background:'#fff',borderRadius:999,padding:`${size*.32}px ${size*.7}px`,color:C.navy,fontWeight:900,fontSize:size}}>
-    <Icon name="link" size={size*1.05} color={C.navy}/>{shownUrl}
+    <Icon name="link" size={size*1.05} color={C.navy}/>{displayUrl}
   </div>;
 
   const banner=(big:boolean)=><div style={{position:'relative',alignSelf:'flex-start',transform:'rotate(-1.5deg)',padding:big?'26px 44px 26px 34px':'14px 26px 14px 20px'}}>
@@ -198,48 +199,48 @@ export default function PublicAgendaArt({month,year,events,format,style,kind,cal
   return <div style={root}>
     <style>{FONT_CSS}</style>{photo}
 
-    <header style={{position:'relative',zIndex:2,padding:`${40*k}px ${m}px ${72*k}px`,flexShrink:0}}>
+    <header style={{position:'relative',zIndex:2,padding:`${24*k}px ${m}px ${34*k}px`,flexShrink:0}}>
       <Torn fill={t.head} points={shape(P_PAPER)}/>
       <div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-        {wordmark(122*k)}
+        {wordmark(104*k)}
         <div style={{position:'relative',transform:'rotate(-5deg)',padding:'16px 26px',textAlign:'center',color:C.navy}}>
           <Torn fill={C.tan} points={shape(P_STRIP)}/>
-          <div style={{position:'relative',fontFamily:FONT_DISPLAY,fontSize:38*k,lineHeight:1.15}}>“Viva o EAC!<br/>Faça acontecer!”</div>
+          <div style={{position:'relative',fontFamily:FONT_DISPLAY,fontSize:29*k,lineHeight:1.15}}>“Viva o EAC!<br/>Faça acontecer!”</div>
         </div>
-        {seal(190*k)}
+        {seal(145*k)}
       </div>
     </header>
 
-    <div style={{position:'relative',zIndex:3,margin:`-${38*k}px ${28}px 0`,padding:`${34*k}px 36px ${30*k}px`,transform:'rotate(-1deg)',flexShrink:0}}>
+    <div style={{position:'relative',zIndex:3,margin:`-${15*k}px ${28}px 0`,padding:`${20*k}px 28px ${20*k}px`,transform:'rotate(-1deg)',flexShrink:0}}>
       <Torn fill={t.title} points={shape(P_BRUSH)}/>
       <div style={{position:'relative',display:'flex',alignItems:'center',justifyContent:'center',gap:28,color:t.titleText}}>
-        {!compact&&<Icon name="calendar" size={128} color={t.titleText} stroke={1.6}/>}
+        {!compact&&<Icon name="calendar" size={76} color={t.titleText} stroke={1.6}/>}
         <div style={{textAlign:'center'}}>
-          <div style={{fontFamily:FONT_DISPLAY,fontSize:118*k,lineHeight:1,transform:'rotate(-1deg)'}}>{line1} <span style={{color:t.accent}}>{line2}</span></div>
-          <div style={{fontFamily:FONT_BLOCK,fontSize:66*k,marginTop:8}}>{month.toUpperCase()} <span style={{color:t.accent}}>{year}</span></div>
+          <div style={{fontFamily:FONT_DISPLAY,fontSize:81*k,lineHeight:1,transform:'rotate(-1deg)'}}>{line1} <span style={{color:t.accent}}>{line2}</span></div>
+          <div style={{fontFamily:FONT_BLOCK,fontSize:48*k,marginTop:8}}>{month.toUpperCase()} <span style={{color:t.accent}}>{year}</span></div>
         </div>
       </div>
     </div>
 
-    <div style={{position:'relative',zIndex:2,flex:1,minHeight:0,margin:`${28*k}px ${m}px 0`,display:'flex',flexDirection:'column',gap:14}}>
-      {entries.map((e,i)=><Card key={e.id} e={e} i={i} h={kind==='evento'?280:S.card} big={kind==='evento'}/>)}
+    <div style={{position:'relative',zIndex:2,flex:1,minHeight:0,margin:`${16*k}px ${m}px 0`,display:'flex',flexDirection:'column',gap:14}}>
+      {entries.map((e,i)=><Card key={e.id} e={e} i={i} h={kind==='evento'?190:format==='feed'?101:format==='square'?87:S.card} big={kind==='evento'}/>)}
       {entries.length===0&&emptyCard}
       {extra>0&&<span style={{alignSelf:'flex-end',fontWeight:900,fontSize:24,color:'#fff',background:C.navy,borderRadius:999,padding:'6px 20px'}}>+{extra} {extra===1?'evento':'eventos'} no calendário completo</span>}
     </div>
 
-    {!compact&&<div style={{position:'relative',zIndex:2,margin:`18px ${m}px 0`,display:'flex'}}>{banner(true)}</div>}
+    {!compact&&<div style={{position:'relative',zIndex:2,margin:`10px ${m}px 0`,display:'flex'}}>{banner(false)}</div>}
 
-    <footer style={{position:'relative',zIndex:2,margin:`${compact?16:18}px 40px 40px`,padding:compact?'22px 30px':'30px 36px',flexShrink:0}}>
+    <footer style={{position:'relative',zIndex:2,margin:`${compact?10:12}px 40px 22px`,padding:compact?'14px 22px':'18px 26px',flexShrink:0}}>
       <Torn fill={t.foot} points={shape(P_FOOT)}/>
       <div style={{position:'relative',display:'flex',alignItems:'center',gap:compact?24:30,color:'#fff'}}>
-        <img src={qrData} alt="QR Code da agenda pública" style={{width:compact?150:176,height:compact?150:176,background:'#fff',padding:8,borderRadius:8,flexShrink:0}}/>
+        <img src={qrData} alt="QR Code da agenda pública" style={{width:compact?110:126,height:compact?110:126,background:'#fff',padding:8,borderRadius:8,flexShrink:0}}/>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontFamily:FONT_BLOCK,fontSize:compact?34:42,lineHeight:1.05}}>NÃO FIQUE DE FORA!</div>
-          <div style={{fontFamily:FONT_BLOCK,fontSize:compact?28:36,lineHeight:1.1,color:C.yellow,marginTop:6}}>MARQUE NA AGENDA<br/>E CHAME A GALERA!</div>
+          <div style={{fontFamily:FONT_BLOCK,fontSize:compact?23:30,lineHeight:1.05}}>NÃO FIQUE DE FORA!</div>
+          <div style={{fontFamily:FONT_BLOCK,fontSize:compact?20:26,lineHeight:1.1,color:C.yellow,marginTop:6}}>MARQUE NA AGENDA<br/>E CHAME A GALERA!</div>
           <div style={{fontWeight:900,fontSize:compact?17:21,margin:'14px 0 10px'}}>ACESSE O CALENDÁRIO COMPLETO:</div>
-          {urlPill(compact?24:30)}
+          {urlPill(compact?17:18)}
         </div>
-        {!compact&&<div style={{transform:'rotate(5deg)',background:C.paper,color:C.navy,padding:'18px 26px',fontFamily:FONT_DISPLAY,fontSize:42,lineHeight:1.15,textAlign:'center',flexShrink:0,boxShadow:'6px 7px 0 rgba(0,0,0,.25)'}}>
+        {!compact&&<div style={{transform:'rotate(5deg)',background:C.paper,color:C.navy,padding:'18px 26px',fontFamily:FONT_DISPLAY,fontSize:26,lineHeight:1.15,textAlign:'center',flexShrink:0,boxShadow:'6px 7px 0 rgba(0,0,0,.25)'}}>
           “Amizade,<br/>fé,<br/>serviço,<br/>sempre!”<div style={{marginTop:6}}><Icon name="heart" size={40} color={C.navy}/></div>
         </div>}
       </div>
