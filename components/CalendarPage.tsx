@@ -417,9 +417,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
           <p className="text-slate-500 font-medium italic text-xs md:text-sm mt-3">Gestão de Agenda Oficial e Eventos Confirmados.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a href="/publico/calendario" target="_blank" rel="noopener noreferrer" className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-[10px] font-black uppercase tracking-wide text-blue-800 hover:bg-blue-100">
-            Ver calendário público ↗
-          </a>
+          
           <button 
              onClick={handleImportExternos2026}
              className="px-4 py-3 bg-white border-2 border-slate-200 rounded-2xl font-black text-slate-700 hover:bg-slate-50 shadow-sm transition-all text-[10px] uppercase tracking-widest"
