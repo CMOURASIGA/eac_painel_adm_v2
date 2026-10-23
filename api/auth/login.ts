@@ -1,3 +1,4 @@
+import { googleRead, oauthStart, oauthCallback } from '../../utils/calendarGoogleRoutes.js';
 ﻿import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseServerClient } from '../../utils/supabaseServer.js';
@@ -22,6 +23,10 @@ function buildAllowedModules(role: string, modules: string[]) {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const calendarRoute = String(req.query.eac_google_route || '');
+  if (calendarRoute === 'events') return googleRead(req, res);
+  if (calendarRoute === 'start') return oauthStart(req, res);
+  if (calendarRoute === 'callback') return oauthCallback(req, res);
   if (req.method !== 'POST') return send(res, 405, { success: false, error: 'Metodo nao permitido.' });
 
   try {
