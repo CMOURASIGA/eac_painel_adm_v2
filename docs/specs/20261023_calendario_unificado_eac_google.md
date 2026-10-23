@@ -54,3 +54,9 @@ Não publicar na Vercel sem o gate da política de 6 correções ou exceção ex
 - Corrigida identificação por origem no chip do painel lateral, ordenação cronológica de eventos no dia e largura mínima da coluna principal.
 - Revisão estática: componentes semana, mês, lista e filtros estão presentes no código. **Não houve execução de typecheck, build, nem testes por viewport; estes critérios permanecem PENDING, não PASS.**
 - Não realizar outro deploy antes de passar typecheck/build, confirmar URLs OAuth, variáveis e cenários visuais 1280x600, 768x1024, 390x844; respeitar lote.
+
+## Refinamento corretivo V3 — lote sem deploy (23/10/2026)
+- Semana desktop: grade horária alinhada entre os sete dias, 07h–23h, blocos coloridos por origem e separação horizontal dos compromissos com início simultâneo. Dias da semana fora do mês são identificados como `Fora do mês` em vez de `Sem eventos`, pois a API mensal ainda não consulta os períodos adjacentes.
+- Semana mobile: seleção horizontal de sete dias em barra compacta e compromissos do dia ordenados por horário; agenda detalhada sem sete colunas minúsculas.
+- Painel lateral: cards compactos, expansão por evento, com controles de edição/exclusão dentro da expansão somente para eventos internos EAC. Indicadores e resumo mensal permanecem presentes.
+- Revisão de código realizada, mas **não executados** typecheck, build, Playwright ou homologação visual de 1280×600, 768×1024 e 390×844. Corrigir incompatibilidades de calendário em limite de meses e colisões com durações parciais após testes. Não promover e não classificar como PASS sem evidências.
