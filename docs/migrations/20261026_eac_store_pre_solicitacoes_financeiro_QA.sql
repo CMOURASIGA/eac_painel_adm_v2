@@ -92,7 +92,7 @@ begin
 end $$;
 -- Ações financeiras adicionais, transacionais e auditadas.
 create or replace function public.eac_camisa_transicao_financeira(p_id uuid,p_acao text,p_ator text)
-returns jsonb language plpgsql security invoker set search_path='' as $
+returns jsonb language plpgsql security invoker set search_path='' as $$
 declare
  v public.eac_camisa_pre_solicitacoes%rowtype;
  target_status text;
@@ -124,13 +124,13 @@ begin
  insert into public.eac_camisa_email_outbox(pre_solicitacao_id,evento,destinatario)
  values(p_id,p_acao,v.payload->>'emailSolicitante') on conflict do nothing;
  return jsonb_build_object('id',p_id,'status',target_status);
-end $;
+end $$;
 revoke all on function public.eac_camisa_transicao_financeira(uuid,text,text) from public,anon,authenticated;
 grant execute on function public.eac_camisa_transicao_financeira(uuid,text,text) to service_role;
 
 -- Expiração idempotente para execução por cron no servidor, sem depender do navegador.
 create or replace function public.eac_camisa_expirar_pendentes()
-returns integer language plpgsql security invoker set search_path='' as $
+returns integer language plpgsql security invoker set search_path='' as $$
 declare
  v_count integer:=0;
  v record;
@@ -153,7 +153,7 @@ begin
   end if;
  end loop;
  return v_count;
-end $;
+end $$;
 revoke all on function public.eac_camisa_expirar_pendentes() from public,anon,authenticated;
 grant execute on function public.eac_camisa_expirar_pendentes() to service_role;
 -- Após QA e revisão de pg_cron, agendar no projeto homologado.
