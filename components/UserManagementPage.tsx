@@ -1,3 +1,4 @@
+import StoreAccessPanel from './StoreAccessPanel.tsx';
 ﻿
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, View } from '../types.ts';
@@ -240,6 +241,8 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({ currentUser, go
           </tbody>
         </table>
       </div>
+
+      {currentUser.role === 'ADMIN' && <StoreAccessPanel />}
 
       {/* MODAL DE FORMULÁRIO (UPSERT) */}
       {isFormOpen && (
