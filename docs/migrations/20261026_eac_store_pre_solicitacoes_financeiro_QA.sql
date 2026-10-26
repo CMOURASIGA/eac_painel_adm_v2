@@ -49,7 +49,7 @@ alter table public.eac_camisa_financeiro_auditoria enable row level security;
 alter table public.eac_camisa_email_outbox enable row level security;
 revoke all on public.eac_camisa_pre_solicitacoes,public.eac_camisa_financeiro_auditoria,public.eac_camisa_email_outbox from anon,authenticated,public;
 grant select,insert,update,delete on public.eac_camisa_pre_solicitacoes,public.eac_camisa_financeiro_auditoria,public.eac_camisa_email_outbox to service_role;
-grant usage,select on all sequences in schema public to service_role;
+grant usage,select on sequence public.eac_camisa_financeiro_auditoria_id_seq,public.eac_camisa_email_outbox_id_seq to service_role;
 -- Operação exclusivamente via backend com credencial server-side. Nunca criar política anon para a fila financeira.
 grant usage on schema private to service_role;
 grant execute on function private.camisa_registrar_solicitacao(uuid,boolean,uuid,text,text,text,text,uuid,text,text,text,text,text,bigint,numeric,jsonb) to service_role;
