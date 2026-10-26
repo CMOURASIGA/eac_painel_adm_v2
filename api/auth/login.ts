@@ -1,3 +1,4 @@
+import {eacStoreAccess} from '../../utils/eacStoreAccess.js';
 import {eacStoreFinance} from '../../utils/eacStoreFinance.js';
 import {eacStoreGateway} from '../../utils/eacStoreGateway.js';
 import {eacStoreProducts} from '../../utils/eacStoreProducts.js';
@@ -42,6 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (calendarRoute === 'store-products') return eacStoreProducts(req,res);
   if (calendarRoute === 'store-gateway') return eacStoreGateway(req,res);
   if (calendarRoute === 'store-finance') return eacStoreFinance(req,res);
+  if (calendarRoute === 'store-access') return eacStoreAccess(req,res);
   if (req.method !== 'POST') return send(res, 405, { success: false, error: 'Metodo nao permitido.' });
 
   try {
