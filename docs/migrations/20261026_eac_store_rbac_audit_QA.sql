@@ -11,6 +11,8 @@ create table if not exists public.eac_store_access_audit(
 );
 alter table public.eac_store_access_audit enable row level security;
 revoke all on public.eac_store_access_audit from public,anon,authenticated;
+grant select,insert on public.eac_store_access_audit to service_role;
+grant usage,select on sequence public.eac_store_access_audit_id_seq to service_role;
 
 create or replace function public.eac_store_set_profile_grants(
  p_target uuid,p_actor uuid,p_store_grants text[]
