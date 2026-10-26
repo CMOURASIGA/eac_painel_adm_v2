@@ -4,6 +4,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/eac-store/finance",
+      "destination": "/api/auth/login?eac_google_route=store-finance"
+    },
+    {
       "source": "/api/eac-store/gateway",
       "destination": "/api/auth/login?eac_google_route=store-gateway"
     },
