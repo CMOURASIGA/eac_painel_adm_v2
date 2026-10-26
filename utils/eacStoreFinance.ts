@@ -21,7 +21,7 @@ export async function eacStoreFinance(req:NextApiRequest,res:NextApiResponse){
  const store=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
  const action=String(req.method==='GET'?req.query.action:req.body?.action||'');
  const p=req.method==='GET'?req.query:req.body||{};
- if(!['create','track','proof-ticket','inform','list','confirm','reject'].includes(action))return bad(res,400,'INVALID_ACTION');
+ if(!['create','track','proof-ticket','inform','cancel','list','confirm','reject','refundPending','refundComplete','cancelNoRefund'].includes(action))return bad(res,400,'INVALID_ACTION');
  if(action==='create'&&req.method==='POST'){
   const items=p.items, name=p.nomeSolicitante,beneficiary=p.nomeBeneficiario;
   if(!uuid(p.encontroId)||!validString(name)||!validString(beneficiary)||(!email(p.emailSolicitante)&&!validString(p.telefoneSolicitante,30)))return bad(res,400,'INVALID_CUSTOMER');
@@ -40,11 +40,15 @@ export async function eacStoreFinance(req:NextApiRequest,res:NextApiResponse){
   await store.from('eac_camisa_financeiro_auditoria').insert({pre_solicitacao_id:id,evento:'PRE_SOLICITACAO_CRIADA',estado_novo:'AGUARDANDO_PAGAMENTO',ator:'CLIENTE'}).then(()=>{});
   return res.status(201).json({success:true,id,protocol,token,amount,pix,expirationHours:hours});
  }
- if((action==='track'||action==='inform'||action==='proof-ticket')&&uuid(p.id)&&typeof p.token==='string'&&p.token.length===64){
+ if((action==='track'||action==='inform'||action==='proof-ticket'||action==='cancel')&&uuid(p.id)&&typeof p.token==='string'&&p.token.length===64){
   const {data:row,error}=await store.from('eac_camisa_pre_solicitacoes').select('id,protocolo,status,valor_total,criado_em,expira_em,confirmado_em,solicitacao_oficial_id,pix_snapshot,pagamento_informado_em,access_token_hash,payload').eq('id',p.id).eq('access_token_hash',hash(p.token)).maybeSingle();
   if(error)return bad(res,503,'TRACKING_UNAVAILABLE');
   if(!row)return bad(res,404,'NOT_FOUND');
   if(action==='track'&&req.method==='GET')return res.status(200).json({success:true,request:{id:row.id,protocolo:row.protocolo,status:row.status,valor_total:row.valor_total,criado_em:row.criado_em,expira_em:row.expira_em,confirmado_em:row.confirmado_em,solicitacao_oficial_id:row.solicitacao_oficial_id,pix_snapshot:row.pix_snapshot,pagamento_informado_em:row.pagamento_informado_em}});
+  if(action==='cancel'&&req.method==='POST'){
+   const {data,error}=await store.rpc('eac_camisa_transicao_financeira',{p_id:p.id,p_acao:'CANCELAR_CLIENTE',p_ator:'CLIENTE'});
+   return error?bad(res,409,'CANCEL_NOT_ALLOWED'):res.status(200).json({success:true,result:data});
+  }
   if(action==='proof-ticket'&&req.method==='POST'){
    if(row.status!=='AGUARDANDO_PAGAMENTO'&&row.status!=='PAGAMENTO_NAO_LOCALIZADO')return bad(res,409,'INVALID_STATUS');
    const ext=String(p.extension||'').toLowerCase();
@@ -74,7 +78,7 @@ export async function eacStoreFinance(req:NextApiRequest,res:NextApiResponse){
    return res.status(200).json({success:true});
    }
   }
- if(!['list','confirm','reject'].includes(action))return bad(res,400,'INVALID_REQUEST');
+ if(!['list','confirm','reject','refundPending','refundComplete','cancelNoRefund'].includes(action))return bad(res,400,'INVALID_REQUEST');
  const eacUrl=env('SUPABASE_URL'),anon=env('SUPABASE_ANON_KEY'),service=env('SUPABASE_SERVICE_ROLE_KEY'),session=String(req.cookies?.eac_auth_token||'');
  if(!eacUrl||!anon||!service)return bad(res,503,'EAC_AUTH_NOT_CONFIGURED');
  if(!session)return bad(res,401,'EAC_SESSION_REQUIRED');
@@ -97,9 +101,10 @@ export async function eacStoreFinance(req:NextApiRequest,res:NextApiResponse){
   const {data,error}=await store.rpc('eac_camisa_confirmar_pagamento',{p_id:p.id,p_ator:identity.data.user.id});
   return error?bad(res,409,'FINANCE_CONFIRM_FAILED'):res.status(200).json({success:true,result:data});
  }
- if(action==='reject'){
-  const {data,error}=await store.from('eac_camisa_pre_solicitacoes').update({status:'PAGAMENTO_NAO_LOCALIZADO',atualizado_em:new Date().toISOString()}).eq('id',p.id).eq('status','AGUARDANDO_VALIDACAO_FINANCEIRA').select('id').maybeSingle();
-  return error?bad(res,503,'FINANCE_REJECT_FAILED'):data?res.status(200).json({success:true}):bad(res,409,'INVALID_STATUS');
+ if(['reject','refundPending','refundComplete','cancelNoRefund'].includes(action)){
+  const op=action==='reject'?'NAO_LOCALIZADO':action==='refundPending'?'ESTORNO_PENDENTE':action==='refundComplete'?'ESTORNADO':'CANCELAR_SEM_ESTORNO';
+  const {data,error}=await store.rpc('eac_camisa_transicao_financeira',{p_id:p.id,p_acao:op,p_ator:identity.data.user.id});
+  return error?bad(res,409,'FINANCE_TRANSITION_FAILED'):res.status(200).json({success:true,result:data});
  }
  return bad(res,400,'INVALID_REQUEST');
 }
