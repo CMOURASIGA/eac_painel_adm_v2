@@ -4,6 +4,7 @@ begin;
 create table if not exists public.eac_camisa_pre_solicitacoes (
  id uuid primary key default gen_random_uuid(),
  protocolo text not null unique,
+ access_token_hash text not null unique,
  encontro_id uuid not null references public.encontros(id),
  payload jsonb not null,
  pix_snapshot jsonb not null,
