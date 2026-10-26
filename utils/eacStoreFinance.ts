@@ -21,7 +21,7 @@ export async function eacStoreFinance(req:NextApiRequest,res:NextApiResponse){
  const store=createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
  const action=String(req.method==='GET'?req.query.action:req.body?.action||'');
  const p=req.method==='GET'?req.query:req.body||{};
- if(!['create','track','inform','list','confirm','reject'].includes(action))return bad(res,400,'INVALID_ACTION');
+ if(!['create','track','proof-ticket','inform','list','confirm','reject'].includes(action))return bad(res,400,'INVALID_ACTION');
  if(action==='create'&&req.method==='POST'){
   const items=p.items, name=p.nomeSolicitante,beneficiary=p.nomeBeneficiario;
   if(!uuid(p.encontroId)||!validString(name)||!validString(beneficiary)||(!email(p.emailSolicitante)&&!validString(p.telefoneSolicitante,30)))return bad(res,400,'INVALID_CUSTOMER');
@@ -40,17 +40,70 @@ export async function eacStoreFinance(req:NextApiRequest,res:NextApiResponse){
   await store.from('eac_camisa_financeiro_auditoria').insert({pre_solicitacao_id:id,evento:'PRE_SOLICITACAO_CRIADA',estado_novo:'AGUARDANDO_PAGAMENTO',ator:'CLIENTE'}).then(()=>{});
   return res.status(201).json({success:true,id,protocol,token,amount,pix,expirationHours:hours});
  }
- if((action==='track'||action==='inform')&&uuid(p.id)&&typeof p.token==='string'&&p.token.length===64){
-  const {data:row,error}=await store.from('eac_camisa_pre_solicitacoes').select('id,protocolo,status,valor_total,criado_em,expira_em,confirmado_em,solicitacao_oficial_id,pix_snapshot,pagamento_informado_em,access_token_hash').eq('id',p.id).eq('access_token_hash',hash(p.token)).maybeSingle();
+ if((action==='track'||action==='inform'||action==='proof-ticket')&&uuid(p.id)&&typeof p.token==='string'&&p.token.length===64){
+  const {data:row,error}=await store.from('eac_camisa_pre_solicitacoes').select('id,protocolo,status,valor_total,criado_em,expira_em,confirmado_em,solicitacao_oficial_id,pix_snapshot,pagamento_informado_em,access_token_hash,payload').eq('id',p.id).eq('access_token_hash',hash(p.token)).maybeSingle();
   if(error)return bad(res,503,'TRACKING_UNAVAILABLE');
   if(!row)return bad(res,404,'NOT_FOUND');
   if(action==='track'&&req.method==='GET')return res.status(200).json({success:true,request:{id:row.id,protocolo:row.protocolo,status:row.status,valor_total:row.valor_total,criado_em:row.criado_em,expira_em:row.expira_em,confirmado_em:row.confirmado_em,solicitacao_oficial_id:row.solicitacao_oficial_id,pix_snapshot:row.pix_snapshot,pagamento_informado_em:row.pagamento_informado_em}});
+  if(action==='proof-ticket'&&req.method==='POST'){
+   if(row.status!=='AGUARDANDO_PAGAMENTO'&&row.status!=='PAGAMENTO_NAO_LOCALIZADO')return bad(res,409,'INVALID_STATUS');
+   const ext=String(p.extension||'').toLowerCase();
+   if(!['pdf','png','jpg','jpeg'].includes(ext))return bad(res,400,'INVALID_FILE_TYPE');
+   if(!Number.isInteger(p.size)||p.size<1||p.size>10485760)return bad(res,400,'INVALID_FILE_SIZE');
+   const path='finance/'+p.id+'/'+randomUUID()+'.'+ext;
+   const {data,error}=await store.storage.from('camisas-comprovantes').createSignedUploadUrl(path);
+   if(error||!data)return bad(res,503,'PROOF_UPLOAD_UNAVAILABLE');
+   return res.status(200).json({success:true,path,uploadToken:data.token});
+  }
   if(action==='inform'&&req.method==='POST'){
    if(row.status!=='AGUARDANDO_PAGAMENTO'&&row.status!=='PAGAMENTO_NAO_LOCALIZADO')return bad(res,409,'INVALID_STATUS');
    if(new Date(row.expira_em).getTime()<Date.now())return bad(res,409,'EXPIRED');
    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(p.paymentDate||'')))return bad(res,400,'INVALID_PAYMENT_DATE');
-   // O comprovante deverá ser comprovadamente enviado ao bucket privado pelo endpoint de upload.
-   return bad(res,503,'PROOF_UPLOAD_NOT_CONFIGURED');
+   const path=String(p.proofPath||'');
+   if(!new RegExp('^finance/'+p.id.replace(/-/g,'-')+'/[0-9a-f-]{36}\\.(pdf|png|jpg|jpeg)
+  }
+ }
+ if(!['list','confirm','reject'].includes(action))return bad(res,400,'INVALID_REQUEST');
+ const eacUrl=env('SUPABASE_URL'),anon=env('SUPABASE_ANON_KEY'),service=env('SUPABASE_SERVICE_ROLE_KEY'),session=String(req.cookies?.eac_auth_token||'');
+ if(!eacUrl||!anon||!service)return bad(res,503,'EAC_AUTH_NOT_CONFIGURED');
+ if(!session)return bad(res,401,'EAC_SESSION_REQUIRED');
+ const auth=createClient(eacUrl,anon,{auth:{persistSession:false}});
+ const identity=await auth.auth.getUser(session);
+ if(identity.error||!identity.data.user)return bad(res,401,'EAC_SESSION_INVALID');
+ const eac=createClient(eacUrl,service,{auth:{persistSession:false}});
+ const {data:profile}=await eac.from('app_user_profiles').select('role,status,allowed_modules').eq('auth_user_id',identity.data.user.id).maybeSingle();
+ if(!profile||String(profile.status).toUpperCase()!=='ATIVO')return bad(res,403,'USER_INACTIVE');
+ const mods=Array.isArray(profile.allowed_modules)?profile.allowed_modules.map(String):[];
+ const admin=String(profile.role).toUpperCase()==='ADMIN';
+ if(!admin&&!mods.includes('eac_store_financeiro'))return bad(res,403,'FINANCE_ACCESS_DENIED');
+ if(action==='list'&&req.method==='GET'){
+  const {data,error}=await store.from('eac_camisa_pre_solicitacoes').select('id,protocolo,valor_total,status,pagamento_informado_em,criado_em,expira_em,payload,confirmado_em,solicitacao_oficial_id').order('criado_em',{ascending:false}).limit(200);
+  return error?bad(res,503,'FINANCE_LIST_FAILED'):res.status(200).json({success:true,requests:data});
+ }
+ if(!admin&&!mods.includes('eac_store_financeiro_confirmar'))return bad(res,403,'FINANCE_WRITE_DENIED');
+ if(req.method!=='POST'||!uuid(p.id))return bad(res,400,'INVALID_REQUEST');
+ if(action==='confirm'){
+  const {data,error}=await store.rpc('eac_camisa_confirmar_pagamento',{p_id:p.id,p_ator:identity.data.user.id});
+  return error?bad(res,409,'FINANCE_CONFIRM_FAILED'):res.status(200).json({success:true,result:data});
+ }
+ if(action==='reject'){
+  const {data,error}=await store.from('eac_camisa_pre_solicitacoes').update({status:'PAGAMENTO_NAO_LOCALIZADO',atualizado_em:new Date().toISOString()}).eq('id',p.id).eq('status','AGUARDANDO_VALIDACAO_FINANCEIRA').select('id').maybeSingle();
+  return error?bad(res,503,'FINANCE_REJECT_FAILED'):data?res.status(200).json({success:true}):bad(res,409,'INVALID_STATUS');
+ }
+ return bad(res,400,'INVALID_REQUEST');
+}
+,'i').test(path))return bad(res,400,'INVALID_PROOF_PATH');
+   const folder='finance/'+p.id;
+   const fileName=path.split('/').pop()||'';
+   const {data:files,error:fileError}=await store.storage.from('camisas-comprovantes').list(folder,{search:fileName,limit:10});
+   const uploaded=files?.find(x=>x.name===fileName);
+   if(fileError||!uploaded)return bad(res,409,'PROOF_NOT_UPLOADED');
+   const metadata={...((row as any).payload||{}),comprovanteTipo:fileName.endsWith('.pdf')?'application/pdf':fileName.endsWith('.png')?'image/png':'image/jpeg',comprovanteTamanho:uploaded.metadata?.size||null};
+   const {data:updated,error:updateError}=await store.from('eac_camisa_pre_solicitacoes').update({status:'AGUARDANDO_VALIDACAO_FINANCEIRA',pagamento_informado_em:new Date().toISOString(),pagamento_data:p.paymentDate,comprovante_path:path,comprovante_nome:fileName,payload:metadata,atualizado_em:new Date().toISOString()}).eq('id',p.id).in('status',['AGUARDANDO_PAGAMENTO','PAGAMENTO_NAO_LOCALIZADO']).select('id').maybeSingle();
+   if(updateError)return bad(res,503,'PAYMENT_UPDATE_FAILED');
+   if(!updated)return bad(res,409,'STATUS_CHANGED');
+   await store.from('eac_camisa_financeiro_auditoria').insert({pre_solicitacao_id:p.id,evento:'PAGAMENTO_INFORMADO',estado_anterior:row.status,estado_novo:'AGUARDANDO_VALIDACAO_FINANCEIRA',ator:'CLIENTE'});
+   return res.status(200).json({success:true});
   }
  }
  if(!['list','confirm','reject'].includes(action))return bad(res,400,'INVALID_REQUEST');
