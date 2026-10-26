@@ -128,6 +128,37 @@ end $;
 revoke all on function public.eac_camisa_transicao_financeira(uuid,text,text) from public,anon,authenticated;
 grant execute on function public.eac_camisa_transicao_financeira(uuid,text,text) to service_role;
 
+-- Expiração idempotente para execução por cron no servidor, sem depender do navegador.
+create or replace function public.eac_camisa_expirar_pendentes()
+returns integer language plpgsql security invoker set search_path='' as $
+declare
+ v_count integer:=0;
+ v record;
+begin
+ if current_user not in ('service_role','postgres') then raise exception 'FORBIDDEN'; end if;
+ for v in
+  select id,status,payload from public.eac_camisa_pre_solicitacoes
+  where status='AGUARDANDO_PAGAMENTO' and expira_em<=now()
+  order by expira_em for update skip locked
+ loop
+  update public.eac_camisa_pre_solicitacoes
+   set status='EXPIRADA',atualizado_em=now()
+   where id=v.id and status='AGUARDANDO_PAGAMENTO';
+  if found then
+   v_count:=v_count+1;
+   insert into public.eac_camisa_financeiro_auditoria(pre_solicitacao_id,evento,estado_anterior,estado_novo,ator)
+   values(v.id,'PRE_SOLICITACAO_EXPIRADA',v.status,'EXPIRADA','SISTEMA');
+   insert into public.eac_camisa_email_outbox(pre_solicitacao_id,evento,destinatario)
+   values(v.id,'PRE_SOLICITACAO_EXPIRADA',v.payload->>'emailSolicitante') on conflict do nothing;
+  end if;
+ end loop;
+ return v_count;
+end $;
+revoke all on function public.eac_camisa_expirar_pendentes() from public,anon,authenticated;
+grant execute on function public.eac_camisa_expirar_pendentes() to service_role;
+-- Após QA e revisão de pg_cron, agendar no projeto homologado.
+-- select cron.schedule('eac-store-expiracao','*/30 * * * *','select public.eac_camisa_expirar_pendentes()');
+
 revoke all on function public.eac_camisa_confirmar_pagamento(uuid,uuid) from public,anon,authenticated;
 grant execute on function public.eac_camisa_confirmar_pagamento(uuid,uuid) to service_role;
 commit;
