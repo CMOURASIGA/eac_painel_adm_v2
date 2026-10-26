@@ -90,6 +90,37 @@ begin
  values(v.id,'PAGAMENTO_CONFIRMADO',v.payload->>'emailSolicitante') on conflict do nothing;
  return jsonb_build_object('id',v.id,'solicitacao_oficial_id',v_official,'already_confirmed',false);
 end $$;
+-- Ações financeiras adicionais, transacionais e auditadas.
+create or replace function public.eac_camisa_transicao_financeira(p_id uuid,p_acao text,p_ator text)
+returns jsonb language plpgsql security invoker set search_path='' as $
+declare
+ v public.eac_camisa_pre_solicitacoes%rowtype;
+ target_status text;
+begin
+ if current_user <> 'service_role' then raise exception 'FORBIDDEN'; end if;
+ select * into v from public.eac_camisa_pre_solicitacoes where id=p_id for update;
+ if not found then raise exception 'PRE_SOLICITACAO_NAO_ENCONTRADA'; end if;
+ target_status:=case
+  when p_acao='NAO_LOCALIZADO' and v.status='AGUARDANDO_VALIDACAO_FINANCEIRA' then 'PAGAMENTO_NAO_LOCALIZADO'
+  when p_acao='CANCELAR_CLIENTE' and v.status in ('AGUARDANDO_PAGAMENTO','PAGAMENTO_NAO_LOCALIZADO') then 'CANCELADA'
+  when p_acao='CANCELAR_CLIENTE' and v.status in ('AGUARDANDO_VALIDACAO_FINANCEIRA','CONFIRMADA') then 'CANCELAMENTO_SOLICITADO'
+  when p_acao='CANCELAR_SEM_ESTORNO' and v.status='CANCELAMENTO_SOLICITADO' then 'CANCELADA'
+  when p_acao='ESTORNO_PENDENTE' and v.status in ('CONFIRMADA','CANCELAMENTO_SOLICITADO') then 'ESTORNO_PENDENTE'
+  when p_acao='ESTORNADO' and v.status='ESTORNO_PENDENTE' then 'ESTORNADA'
+  else null end;
+ if target_status is null then raise exception 'TRANSICAO_NAO_PERMITIDA'; end if;
+ update public.eac_camisa_pre_solicitacoes
+  set status=target_status,atualizado_em=now(),cancelado_em=case when target_status in ('CANCELADA','ESTORNADA') then now() else cancelado_em end
+  where id=p_id;
+ insert into public.eac_camisa_financeiro_auditoria(pre_solicitacao_id,evento,estado_anterior,estado_novo,ator)
+ values(p_id,p_acao,v.status,target_status,left(p_ator,200));
+ insert into public.eac_camisa_email_outbox(pre_solicitacao_id,evento,destinatario)
+ values(p_id,p_acao,v.payload->>'emailSolicitante') on conflict do nothing;
+ return jsonb_build_object('id',p_id,'status',target_status);
+end $;
+revoke all on function public.eac_camisa_transicao_financeira(uuid,text,text) from public,anon,authenticated;
+grant execute on function public.eac_camisa_transicao_financeira(uuid,text,text) to service_role;
+
 revoke all on function public.eac_camisa_confirmar_pagamento(uuid,uuid) from public,anon,authenticated;
 grant execute on function public.eac_camisa_confirmar_pagamento(uuid,uuid) to service_role;
 commit;
