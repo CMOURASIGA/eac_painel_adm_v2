@@ -48,6 +48,8 @@ alter table public.eac_camisa_financeiro_auditoria enable row level security;
 alter table public.eac_camisa_email_outbox enable row level security;
 revoke all on public.eac_camisa_pre_solicitacoes,public.eac_camisa_financeiro_auditoria,public.eac_camisa_email_outbox from anon,authenticated,public;
 -- Operação exclusivamente via backend com credencial server-side. Nunca criar política anon para a fila financeira.
+grant usage on schema private to service_role;
+grant execute on function private.camisa_registrar_solicitacao(uuid,boolean,uuid,text,text,text,text,uuid,text,text,text,text,text,bigint,numeric,jsonb) to service_role;
 create or replace function public.eac_camisa_confirmar_pagamento(p_id uuid,p_ator uuid)
 returns jsonb language plpgsql security invoker set search_path='' as $$
 declare
@@ -76,7 +78,7 @@ begin
    nullif(v.payload->>'comprovanteTamanho','')::bigint,
    v.valor_total,v.payload->'items'
  );
- v_official:=coalesce(nullif(v_result->>'solicitacao_id','')::uuid,nullif(v_result->>'id','')::uuid);
+ v_official:=coalesce(nullif(v_result->>'request_id','')::uuid);
  if v_official is null then raise exception 'PEDIDO_OFICIAL_NAO_RETORNADO'; end if;
  update public.eac_camisa_pre_solicitacoes
  set status='CONFIRMADA',solicitacao_oficial_id=v_official,confirmado_por=p_ator,confirmado_em=now(),atualizado_em=now()
@@ -91,6 +93,6 @@ revoke all on function public.eac_camisa_confirmar_pagamento(uuid,uuid) from pub
 grant execute on function public.eac_camisa_confirmar_pagamento(uuid,uuid) to service_role;
 commit;
 
--- REVISÃO EXIGIDA antes de aplicar: confirmar o nome do campo ID retornado
--- por private.camisa_registrar_solicitacao e se essa função suporta service_role
--- em seu projeto. Exige ambiente isolado de QA e teste rollback, nunca produção direta.
+-- Campo request_id confirmado na versão main de supabase/camisas_module.sql.
+-- REVISÃO EXIGIDA antes de aplicar: confirmar as funções/assinaturas instaladas
+-- na base real, suas permissões e o comportamento com service_role. Exige ambiente isolado de QA e teste rollback, nunca produção direta.
