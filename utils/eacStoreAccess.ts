@@ -38,11 +38,9 @@ export async function eacStoreAccess(req:NextApiRequest,res:NextApiResponse){
  // Cascading grants: finance confirmation requires finance view, and any store grant requires module entry.
  if(requested.has('eac_store_financeiro_confirmar'))requested.add('eac_store_financeiro');
  if(requested.has('eac_store_financeiro'))requested.add('eac_store');
- const existing=Array.isArray(target.allowed_modules)?target.allowed_modules.map(String):[];
- const rest=existing.filter(g=>!STORE_GRANTS.includes(g as any));
- const allowed_modules=[...new Set([...rest,...requested])];
- const {data:updated,error:updateError}=await eac.from('app_user_profiles').update({allowed_modules}).eq('auth_user_id',id).neq('role','ADMIN').select('auth_user_id').maybeSingle();
+ if(env('STORE_RBAC_ENABLED')!=='true')return fail(res,503,'STORE_RBAC_NOT_ENABLED');
+ const storeGrants=STORE_GRANTS.filter(g=>requested.has(g));
+ const {data:updated,error:updateError}=await eac.rpc('eac_store_set_profile_grants',{p_target:id,p_actor:identity.data.user.id,p_store_grants:storeGrants});
  if(updateError||!updated)return fail(res,503,'PERMISSION_UPDATE_FAILED');
- // Security-relevant modification must not claim audit persistence that is not implemented.
- return res.status(200).json({success:true,userId:id,grants:STORE_GRANTS.filter(g=>requested.has(g))});
+ return res.status(200).json({success:true,userId:id,grants:storeGrants});
 }
