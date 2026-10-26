@@ -22,7 +22,7 @@ export async function eacStoreAccess(req:NextApiRequest,res:NextApiResponse){
   if(error)return fail(res,503,'ACCESS_LIST_FAILED');
   const {data:accounts,error:usersError}=await eac.auth.admin.listUsers({page:1,perPage:1000});
   if(usersError)return fail(res,503,'ACCESS_IDENTITIES_FAILED');
-  const emailById=new Map(accounts.users.map(u=>[u.id,u.email||'']));
+  const emailById=new Map<string,string>(accounts.users.map(u=>[u.id,u.email||''] as [string,string]));
   return res.status(200).json({success:true,users:(profiles||[]).filter(p=>String(p.role).toUpperCase()!=='ADMIN').map(p=>({id:p.auth_user_id,email:emailById.get(p.auth_user_id)||'',status:p.status,storeGrants:STORE_GRANTS.filter(g=>Array.isArray(p.allowed_modules)&&p.allowed_modules.includes(g))}))});
  }
  const origin=String(req.headers.origin||'');
