@@ -32,10 +32,10 @@ begin
  if not found or upper(target.role)='ADMIN' then raise exception 'TARGET_NOT_ALLOWED'; end if;
  previous:=coalesce(to_jsonb(target)->'allowed_modules','[]'::jsonb);
  if jsonb_typeof(previous)<>'array' then raise exception 'MODULES_NOT_ARRAY'; end if;
- select coalesce(jsonb_agg(x),'[]'::jsonb) into old_other
- from jsonb_array_elements_text(previous) as x where not(x=any(store_keys));
+ select coalesce(jsonb_agg(val),'[]'::jsonb) into old_other
+ from jsonb_array_elements_text(previous) as item(val) where not(val=any(store_keys));
  select coalesce(jsonb_agg(distinct val),'[]'::jsonb) into next_modules
- from jsonb_array_elements_text(old_other||to_jsonb(p_store_grants)) as val;
+ from jsonb_array_elements_text(old_other||to_jsonb(p_store_grants)) as item(val);
  select data_type into column_type from information_schema.columns
  where table_schema='public' and table_name='app_user_profiles' and column_name='allowed_modules';
  if column_type='ARRAY' then
