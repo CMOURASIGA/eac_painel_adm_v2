@@ -109,6 +109,13 @@ begin
   when p_acao='ESTORNADO' and v.status='ESTORNO_PENDENTE' then 'ESTORNADA'
   else null end;
  if target_status is null then raise exception 'TRANSICAO_NAO_PERMITIDA'; end if;
+ if target_status='ESTORNO_PENDENTE' and v.solicitacao_oficial_id is not null then
+  if exists(select 1 from public.camisa_solicitacao_itens where solicitacao_id=v.solicitacao_oficial_id and quantidade_entregue>0) then
+   raise exception 'PEDIDO_COM_ENTREGA_EXIGE_ANALISE_MANUAL';
+  end if;
+  update public.camisa_solicitacao_itens set status='CANCELADO',atualizado_em=now() where solicitacao_id=v.solicitacao_oficial_id and quantidade_entregue=0;
+  update public.camisa_solicitacoes set status='CANCELADA',atualizado_em=now() where id=v.solicitacao_oficial_id;
+ end if;
  update public.eac_camisa_pre_solicitacoes
   set status=target_status,atualizado_em=now(),cancelado_em=case when target_status in ('CANCELADA','ESTORNADA') then now() else cancelado_em end
   where id=p_id;
