@@ -1,3 +1,4 @@
+import StoreFinancePanel from './StoreFinancePanel.tsx';
 import '../legacy-store/store-brand.css';
 import React,{useEffect,useState} from 'react';
 import LegacyShirtDashboard from '../legacy-store/components/Dashboard.tsx';
@@ -32,6 +33,6 @@ export default function EacStorePage(){
   </aside></div>}
   <div className="flex items-center justify-between"><h2 className="text-xl font-bold">Catálogo de produtos</h2></div>
   {loading?<p>Carregando catálogo…</p>:needsSession?<div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">O catálogo administrativo exige sessão EAC válida. Saia e entre novamente para habilitar cadastro e edição. Os pedidos atuais não foram alterados.</div>:error?<p role="alert" className="text-red-700">{error}</p>:products.length===0?<p className="rounded-xl border border-dashed p-6 text-slate-500">O catálogo adicional ainda não possui produtos. As camisas continuam disponíveis na loja original.</p>:<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{products.map(p=><div key={p.id} className="overflow-hidden rounded-2xl border bg-white shadow-sm"><div className="flex h-56 items-center justify-center bg-slate-100">{p.image_url?<img src={p.image_url} alt={p.name} className="h-full w-full object-contain"/>:<span className="text-5xl">👕</span>}</div><div className="p-4"><h3 className="font-bold">{p.name}</h3><p className="text-sm text-slate-500">{p.description}</p><p className="mt-3 font-black text-blue-800">{Number(p.price).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</p><button onClick={()=>edit(p)} className="mt-3 text-sm font-bold text-blue-700 underline">Editar</button></div></div>)}</div>}
-  <section id="dashboard-camisas" className="eac-store-original"><LegacyShirtDashboard /></section>
+  {import.meta.env.VITE_STORE_FINANCE_ENABLED==='true'&&<StoreFinancePanel/>}<section id="dashboard-camisas" className="eac-store-original"><LegacyShirtDashboard /></section>
  </section>;
 }
