@@ -10,7 +10,7 @@ const bad=(res:NextApiResponse,status:number,error:string)=>res.status(status).j
 const validString=(v:unknown,max=180)=>typeof v==='string'&&v.trim().length>=3&&v.length<=max;
 const allowedSizes=new Set(['PP','P','M','G','GG','XG','XXG']);
 const email=(v:unknown)=>typeof v==='string'&&v.length<255&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-const allowedColors=new Set(['Azul','Amarelo','Vermelho','Verde','Roxo','Laranja','Branco','Preto','ROSA','BRANCO','AZUL','VERDE','PRETO','AMARELO','VERMELHO','ROXO','LARANJA']);
+const allowedColors=new Set(['Branca','Azul','Marrom']);
 const publicFields='id,protocolo,status,valor_total,criado_em,expira_em,confirmado_em,solicitacao_oficial_id,pix_snapshot,pagamento_informado_em';
 export async function eacStoreFinance(req:NextApiRequest,res:NextApiResponse){
  res.setHeader('Cache-Control','no-store');
@@ -41,10 +41,10 @@ export async function eacStoreFinance(req:NextApiRequest,res:NextApiResponse){
   return res.status(201).json({success:true,id,protocol,token,amount,pix,expirationHours:hours});
  }
  if((action==='track'||action==='inform')&&uuid(p.id)&&typeof p.token==='string'&&p.token.length===64){
-  const {data:row,error}=await store.from('eac_camisa_pre_solicitacoes').select(action==='track'?publicFields:'id,status,access_token_hash,expira_em').eq('id',p.id).eq('access_token_hash',hash(p.token)).maybeSingle();
+  const {data:row,error}=await store.from('eac_camisa_pre_solicitacoes').select('id,protocolo,status,valor_total,criado_em,expira_em,confirmado_em,solicitacao_oficial_id,pix_snapshot,pagamento_informado_em,access_token_hash').eq('id',p.id).eq('access_token_hash',hash(p.token)).maybeSingle();
   if(error)return bad(res,503,'TRACKING_UNAVAILABLE');
   if(!row)return bad(res,404,'NOT_FOUND');
-  if(action==='track'&&req.method==='GET')return res.status(200).json({success:true,request:row});
+  if(action==='track'&&req.method==='GET')return res.status(200).json({success:true,request:{id:row.id,protocolo:row.protocolo,status:row.status,valor_total:row.valor_total,criado_em:row.criado_em,expira_em:row.expira_em,confirmado_em:row.confirmado_em,solicitacao_oficial_id:row.solicitacao_oficial_id,pix_snapshot:row.pix_snapshot,pagamento_informado_em:row.pagamento_informado_em}});
   if(action==='inform'&&req.method==='POST'){
    if(row.status!=='AGUARDANDO_PAGAMENTO'&&row.status!=='PAGAMENTO_NAO_LOCALIZADO')return bad(res,409,'INVALID_STATUS');
    if(new Date(row.expira_em).getTime()<Date.now())return bad(res,409,'EXPIRED');
