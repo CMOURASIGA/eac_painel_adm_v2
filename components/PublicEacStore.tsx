@@ -1,8 +1,13 @@
+import StorePreRequest from './StorePreRequest.tsx';
 import '../legacy-store/store-brand.css';
 import React,{useEffect,useState} from 'react';
 import LegacyShirtForm from '../legacy-store/components/Form.tsx';
 type Product={id:string;name:string;description:string|null;price:number;image_url:string|null};
 export default function PublicEacStore(){
+ if(import.meta.env.VITE_STORE_FINANCE_ENABLED==='true')return <main className="eac-store-original min-h-screen bg-[#f4f7fc]"><StorePreRequest /></main>;
+ return <LegacyPublicShirtStore />;
+}
+function LegacyPublicShirtStore(){
  const [products,setProducts]=useState<Product[]>([]);
  useEffect(()=>{fetch('/api/eac-store/products?public=true').then(r=>r.json()).then(x=>{if(x.success)setProducts(x.products||[])}).catch(()=>{})},[]);
  return <main className="eac-store-original min-h-screen bg-[#f4f7fc]">
