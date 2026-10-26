@@ -1,7 +1,7 @@
 import type {NextApiRequest,NextApiResponse} from 'next';
 import {createClient} from '@supabase/supabase-js';
 import {randomBytes,createHash,randomUUID} from 'node:crypto';
-import {generatePixCopyPaste} from './eacStorePix';
+import {generatePixCopyPaste} from './eacStorePix.js';
 
 const env=(k:string)=>String(process.env[k]||'').trim();
 const uuid=(v:unknown)=>typeof v==='string'&&/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(v);
