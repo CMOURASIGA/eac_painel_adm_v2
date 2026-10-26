@@ -134,4 +134,5 @@ export async function eacStoreFinance(req:NextApiRequest,res:NextApiResponse){
   return error?bad(res,503,'FINANCE_REJECT_FAILED'):data?res.status(200).json({success:true}):bad(res,409,'INVALID_STATUS');
  }
  return bad(res,400,'INVALID_REQUEST');
-}
+}    if(!path.startsWith('finance/'+p.id+'/')||!/^[0-9a-f-]{36}\.(pdf|png|jpg|jpeg)$/i.test(path.split('/').pop()||''))return bad(res,400,'INVALID_PROOF_PATH');
+
