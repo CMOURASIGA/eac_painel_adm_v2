@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { ClipboardCopy, Download, LogOut, PackagePlus, Pencil, RefreshCw, Search, Trash2, X } from '../icons';
+import { ClipboardCopy, Download, PackagePlus, Pencil, RefreshCw, Search, Trash2, X } from '../icons';
 import { COLORS, SIZES } from '../data/mockData';
 import {
   deleteStockBalance,
@@ -14,7 +14,6 @@ import {
   resendConfirmationEmail,
   setStockBalance,
   signIn,
-  signOut,
   updateOrderStatus,
 } from '../services/dashboardGateway';
 import type { DashboardOrder, DashboardSummaryRow, StockRow } from '../types/api';
@@ -277,10 +276,10 @@ function StatusDrawer({
   );
 }
 
-export default function Dashboard() {
+export default function Dashboard({ activeTab = 'visao' }: { activeTab?: Tab }) {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [accessDiagnostic, setAccessDiagnostic] = useState('');
-  const [tab, setTab] = useState<Tab>('visao');
+  const tab = activeTab;
   const [summary, setSummary] = useState<DashboardSummaryRow[]>([]);
   const [orders, setOrders] = useState<DashboardOrder[]>([]);
   const [stock, setStock] = useState<StockRow[]>([]);
@@ -489,8 +488,8 @@ export default function Dashboard() {
   if (!authenticated) return <div role="alert" className="mx-auto max-w-xl rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-950">{accessDiagnostic === 'STORE_BRIDGE_NOT_CONFIGURED' ? 'A integração segura com o banco original de camisas ainda não está configurada neste ambiente. O fluxo público original permanece preservado; o dashboard não pode ser liberado sem a conexão server-side.' : accessDiagnostic === 'EAC_SESSION_REQUIRED' ? 'Sua sessão do EAC precisa ser renovada. Saia do painel e faça login novamente.' : accessDiagnostic === 'STORE_ACCESS_DENIED' ? 'Este perfil não possui autorização para operar o EAC Store.' : 'Não foi possível validar o acesso ao EAC Store. Verifique a sessão e as permissões.'}</div>;
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-7">
-      <div className="mx-auto max-w-7xl">
+    <div className="bg-background">
+      <div className="w-full">
         <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-[11px] font-bold uppercase text-primary">Gestão de Camisas</div>
@@ -499,7 +498,6 @@ export default function Dashboard() {
           </div>
           <div className="flex gap-2">
             <button onClick={load} className="flex items-center gap-2 rounded-xl border border-border-color bg-white px-3 py-2 text-[12px] font-bold"><RefreshCw size={15} /> Atualizar</button>
-            <button onClick={async () => { await signOut(); setAuthenticated(false); }} className="flex items-center gap-2 rounded-xl border border-border-color bg-white px-3 py-2 text-[12px] font-bold"><LogOut size={15} /> Sair</button>
           </div>
         </div>
 
@@ -510,12 +508,6 @@ export default function Dashboard() {
           <Card label="Já entregues" value={totals.entregue} helper="Solicitações já quitadas" />
           <Card label="Com estoque" value={totals.comprometido} helper="Pendentes já cobertas e prontas para entrega" />
           <Card label="Sem estoque / reposição" value={totals.comprar} helper="Quantidade que precisa ir para confecção" />
-        </div>
-
-        <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
-          {([['visao','Visão geral'],['solicitacoes','Solicitações'],['reposicao','Reposição'],['estoque','Estoque']] as Array<[Tab,string]>).map(([key,label]) => (
-            <button key={key} onClick={() => setTab(key)} className={`whitespace-nowrap rounded-xl px-4 py-2 text-[13px] font-bold ${tab === key ? 'bg-primary text-white' : 'border border-border-color bg-white text-text-main'}`}>{label}</button>
-          ))}
         </div>
 
         {loading && <div className="mb-4 rounded-xl border border-border-color bg-white p-3 text-[12px]">Atualizando dados...</div>}
