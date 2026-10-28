@@ -47,7 +47,9 @@ export async function eacStoreGateway(req:NextApiRequest,res:NextApiResponse){
    result=await store.from('camisa_estoque').select('*').eq('ativo',true).order('cor').order('tamanho').limit(2000);
   }else if(action==='proof'){
    const path=String(p.path||'');
-   if(!/^public\/[a-zA-Z0-9._/-]{5,240}$/.test(path)||path.includes('..'))return res.status(400).json({success:false,error:'INVALID_PATH'});
+   const publicProof=/^public\/[a-zA-Z0-9._/-]{5,240}$/.test(path)&&!path.includes('..');
+   const financeProof=/^finance\/[0-9a-f-]{36}\/[0-9a-f-]{36}\.(pdf|png|jpe?g)$/i.test(path);
+   if(!publicProof&&!financeProof)return res.status(400).json({success:false,error:'INVALID_PATH'});
    result=await store.storage.from('camisas-comprovantes').createSignedUrl(path,300);
   }else if(action==='createReplenishment'){
    if(!uuid(encontro)||!Array.isArray(p.items)||p.items.length<1||p.items.length>50||!p.items.every((x:any)=>text(x.cor,40)&&text(x.tamanho,20)&&qty(x.quantidade)))return res.status(400).json({success:false,error:'INVALID_INPUT'});
@@ -70,6 +72,11 @@ export async function eacStoreGateway(req:NextApiRequest,res:NextApiResponse){
   }else if(action==='resendEmail'){
    if(!uuid(id))return res.status(400).json({success:false,error:'INVALID_INPUT'});
    result=await store.rpc('camisa_gerar_token_reenvio_email',{p_solicitacao_id:id});
+   if(result.error){
+    const reason=String(result.error.code||'UNKNOWN').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,60);
+    console.error('EAC_STORE_EMAIL_TOKEN_RPC_FAILED',{reason});
+    return res.status(502).json({success:false,error:reason==='42501'?'EMAIL_DATABASE_PERMISSION_DENIED':'EMAIL_TOKEN_FAILED',operation:action,reason});
+   }
    if(!result.error&&result.data?.dispatch_token){
     const dispatch=await store.functions.invoke('camisa-email',{body:{request_id:id,dispatch_token:result.data.dispatch_token}});
     result={data:dispatch.data,error:dispatch.error};
