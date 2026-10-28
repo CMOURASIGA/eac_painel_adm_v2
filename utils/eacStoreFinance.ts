@@ -2,6 +2,7 @@ import type {NextApiRequest,NextApiResponse} from 'next';
 import {createClient} from '@supabase/supabase-js';
 import {randomBytes,createHash,randomUUID} from 'node:crypto';
 import {generatePixCopyPaste} from './eacStorePix.js';
+import nodemailer from 'nodemailer';
 
 const env=(k:string)=>String(process.env[k]||'').trim();
 const uuid=(v:unknown)=>typeof v==='string'&&/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(v);
@@ -12,6 +13,33 @@ const allowedSizes=new Set(['PP','P','M','G','GG','XG','XXG']);
 const email=(v:unknown)=>typeof v==='string'&&v.length<255&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 const allowedColors=new Set(['Branca','Azul','Marrom']);
 const publicFields='id,protocolo,status,valor_total,criado_em,expira_em,confirmado_em,solicitacao_oficial_id,pix_snapshot,pagamento_informado_em';
+
+// A falha de e-mail nunca desfaz uma pré-solicitação persistida.
+async function sendPreRequestEmail(destination:string,protocol:string,amount:number,expiresAt:string):Promise<'sent'|'failed'|'skipped'>{
+ if(!email(destination))return 'skipped';
+ const host=env('SMTP_HOST'),user=env('SMTP_USER'),pass=env('SMTP_PASS'),from=env('EAC_EMAIL_FROM');
+ const port=Number(env('SMTP_PORT')||'587');
+ if(!host||!user||!pass||!from||!Number.isInteger(port)||port<1||port>65535){
+  console.error('EAC_STORE_EMAIL_NOT_CONFIGURED');return 'failed';
+ }
+ try{
+  const transport=nodemailer.createTransport({host,port,secure:env('SMTP_SECURE')==='true',auth:{user,pass}});
+  await transport.sendMail({from,to:destination,subject:'EAC Store - pré-solicitação recebida '+protocol,text:[
+   'Sua pré-solicitação foi registrada no EAC Store.',
+   'Protocolo: '+protocol,
+   'Total: '+amount.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}),
+   'Prazo para pagamento: '+new Date(expiresAt).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'}),
+   'Este registro ainda NÃO é um pedido confirmado.',
+   'Para seguir, utilize o comprovante e o acompanhamento exibidos na loja.',
+   'A confirmação depende da conferência do recebimento pelo Financeiro.'
+  ].join('\n')});
+  return 'sent';
+ }catch(e){
+  console.error('EAC_STORE_EMAIL_SEND_FAILED',e instanceof Error?e.name:'unknown');
+  return 'failed';
+ }
+}
+
 export async function eacStoreFinance(req:NextApiRequest,res:NextApiResponse){
  res.setHeader('Cache-Control','no-store');
  if(!['POST','GET'].includes(req.method||''))return bad(res,405,'METHOD_NOT_ALLOWED');
@@ -36,12 +64,14 @@ export async function eacStoreFinance(req:NextApiRequest,res:NextApiResponse){
   if(meetingError||!meeting)return bad(res,400,'ENCONTRO_NOT_FOUND');
   const amount=items.reduce((a:number,i:any)=>a+i.quantidade,0)*price;
   const id=randomUUID(),protocol='REC-'+new Date().getFullYear()+'-'+id.slice(0,8).toUpperCase(),token=randomBytes(32).toString('hex');
+  const expiresAt=new Date(Date.now()+hours*3600000).toISOString();
   const pix=generatePixCopyPaste({key:pixKey,receiverName:receiver,receiverCity:city,amount,txid:protocol.replace(/[^A-Z0-9]/g,'').slice(0,25)});
   const payload={encontroId:p.encontroId,ehEncontreiro:Boolean(p.ehEncontreiro),solicitantePessoaId:p.solicitantePessoaId||null,nomeSolicitante:name.trim(),telefoneSolicitante:p.telefoneSolicitante||null,emailSolicitante:email(p.emailSolicitante)?p.emailSolicitante:null,equipe:p.equipe||null,beneficiarioPessoaId:p.beneficiarioPessoaId||null,nomeBeneficiario:beneficiary.trim(),observacoes:p.observacoes||null,items,valorTotal:amount,comprovanteTipo:null,comprovanteTamanho:null};
-  const {error}=await store.from('eac_camisa_pre_solicitacoes').insert({id,protocolo:protocol,access_token_hash:hash(token),encontro_id:p.encontroId,payload,pix_snapshot:{pixPayload:pix,keyType:env('STORE_PIX_KEY_TYPE')||'TELEFONE',receiverName:receiver,receiverCity:city},valor_total:amount,expira_em:new Date(Date.now()+hours*3600000).toISOString()});
+  const {error}=await store.from('eac_camisa_pre_solicitacoes').insert({id,protocolo:protocol,access_token_hash:hash(token),encontro_id:p.encontroId,payload,pix_snapshot:{pixPayload:pix,keyType:env('STORE_PIX_KEY_TYPE')||'TELEFONE',receiverName:receiver,receiverCity:city},valor_total:amount,expira_em:expiresAt});
   if(error)return bad(res,503,'PRE_REQUEST_PERSIST_FAILED');
   await store.from('eac_camisa_financeiro_auditoria').insert({pre_solicitacao_id:id,evento:'PRE_SOLICITACAO_CRIADA',estado_novo:'AGUARDANDO_PAGAMENTO',ator:'CLIENTE'}).then(()=>{});
-  return res.status(201).json({success:true,id,protocol,token,amount,pix,expirationHours:hours});
+  const emailStatus=await sendPreRequestEmail(String(payload.emailSolicitante||''),protocol,amount,expiresAt);
+  return res.status(201).json({success:true,id,protocol,token,amount,pix,expirationHours:hours,emailStatus});
  }
  if((action==='track'||action==='inform'||action==='proof-ticket'||action==='cancel')&&uuid(p.id)&&typeof p.token==='string'&&p.token.length===64){
   const {data:row,error}=await store.from('eac_camisa_pre_solicitacoes').select('id,protocolo,status,valor_total,criado_em,expira_em,confirmado_em,solicitacao_oficial_id,pix_snapshot,pagamento_informado_em,access_token_hash,payload').eq('id',p.id).eq('access_token_hash',hash(p.token)).maybeSingle();
