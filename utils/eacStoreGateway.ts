@@ -1,5 +1,6 @@
 import type {NextApiRequest,NextApiResponse} from 'next';
 import {createClient} from '@supabase/supabase-js';
+import {randomUUID} from 'node:crypto';
 
 const readActions=new Set(['summary','orders','stock','replenishments','proof']);
 const writeActions=new Set(['createReplenishment','receiveReplenishment','deliverItem','updateOrderStatus','registerStockReceipt','setStockBalance','deleteStockBalance','resendEmail']);
@@ -71,16 +72,25 @@ export async function eacStoreGateway(req:NextApiRequest,res:NextApiResponse){
    result=await store.rpc('camisa_excluir_estoque',{p_estoque_id:id,p_observacoes:p.note});
   }else if(action==='resendEmail'){
    if(!uuid(id))return res.status(400).json({success:false,error:'INVALID_INPUT'});
-   result=await store.rpc('camisa_gerar_token_reenvio_email',{p_solicitacao_id:id});
-   if(result.error){
-    const reason=String(result.error.code||'UNKNOWN').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,60);
-    console.error('EAC_STORE_EMAIL_TOKEN_RPC_FAILED',{reason});
-    return res.status(502).json({success:false,error:reason==='42501'?'EMAIL_DATABASE_PERMISSION_DENIED':'EMAIL_TOKEN_FAILED',operation:action,reason});
+   // The EAC ADMIN identity was verified above. Store RPC usuario_pode_editar()
+   // depends on auth.uid(), which is null for the server-side service_role client.
+   // Refresh the one-time dispatch token server-side instead, without exposing it.
+   const {data:order,error:lookupError}=await store.from('camisa_solicitacoes')
+    .select('id,email_solicitante').eq('id',id).maybeSingle();
+   if(lookupError)return res.status(502).json({success:false,error:'EMAIL_LOOKUP_FAILED',reason:String(lookupError.code||'UNKNOWN')});
+   if(!order)return res.status(404).json({success:false,error:'ORDER_NOT_FOUND'});
+   if(!String(order.email_solicitante||'').trim())return res.status(400).json({success:false,error:'ORDER_EMAIL_MISSING'});
+   const dispatchToken=randomUUID();
+   const {data:updated,error:updateError}=await store.from('camisa_solicitacoes')
+    .update({email_dispatch_token:dispatchToken,email_confirmacao_erro:null,atualizado_em:new Date().toISOString()})
+    .eq('id',id).select('id').maybeSingle();
+   if(updateError||!updated)return res.status(502).json({success:false,error:'EMAIL_TOKEN_UPDATE_FAILED',reason:String(updateError?.code||'UNKNOWN')});
+   const dispatch=await store.functions.invoke('camisa-email',{body:{request_id:id,dispatch_token:dispatchToken}});
+   if(dispatch.error||dispatch.data?.success===false){
+    console.error('EAC_STORE_EMAIL_DISPATCH_FAILED',{reason:String(dispatch.error?.name||dispatch.data?.error||'UNKNOWN').slice(0,80)});
+    return res.status(502).json({success:false,error:'EMAIL_DISPATCH_FAILED'});
    }
-   if(!result.error&&result.data?.dispatch_token){
-    const dispatch=await store.functions.invoke('camisa-email',{body:{request_id:id,dispatch_token:result.data.dispatch_token}});
-    result={data:dispatch.data,error:dispatch.error};
-   }
+   return res.status(200).json({success:true,data:{emailStatus:'submitted'}});
   }else{return res.status(400).json({success:false,error:'INVALID_ACTION'});}
   if(result.error){
    const reason=String(result.error?.code||result.error?.status||'UNKNOWN').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,60);
