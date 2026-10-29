@@ -13,8 +13,9 @@ test('QR is generated from the actual calendar URL',()=>{
   assert.match(src,/qr\.addData\(calendarUrl\)/);
   assert.match(src,/src=\{qrData\}/);
 });
-test('Illustration blends out the white photo rectangle in the monthly feed',()=>{
-  assert.match(src,/mixBlendMode:'multiply'/);
+test('Monthly feed uses the committed transparent avatar and no multiply blending',()=>{
+  assert.match(src,/\/assets\/eac\/eac_avatar_transparente\.png/);
+  assert.doesNotMatch(src,/mixBlendMode:'multiply'/);
 });
 test('Monthly feed has a dedicated non-overlapping date layout',()=>{
   assert.match(src,/flexDirection:'column',gap:5,padding:'8px 0'/);
