@@ -34,9 +34,44 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (calendarRoute === 'start') return oauthStart(req, res);
   if (calendarRoute === 'callback') return oauthCallback(req, res);
   if (calendarRoute === 'publication') return googlePublication(req,res);
+  if(calendarRoute==='session'){
+    if(req.method!=='GET')return send(res,405,{success:false,error:'METHOD_NOT_ALLOWED'});
+    res.setHeader('Cache-Control','no-store');
+    const url=String(process.env.SUPABASE_URL||'').trim();
+    const anon=String(process.env.SUPABASE_ANON_KEY||process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY||'').trim();
+    const token=String(req.cookies?.eac_auth_token||'');
+    const refresh=String(req.cookies?.eac_refresh_token||'');
+    if(!url||!anon)return send(res,503,{success:false,error:'AUTH_NOT_CONFIGURED'});
+    if(!token&&!refresh)return send(res,401,{success:false,error:'SESSION_REQUIRED'});
+    const client=createClient(url,anon,{auth:{persistSession:false,autoRefreshToken:false}});
+    let accessToken=token;
+    let identity=token?await client.auth.getUser(token):null;
+    const expiresAt=token?Number((()=>{try{return JSON.parse(Buffer.from(token.split('.')[1]||'','base64url').toString()).exp}catch{return 0}})()):0;
+    if(refresh&&(!identity?.data.user||expiresAt*1000-Date.now()<300000)){
+      const renewed=await client.auth.refreshSession({refresh_token:refresh});
+      if(!renewed.error&&renewed.data.session){
+        accessToken=renewed.data.session.access_token;
+        identity=await client.auth.getUser(accessToken);
+        res.setHeader('Set-Cookie',[
+          `eac_auth_token=${encodeURIComponent(accessToken)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${Math.min(3600,renewed.data.session.expires_in||3600)}`,
+          `eac_refresh_token=${encodeURIComponent(renewed.data.session.refresh_token)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`
+        ]);
+      }
+    }
+    if(!identity?.data.user){
+      res.setHeader('Set-Cookie',['eac_auth_token=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0','eac_refresh_token=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0']);
+      return send(res,401,{success:false,error:'SESSION_EXPIRED'});
+    }
+    const db=getSupabaseServerClient();
+    if(!db)return send(res,503,{success:false,error:'AUTH_PROFILE_UNAVAILABLE'});
+    const {data:profile,error:profileError}=await db.from('app_user_profiles').select('id,nome,email,role,status,allowed_modules').eq('auth_user_id',identity.data.user.id).maybeSingle();
+    if(profileError)return send(res,503,{success:false,error:'AUTH_PROFILE_UNAVAILABLE'});
+    if(!profile||String(profile.status).toUpperCase()!=='ATIVO')return send(res,403,{success:false,error:'ACCESS_DENIED'});
+    return send(res,200,{success:true,userId:profile.id,email:String(profile.email||identity.data.user.email||'').toLowerCase(),role:String(profile.role||'VIEWER').toUpperCase(),allowedModules:profile.allowed_modules||[]});
+  }
   if(calendarRoute==='logout'){
     if(req.method!=='POST')return res.status(405).json({success:false,error:'METHOD_NOT_ALLOWED'});
-    res.setHeader('Set-Cookie','eac_auth_token=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0');
+    res.setHeader('Set-Cookie',['eac_auth_token=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0','eac_refresh_token=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0']);
     return res.status(200).json({success:true});
   }
   if (calendarRoute === 'public') return publicEacCalendar(req,res);
@@ -108,7 +143,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const accessToken = signIn.data.session?.access_token;
     if (accessToken) {
-      res.setHeader('Set-Cookie', `eac_auth_token=${encodeURIComponent(accessToken)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${Math.min(3600,signIn.data.session?.expires_in || 3600)}`);
+      res.setHeader('Set-Cookie', [ `eac_auth_token=${encodeURIComponent(accessToken)}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${Math.min(3600,signIn.data.session?.expires_in || 3600)}`, `eac_refresh_token=${encodeURIComponent(signIn.data.session?.refresh_token||'')}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000` ]);
     }
     return send(res, 200, { success: true, user });
   } catch (e: any) {
