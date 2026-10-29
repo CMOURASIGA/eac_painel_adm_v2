@@ -4,6 +4,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/auth/session",
+      "destination": "/api/auth/login?eac_google_route=session"
+    },
+    {
       "source": "/api/eac-store/access",
       "destination": "/api/auth/login?eac_google_route=store-access"
     },
