@@ -96,23 +96,27 @@ export async function waitForArtAssets(root:HTMLElement){
 
 const clock=(v:string)=>new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',hour:'2-digit',minute:'2-digit'}).format(new Date(v));
 const dayOf=(v:string)=>new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit'}).format(new Date(v));
-const weekDay=(v:string)=>new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',weekday:'short'}).format(new Date(v)).toUpperCase();
+const weekDay=(v:string)=>{
+  const day=new Intl.DateTimeFormat('en-US',{timeZone:'America/Sao_Paulo',weekday:'short'}).format(new Date(v));
+  return ({Sun:'DOM.',Mon:'SEG.',Tue:'TER.',Wed:'QUA.',Thu:'QUI.',Fri:'SEX.',Sat:'SÁB.'} as Record<string,string>)[day]||day;
+};
+const normalizeEventTitle=(value:string)=>value.replace(/p[oó]s[-\s]?encontro/gi,'Pós-encontro');
 
 function Card({e,i,h,big}:{e:E;i:number;h:number;big?:boolean}){
   const col=CARD_COLORS[i%4];
-  return <section style={{display:'flex',height:h,flexShrink:0,background:'#fffdf8',borderRadius:14,overflow:'hidden',boxShadow:'0 6px 0 rgba(10,30,70,.2)'}}>
+  return <section style={{display:'flex',height:h,flexShrink:0,background:'#fffefa',borderRadius:18,overflow:'hidden',boxShadow:'0 5px 14px rgba(10,30,70,.12)'}}>
     <div style={{width:h*1.08,flexShrink:0,background:col.bg,color:col.fg,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center'}}>
       <span style={{fontFamily:FONT_BLOCK,fontSize:h*.5,lineHeight:1}}>{dayOf(e.inicio)}</span>
       <span style={{fontWeight:900,fontSize:h*.19,marginTop:4}}>{weekDay(e.inicio)}</span>
     </div>
-    <div style={{flex:1,minWidth:0,padding:'0 24px',display:'flex',flexDirection:'column',justifyContent:'center',gap:big?14:8,color:C.navy}}>
-      <strong style={{fontWeight:900,fontSize:big?40:h*.26,lineHeight:1.1,overflowWrap:'anywhere'}}>{e.atividade}</strong>
+    <div style={{flex:1,minWidth:0,padding:'0 28px',display:'flex',flexDirection:'column',justifyContent:'center',gap:big?14:8,color:C.navy}}>
+      <strong style={{fontWeight:900,fontSize:big?40:h*.26,lineHeight:1.1,overflowWrap:'anywhere'}}>{normalizeEventTitle(e.atividade)}</strong>
       <span style={{display:'flex',alignItems:'center',gap:10,fontWeight:800,fontSize:big?27:h*.19}}>
         <Icon name="clock" size={big?34:h*.25} color={C.navy}/>{clock(e.inicio)}{e.termino?' - '+clock(e.termino):''}
       </span>
       {big&&<span style={{display:'flex',alignItems:'center',gap:10,fontWeight:800,fontSize:30}}><Icon name="pin" size={30} color={C.navy}/>{e.local||'Local a confirmar'}</span>}
     </div>
-    <div style={{display:'flex',alignItems:'center',paddingRight:big?40:26}}><Icon name={iconFor(e.atividade)} size={big?72:h*.38} color={C.navy} stroke={1.8}/></div>
+    <div style={{display:'flex',alignItems:'center',paddingRight:big?40:24}}><div style={{width:big?90:h*.72,height:big?90:h*.72,borderRadius:'50%',background:[ '#ffeaec','#e6efff','#e1f7ec','#fff4ce'][i%4],display:'flex',alignItems:'center',justifyContent:'center'}}><Icon name={iconFor(e.atividade)} size={big?60:h*.4} color={C.navy} stroke={1.8}/></div></div>
   </section>;
 }
 
@@ -130,30 +134,30 @@ export default function PublicAgendaArt({month,year,events,format,style,kind,cal
   const [line1,line2]=kind==='mes'?['AGENDA','EAC']:kind==='semana'?['SEMANA','NO EAC']:['NÃO','PERCA!'];
   const shape=(p:string)=>t.torn?p:RECT;
   const showPhoto=t.photo;
-  const photoH=S.wide?'50%':'23%';
+  const photoH=S.wide?'50%':'28%';
 
   const photo=showPhoto?<>
-    <Img src={ART_ASSETS.photo} style={{position:'absolute',right:0,bottom:0,width:S.wide?'30%':'38%',height:photoH,objectFit:'contain',objectPosition:'right bottom'}}/>
+    <Img src={ART_ASSETS.photo} style={{position:'absolute',right:0,bottom:0,width:S.wide?'30%':'37%',height:photoH,objectFit:'contain',objectPosition:'right bottom',zIndex:3,pointerEvents:'none'}}/>
 
   </>:null;
 
   const wordmark=(size:number)=><div style={{color:C.navy,minWidth:0,overflow:'visible'}}>
-    <div style={{fontFamily:FONT_BLOCK,fontSize:size*.77,lineHeight:1,letterSpacing:0}}>EAC</div>
-    <div style={{fontFamily:FONT_BLOCK,fontSize:size*.16,lineHeight:1.3,marginTop:6}}>PORCIÚNCULA<br/>DE SANT'ANNA</div>
+    <div style={{fontFamily:FONT_BLOCK,fontSize:size*.72,lineHeight:1.12,letterSpacing:0}}>EAC</div>
+    <div style={{fontFamily:FONT_BLOCK,fontSize:size*.16,lineHeight:1.25,marginTop:12}}>PORCIÚNCULA<br/>DE SANT'ANNA</div>
   </div>;
 
   const seal=(size:number)=><Img src={ART_ASSETS.seal} alt="Selo oficial do EAC" style={{width:size,height:size,objectFit:'contain',flexShrink:0}}/>;
 
-  const urlPill=(size:number)=><div style={{display:'inline-flex',alignItems:'center',gap:12,background:'#fff',borderRadius:999,padding:`${size*.32}px ${size*.7}px`,color:C.navy,fontWeight:900,fontSize:size}}>
-    <Icon name="link" size={size*1.05} color={C.navy}/>{displayUrl}
+  const urlPill=(size:number)=><div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:10,background:'#fff',borderRadius:999,padding:`${size*.5}px ${size*.8}px`,color:C.navy,fontWeight:900,fontSize:size,textAlign:'center',maxWidth:360}}>
+    {displayUrl}
   </div>;
 
-  const banner=(big:boolean)=><div style={{position:'relative',alignSelf:'flex-start',transform:'rotate(-1.5deg)',padding:big?'26px 44px 26px 34px':'14px 26px 14px 20px'}}>
+  const banner=(big:boolean)=><div style={{position:'relative',alignSelf:'flex-start',transform:'rotate(-1.5deg)',width:big?620:570,boxSizing:'border-box',padding:big?'26px 44px 26px 34px':'18px 28px 18px 22px'}}>
     <Torn fill={C.yellow} points={shape(P_STRIP)}/>
     <div style={{position:'relative',display:'flex',alignItems:'center',gap:big?22:14,color:C.navy}}>
       <Icon name="megaphone" size={big?78:52} color={C.navy} stroke={1.8}/>
-      <div><div style={{fontFamily:FONT_DISPLAY,fontSize:big?56:36,lineHeight:1}}>Fique ligado!</div>
-      <div style={{fontWeight:900,fontSize:big?24:15,marginTop:4}}>NOVOS EVENTOS PODEM ENTRAR NA AGENDA!</div></div>
+      <div><div style={{fontFamily:FONT_DISPLAY,fontSize:big?56:33,lineHeight:1.12}}>Fique ligado!</div>
+      <div style={{fontWeight:900,fontSize:big?24:14,marginTop:9,lineHeight:1.2,whiteSpace:'nowrap'}}>NOVOS EVENTOS PODEM ENTRAR NA AGENDA!</div></div>
     </div>
   </div>;
 
@@ -222,26 +226,26 @@ export default function PublicAgendaArt({month,year,events,format,style,kind,cal
       </div>
     </div>
 
-    <div style={{position:'relative',zIndex:2,flex:1,minHeight:0,margin:`${16*k}px ${m}px 0`,display:'flex',flexDirection:'column',gap:14}}>
-      {entries.map((e,i)=><Card key={e.id} e={e} i={i} h={kind==='evento'?190:format==='feed'?101:format==='square'?87:S.card} big={kind==='evento'}/>)}
+    <div style={{position:'relative',zIndex:2,flex:1,minHeight:0,margin:`${16*k}px ${m}px 0`,display:'flex',flexDirection:'column',justifyContent:entries.length>0&&entries.length<=4?'space-evenly':'flex-start',gap:14}}>
+      {entries.map((e,i)=><Card key={e.id} e={e} i={i} h={kind==='evento'?190:format==='feed'?116:format==='square'?87:S.card} big={kind==='evento'}/>)}
       {entries.length===0&&emptyCard}
       {extra>0&&<span style={{alignSelf:'flex-end',fontWeight:900,fontSize:24,color:'#fff',background:C.navy,borderRadius:999,padding:'6px 20px'}}>+{extra} {extra===1?'evento':'eventos'} no calendário completo</span>}
     </div>
 
     {!compact&&<div style={{position:'relative',zIndex:2,margin:`10px ${m}px 0`,display:'flex'}}>{banner(false)}</div>}
 
-    <footer style={{position:'relative',zIndex:2,margin:`${compact?10:12}px 40px 22px`,padding:compact?'14px 22px':'18px 26px',flexShrink:0}}>
+    <footer style={{position:'relative',zIndex:2,margin:`${compact?10:12}px 28px 22px`,padding:compact?'14px 22px':'24px 28px',flexShrink:0}}>
       <Torn fill={t.foot} points={shape(P_FOOT)}/>
-      <div style={{position:'relative',display:'flex',alignItems:'center',gap:compact?24:30,color:'#fff'}}>
-        <img src={qrData} alt="QR Code da agenda pública" style={{width:compact?110:126,height:compact?110:126,background:'#fff',padding:8,borderRadius:8,flexShrink:0}}/>
+      <div style={{position:'relative',display:'flex',alignItems:'center',gap:compact?24:24,color:'#fff'}}>
+        <img src={qrData} alt="QR Code da agenda pública" style={{width:compact?110:172,height:compact?110:172,background:'#fff',padding:8,borderRadius:8,flexShrink:0}}/>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontFamily:FONT_BLOCK,fontSize:compact?23:30,lineHeight:1.05}}>NÃO FIQUE DE FORA!</div>
-          <div style={{fontFamily:FONT_BLOCK,fontSize:compact?20:26,lineHeight:1.1,color:C.yellow,marginTop:6}}>MARQUE NA AGENDA<br/>E CHAME A GALERA!</div>
-          <div style={{fontWeight:900,fontSize:compact?17:21,margin:'14px 0 10px'}}>ACESSE O CALENDÁRIO COMPLETO:</div>
+          <div style={{fontFamily:FONT_BLOCK,fontSize:compact?23:28,lineHeight:1.05}}>NÃO FIQUE DE FORA!</div>
+          <div style={{fontFamily:FONT_BLOCK,fontSize:compact?20:24,lineHeight:1.1,color:C.yellow,marginTop:6}}>MARQUE NA AGENDA<br/>E CHAME A GALERA!</div>
+          <div style={{fontWeight:900,fontSize:compact?17:19,margin:'14px 0 10px'}}>ACESSE O CALENDÁRIO COMPLETO:</div>
           {urlPill(compact?17:18)}
         </div>
-        {!compact&&<div style={{transform:'rotate(5deg)',background:C.paper,color:C.navy,padding:'18px 26px',fontFamily:FONT_DISPLAY,fontSize:26,lineHeight:1.15,textAlign:'center',flexShrink:0,boxShadow:'6px 7px 0 rgba(0,0,0,.25)'}}>
-          “Amizade,<br/>fé,<br/>serviço,<br/>sempre!”<div style={{marginTop:6}}><Icon name="heart" size={40} color={C.navy}/></div>
+        {!compact&&<div style={{transform:'rotate(5deg)',background:C.paper,color:C.navy,padding:'18px 24px 22px',fontFamily:FONT_DISPLAY,fontSize:23,lineHeight:1.15,textAlign:'center',flexShrink:0,boxShadow:'6px 7px 0 rgba(0,0,0,.25)'}}>
+          “Amizade,<br/>fé,<br/>serviço,<br/>sempre!”<div style={{marginTop:12,display:'flex',justifyContent:'center'}}><Icon name="heart" size={30} color={C.navy}/></div>
         </div>}
       </div>
     </footer>
