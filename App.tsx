@@ -94,6 +94,7 @@ const App: React.FC = () => {
   type PendingDialog = AppDialogRequest & { resolve: (value: boolean | void) => void };
 
   const [user, setUser] = useState<User | null>(null);
+  const [sessionChecking, setSessionChecking] = useState(true);
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [dispatches] = useState<Dispatch[]>(INITIAL_DISPATCHES);
   const [isLoadingSheet, setIsLoadingSheet] = useState(false);
@@ -311,8 +312,30 @@ const App: React.FC = () => {
   }, [callApiProxy]);
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('eac_user');
-    if (savedUser) setUser(JSON.parse(savedUser));
+    let cancelled = false;
+    async function validateSession() {
+      const saved = localStorage.getItem('eac_user');
+      if (!saved) { if (!cancelled) { setUser(null); setSessionChecking(false); } return; }
+      try {
+        const cached = JSON.parse(saved) as User;
+        const response = await fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' });
+        if (response.status === 503) { if (!cancelled) setSessionChecking(false); return; }
+        const session = await response.json();
+        if (!response.ok || !session.success || String(session.email||'').toLowerCase() !== String(cached.email||'').toLowerCase()) {
+          localStorage.removeItem('eac_user');
+          if (!cancelled) setUser(null);
+        } else if (!cancelled) {
+          setUser(cached);
+        }
+      } catch {
+        // Network failure must not turn a cached local profile into an authenticated session.
+        if (!cancelled) setUser(null);
+      } finally {
+        if (!cancelled) setSessionChecking(false);
+      }
+    }
+    void validateSession();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -627,10 +650,12 @@ const App: React.FC = () => {
 
   if (typeof window !== 'undefined' && ['/publico','/publico/calendario'].includes(window.location.pathname.replace(/\/+$/,'')||'/')) return <PublicEacCalendar />;
 
+  if (sessionChecking) return <div className="min-h-screen flex items-center justify-center text-slate-600">Verificando sessão...</div>;
+
   if (!user) return (
     <>
       <MockEnvironmentBanner />
-      <LoginPage onLogin={(u) => { setUser(u); localStorage.setItem('eac_user', JSON.stringify(u)); handleNavigate(pathViewMap[window.location.pathname.replace(/\/+$/, '') || '/'] || 'dashboard'); }} googleWebAppUrl={effectiveGoogleWebAppUrl} />
+      <LoginPage onLogin={(u) => { setSessionChecking(false); setUser(u); localStorage.setItem('eac_user', JSON.stringify(u)); handleNavigate(pathViewMap[window.location.pathname.replace(/\/+$/, '') || '/'] || 'dashboard'); }} googleWebAppUrl={effectiveGoogleWebAppUrl} />
       {dialogNode}
     </>
   );
