@@ -339,6 +339,25 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    if (!user) return;
+    let active = true;
+    const verify = async () => {
+      try {
+        const response = await fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' });
+        if (!active) return;
+        if (response.status === 401 || response.status === 403) {
+          localStorage.removeItem('eac_user');
+          setUser(null);
+        }
+      } catch { /* Temporary network failures do not invalidate a verified session. */ }
+    };
+    const onFocus = () => { void verify(); };
+    window.addEventListener('focus', onFocus);
+    const interval = window.setInterval(() => { void verify(); }, 10 * 60 * 1000);
+    return () => { active = false; window.removeEventListener('focus', onFocus); window.clearInterval(interval); };
+  }, [user]);
+
+  useEffect(() => {
     if (user) fetchSpreadsheetData();
   }, [user, fetchSpreadsheetData]);
 
