@@ -177,9 +177,9 @@ export default function PublicAgendaArt({month,year,events,format,style,kind,cal
       {entries.map((e,i)=>{
         const h=119,top=421+i*139,fg=i===3?C.navy:'#fff';
         return <div key={e.id} style={{position:'absolute',left:48,top,width:984,height:h,display:'flex',borderRadius:18,overflow:'hidden',background:'rgba(255,255,255,.92)'}}>
-          <div style={{width:134,flexShrink:0,background:colors[i],color:fg,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:7,padding:'12px 0',boxSizing:'border-box'}}>
-            <span style={{fontFamily:FONT_BLOCK,fontSize:46,lineHeight:1.05,display:'block'}}>{dayOf(e.inicio)}</span>
-            <span style={{fontFamily:FONT_BLOCK,fontSize:18,lineHeight:1.15,display:'block',whiteSpace:'nowrap'}}>{weekDay(e.inicio)}</span>
+          <div style={{width:134,flexShrink:0,background:colors[i],color:fg,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:5,padding:'8px 0',boxSizing:'border-box',overflow:'hidden'}}>
+            <span style={{fontFamily:FONT_BLOCK,fontSize:51,lineHeight:1,display:'block'}}>{dayOf(e.inicio)}</span>
+            <span style={{fontFamily:FONT_BLOCK,fontSize:19,lineHeight:1,display:'block',whiteSpace:'nowrap'}}>{weekDay(e.inicio)}</span>
           </div>
           <div style={{flex:1,minWidth:0,padding:'0 26px',display:'flex',justifyContent:'center',flexDirection:'column',gap:7,color:C.navy}}>
             <div style={{fontWeight:900,fontSize:32,lineHeight:1.05,overflowWrap:'anywhere'}}>{normalizeEventTitle(e.atividade)}</div>
@@ -196,10 +196,10 @@ export default function PublicAgendaArt({month,year,events,format,style,kind,cal
       {extra>0&&<div style={{position:'absolute',top:968,right:55,fontSize:20,color:C.navy,fontWeight:900}}>+{extra} eventos no calendário completo</div>}
       <img src={qrData} alt="QR Code da agenda pública" style={{position:'absolute',left:48,top:1123,width:180,height:180,padding:8,background:'#fff',borderRadius:12}}/>
       <div style={{position:'absolute',left:267,top:1274,width:360,borderRadius:28,textAlign:'center',background:'#fff',color:C.navy,fontWeight:900,fontSize:19,padding:'9px 10px'}}>ESCANEIE O QR CODE</div>
-      <div style={{position:'absolute',right:0,bottom:0,width:390,height:375,zIndex:3,pointerEvents:'none',overflow:'hidden'}}>
-        <Img src={ART_ASSETS.photo} alt="Adolescente do EAC" style={{position:'absolute',right:-6,bottom:0,width:390,height:375,objectFit:'contain',objectPosition:'right bottom'}}/>
+      <div style={{position:'absolute',right:0,bottom:0,width:375,height:365,zIndex:3,pointerEvents:'none',overflow:'hidden'}}>
+        <Img src={ART_ASSETS.photo} alt="Adolescente do EAC" style={{position:'absolute',right:-6,bottom:0,width:375,height:365,objectFit:'contain',objectPosition:'right bottom',mixBlendMode:'multiply'}}/>
       </div>
-      <div style={{position:'absolute',right:28,bottom:105,width:215,textAlign:'center',background:C.paper,color:C.navy,padding:'20px 12px',transform:'rotate(5deg)',boxShadow:'7px 8px 0 rgba(0,0,0,.18)',fontFamily:FONT_DISPLAY,fontSize:23,lineHeight:1.22,zIndex:4}}>
+      <div style={{position:'absolute',right:14,bottom:30,width:195,textAlign:'center',background:C.paper,color:C.navy,padding:'18px 10px',transform:'rotate(5deg)',boxShadow:'7px 8px 0 rgba(0,0,0,.18)',fontFamily:FONT_DISPLAY,fontSize:21,lineHeight:1.18,zIndex:4}}>
         “Amizade,<br/>fé, serviço,<br/>sempre!”<div style={{display:'flex',justifyContent:'center',marginTop:12}}><Icon name="heart" size={30} color={C.navy}/></div>
       </div>
     </div>;
