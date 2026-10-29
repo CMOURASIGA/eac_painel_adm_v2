@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+<defs><linearGradient id="cream" x2="0" y2="1"><stop stop-color="#fffdf6"/><stop offset="1" stop-color="#f5eedf"/></linearGradient><linearGradient id="card"><stop stop-color="#fffefd"/><stop offset="1" stop-color="#fafafa"/></linearGradient></defs>
+<rect width="1080" height="1350" fill="#bb8b5f"/><path d="M0 0H1080V176L978 190 840 176 692 197 528 177 390 194 250 180 104 195 0 178Z" fill="url(#cream)"/>
+<path d="M24 211L78 198 154 209 265 194 379 207 475 198 600 209 713 195 837 207 960 192 1065 199 1044 395 940 412 772 398 615 413 443 403 298 410 141 395 45 411Z" fill="#0c2d61"/>
+<path d="M385 65L410 49 479 58 554 42 637 51 697 40 709 144 647 152 539 157 460 149 396 156Z" fill="#e9c18a"/>
+<path d="M44 995L94 980 205 991 316 982 436 991 548 980 610 992 604 1072 485 1079 356 1067 220 1080 47 1070Z" fill="#ffcd2b"/>
+<path d="M26 1091L106 1080 240 1094 387 1082 531 1093 708 1080 866 1095 1052 1080 1051 1335 893 1348 734 1335 533 1346 334 1335 152 1345 27 1332Z" fill="#0b2a5b"/>
+<g font-family="Arial, sans-serif" fill="#0b2a5b" font-weight="900"><text x="48" y="101" font-size="76" letter-spacing="-5">EAC</text><text x="49" y="125" font-size="16">PORCIÚNCULA</text><text x="49" y="146" font-size="16">DE SANT'ANNA</text></g>
+<g text-anchor="middle" fill="#0b2a5b" font-family="Arial, sans-serif"><text x="545" y="94" font-weight="800" font-size="30" transform="rotate(-4 545 94)">Viva o EAC!</text><text x="545" y="130" font-size="27" transform="rotate(-4 545 130)">Faça acontecer!</text></g>
+<text x="545" y="319" text-anchor="middle" font-family="Arial,sans-serif" font-size="86" font-weight="900" fill="#fff">AGENDA <tspan fill="#e9c18a">EAC</tspan></text>
+<g fill="#fffefb"><rect x="48" y="421" width="984" height="119" rx="18"/><rect x="48" y="560" width="984" height="119" rx="18"/><rect x="48" y="699" width="984" height="119" rx="18"/><rect x="48" y="838" width="984" height="119" rx="18"/></g>
+<g font-family="Arial,sans-serif" fill="#0b2a5b"><text x="140" y="1037" font-size="34" font-weight="900">Fique ligado!</text><text x="140" y="1063" font-size="16" font-weight="900">NOVOS EVENTOS PODEM ENTRAR NA AGENDA!</text></g>
+<g font-family="Arial,sans-serif" fill="#fff"><text x="270" y="1157" font-size="32" font-weight="900">NÃO FIQUE DE FORA!</text><text x="270" y="1192" font-size="26" font-weight="900" fill="#ffcd2b">MARQUE NA AGENDA</text><text x="270" y="1224" font-size="26" font-weight="900" fill="#ffcd2b">E CHAME A GALERA!</text><text x="270" y="1260" font-size="18" font-weight="900">ACESSE O CALENDÁRIO COMPLETO:</text></g>
+</svg>
