@@ -394,6 +394,21 @@ export async function executeInscricaoCreate(params: { supabase: AnySupabaseClie
     return { status: 500, body: { success: false, error: 'SUPABASE_NOT_CONFIGURED', message: 'Supabase não configurado.' } };
   }
 
+  // A modalidade é definida exclusivamente no servidor; valores do cliente são ignorados.
+  const { data: formSettings, error: settingsError } = await supabase
+    .from('configuracoes_formularios')
+    .select('encontrista_ativo,inscricao_exigir_termos')
+    .eq('id', 'geral')
+    .maybeSingle();
+  if (settingsError) {
+    console.error('[inscricaoCreate] erro ao consultar configuracao:', settingsError);
+    return { status: 503, body: { success: false, error: 'FORM_CONFIG_UNAVAILABLE', message: 'Inscrições temporariamente indisponíveis.' } };
+  }
+  if (formSettings?.encontrista_ativo === false) {
+    return { status: 403, body: { success: false, error: 'FORM_DISABLED', message: 'O formulário de inscrição está desativado.' } };
+  }
+  const exigirTermos = formSettings?.inscricao_exigir_termos !== false;
+
   const { normalized, fields } = validarPayloadInscricao(body ?? {});
 
   if (Object.keys(fields).length > 0) {
@@ -610,7 +625,8 @@ export async function executeInscricaoCreate(params: { supabase: AnySupabaseClie
       email_adolescente_snapshot: normalized.email_adolescente,
       email_responsavel_snapshot: normalized.email_responsavel,
       email_destino_snapshot: normalized.email_responsavel || normalized.email_adolescente,
-      status: 'AGUARDANDO_RESPONSAVEL',
+      status: exigirTermos ? 'AGUARDANDO_RESPONSAVEL' : 'INSCRITO',
+      inscricao_modalidade: exigirTermos ? 'COM_TERMOS' : 'SEM_ETAPA_TERMOS',
       origem_dado: 'SISTEMA',
       criado_via_sistema: true,
       data_inscricao: nowIso,
@@ -625,6 +641,27 @@ export async function executeInscricaoCreate(params: { supabase: AnySupabaseClie
 
   if (inscricaoError) {
     return { status: 502, body: { success: false, error: 'CREATE_INSCRICAO_FAILED', message: 'Não foi possível concluir a inscrição.' } };
+  }
+
+  // Sem etapa de termos: não emitir token nem simular aceite do responsável.
+  if (!exigirTermos) {
+    return {
+      status: 201,
+      body: {
+        success: true,
+        data: {
+          inscricao_id: inscricao.id,
+          adolescente_id: adolescente.id,
+          pessoa_adolescente_id: pessoaAdolescente.id,
+          responsavel_id: responsavel.id,
+          pessoa_responsavel_id: pessoaResponsavel.id,
+          vinculo_id: vinculo.id,
+          modalidade: 'SEM_ETAPA_TERMOS',
+          email_confirmacao: { sent: false, reason: 'terms_not_required' },
+        },
+        message: 'Inscrição registrada com sucesso.',
+      },
+    };
   }
 
   const confirmation = createConfirmationToken();
