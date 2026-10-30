@@ -1,7 +1,5 @@
 ﻿import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseServerClient } from '../../utils/supabaseServer.js';
-import { executeInscricaoCreate } from '../../utils/inscricaoCreate.js';
-import { getInscricaoConfirmation, confirmInscricaoByResponsavel } from '../../utils/inscricaoConfirm.js';
 
 function clean(value: unknown) {
   return String(value ?? '').trim().replace(/\s+/g, ' ');
@@ -15,6 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     const supabase = getSupabaseServerClient();
     if (!supabase) return res.status(500).json({ success: false, error: 'SUPABASE_NOT_CONFIGURED', message: 'Supabase não configurado.' });
+    const { getInscricaoConfirmation } = await import('../../utils/inscricaoConfirm.js');
     const result = await getInscricaoConfirmation(supabase, token);
     return res.status(result.status).json(result.body);
   }
@@ -71,6 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       const supabase = getSupabaseServerClient();
       if (!supabase) return res.status(500).json({ success: false, error: 'SUPABASE_NOT_CONFIGURED', message: 'Supabase não configurado.' });
+      const { confirmInscricaoByResponsavel } = await import('../../utils/inscricaoConfirm.js');
       const result = await confirmInscricaoByResponsavel(
         supabase,
         token,
@@ -79,6 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(result.status).json(result.body);
     }
 
+    const { executeInscricaoCreate } = await import('../../utils/inscricaoCreate.js');
     const result = await executeInscricaoCreate({
       supabase: getSupabaseServerClient(),
       body,
