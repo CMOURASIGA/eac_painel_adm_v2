@@ -140,6 +140,7 @@ async function getCicloNovasInscricoes(supabase: AnySupabaseClient) {
       ultimo_encontro_nome: null,
       proximo_encontro_id: null,
       proximo_encontro_nome: null,
+      encontro_ids_elegiveis: [],
       label: 'Ciclo indisponível',
     };
   }
@@ -160,6 +161,9 @@ async function getCicloNovasInscricoes(supabase: AnySupabaseClient) {
     ultimo_encontro_nome: formatEncontroCycleName(ultimo),
     proximo_encontro_id: proximo?.id ?? null,
     proximo_encontro_nome: proximo ? formatEncontroCycleName(proximo) : null,
+    // As novas inscrições podem ser vinculadas ao último EAC ou ao próximo,
+    // mas nunca a um encontro histórico anterior (ex.: EAC34 no ciclo 37 -> 38).
+    encontro_ids_elegiveis: [ultimo.id, proximo?.id].filter(Boolean).map(String),
     label: proximo
       ? `${formatEncontroCycleName(ultimo)} → ${formatEncontroCycleName(proximo)}`
       : `Desde ${formatEncontroCycleName(ultimo)}`,
@@ -168,6 +172,11 @@ async function getCicloNovasInscricoes(supabase: AnySupabaseClient) {
 
 function isInscricaoNoCiclo(row: any, ciclo: any) {
   if (!ciclo?.disponivel || !ciclo?.inicio_iso) return false;
+  // O período sozinho não basta: vínculos com EACs anteriores não são novas inscrições.
+  // Cadastros sem encontro não são classificados automaticamente como históricos.
+  const encontroId = toCleanString(row?.encontro_id);
+  const elegiveis = Array.isArray(ciclo.encontro_ids_elegiveis) ? ciclo.encontro_ids_elegiveis : [];
+  if (!encontroId || !elegiveis.includes(encontroId)) return false;
   const dt = new Date(toCleanString(row?.data_inscricao));
   if (Number.isNaN(dt.getTime())) return false;
   const time = dt.getTime();
@@ -583,8 +592,8 @@ export async function executeInscricoesAdminList(params: {
 
     const rawRows = Array.isArray(baseRows) ? baseRows : [];
     const consolidatedRows = consolidarInscricoesPorAdolescente(rawRows);
-    // O indicador mede entradas no ciclo, não o status histórico escolhido pela consolidação geral.
-    // Primeiro recortamos as inscrições pela janela entre EACs e só então consolidamos por adolescente.
+    // O indicador mede entradas no ciclo com encontro elegível, não apenas data recente.
+    // Assim, inscrições históricas cadastradas posteriormente não entram no ciclo atual.
     const novasRows = consolidarInscricoesPorAdolescente(
       rawRows.filter((row: any) => isInscricaoNoCiclo(row, cicloNovasInscricoes))
     );
