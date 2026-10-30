@@ -4049,6 +4049,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       const nome = cleanText(pickFirst(encontro, ['nome'])) || (cleanText(pickFirst(encontro, ['numero'])) ? `${pickFirst(encontro, ['numero'])}º EAC` : 'próximo EAC');
       return { ok: true, data: { success: true, config: {
         encontrista_ativo: config ? (config as any).encontrista_ativo !== false : true,
+        inscricao_exigir_termos: config ? (config as any).inscricao_exigir_termos !== false : true,
         encontreiro_ativo: config ? (config as any).encontreiro_ativo !== false : true,
         presenca_ativo: config ? (config as any).presenca_ativo !== false : true,
         banda_ativo: config ? (config as any).banda_ativo !== false : true,
@@ -4062,6 +4063,7 @@ export async function handleSupabaseAction(action: string, payload: JsonObject =
       const payload = {
         id: 'geral',
         encontrista_ativo: ctx.payload.encontrista_ativo !== false,
+        inscricao_exigir_termos: ctx.payload.inscricao_exigir_termos !== false,
         encontreiro_ativo: ctx.payload.encontreiro_ativo !== false,
         presenca_ativo: ctx.payload.presenca_ativo !== false,
         banda_ativo: ctx.payload.banda_ativo !== false,
