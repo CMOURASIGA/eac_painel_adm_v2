@@ -718,7 +718,7 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl }) => {
     let cancelled = false;
     setMemberTerms([]);
     setMemberTermsStatus('Consultando evidências dos termos...');
-    void getJson<any>('/api/inscricoes/termos?nome=' + encodeURIComponent(nome)).then((result) => {
+    void getJson<any>('/api/inscricoes/admin?resource=termos&nome=' + encodeURIComponent(nome)).then((result) => {
       if (cancelled) return;
       if (!result.success) {
         setMemberTermsStatus(result.status === 409 ? 'Existem homônimos. Consulte a inscrição individual para evitar associação incorreta.' : 'Não foi possível consultar as evidências: ' + result.error);
