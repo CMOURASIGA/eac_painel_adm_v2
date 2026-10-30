@@ -710,6 +710,28 @@ const MembersPage: React.FC<MembersPageProps> = ({ user, googleWebAppUrl }) => {
   const [showEditor, setShowEditor] = useState(false);
   const [selectedMemberCard, setSelectedMemberCard] = useState<Adolescente | null>(null);
   const [showMemberDrawer, setShowMemberDrawer] = useState(false);
+  const [memberTerms, setMemberTerms] = useState<any[]>([]);
+  const [memberTermsStatus, setMemberTermsStatus] = useState('Ainda não consultado.');
+  useEffect(() => {
+    if (!showMemberDrawer || !selectedMemberCard) return;
+    const nome = toCleanString((selectedMemberCard as any)?.nome);
+    let cancelled = false;
+    setMemberTerms([]);
+    setMemberTermsStatus('Consultando evidências dos termos...');
+    void getJson<any>('/api/inscricoes/termos?nome=' + encodeURIComponent(nome)).then((result) => {
+      if (cancelled) return;
+      if (!result.success) {
+        setMemberTermsStatus(result.status === 409 ? 'Existem homônimos. Consulte a inscrição individual para evitar associação incorreta.' : 'Não foi possível consultar as evidências: ' + result.error);
+        return;
+      }
+      const payload: any = result.data;
+      const rows = Array.isArray(payload?.data) ? payload.data : [];
+      setMemberTerms(rows);
+      setMemberTermsStatus(rows.length ? '' : 'Não há confirmação eletrônica vinculada a este cadastro.');
+    });
+    return () => { cancelled = true; };
+  }, [showMemberDrawer, selectedMemberCard]);
+
   const [memberViewTab, setMemberViewTab] = useState<'pessoais' | 'responsaveis' | 'eac' | 'termos' | 'auditoria'>('pessoais');
   const [nonEnrolledViewTab, setNonEnrolledViewTab] = useState<'pessoais' | 'responsaveis' | 'eac' | 'termos'>('pessoais');
   const [deletingMemberEmail, setDeletingMemberEmail] = useState<string | null>(null);
@@ -3514,6 +3536,23 @@ const renderInterestEditor = (ne: any, currentLabel: string) => {
 
             {memberViewTab === 'termos' && (
               <div className="space-y-3">
+                <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 space-y-3">
+                  <div className="text-xs font-black uppercase tracking-wider text-blue-800">Confirmações eletrônicas do responsável</div>
+                  {memberTermsStatus && <p className="text-sm text-blue-900">{memberTermsStatus}</p>}
+                  {memberTerms.map((registro: any) => (
+                    <div key={registro.inscricao_id} className="rounded-xl bg-white border p-3 space-y-2">
+                      <p className="text-sm font-bold text-slate-800">Inscrição: {registro.status} | Versão: {registro.versao || 'Não registrada'}</p>
+                      <p className="text-xs text-slate-600">Responsável: {registro.responsavel || 'Não informado'} | Confirmação: {registro.confirmado_em ? new Date(registro.confirmado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : 'Pendente ou não registrada'}</p>
+                      {(Array.isArray(registro.termos) ? registro.termos : []).map((termo: any) => (
+                        <details key={termo.codigo} className="rounded-lg border p-2">
+                          <summary className="cursor-pointer text-sm font-bold text-slate-800">{termo.titulo}: {registro.respostas?.[termo.codigo] === 'ACEITO' ? 'Aceito' : registro.respostas?.[termo.codigo] === 'SIM' ? 'Autorizado' : registro.respostas?.[termo.codigo] === 'NAO' ? 'Não autorizado' : 'Sem resposta'}</summary>
+                          <p className="mt-2 text-xs whitespace-pre-line text-slate-700">{termo.texto}</p>
+                          <p className="mt-2 text-xs text-slate-500">Versão {termo.versao}</p>
+                        </details>
+                      ))}
+                    </div>
+                  ))}
+                </div>
                 <div className="p-4 rounded-2xl bg-slate-50 border">
                   <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Autoriza uso de imagem</div>
                   <div className="font-bold text-slate-700">{toCleanString((selectedMemberCard as any)?.autorizaImagem) || '-'}</div>
