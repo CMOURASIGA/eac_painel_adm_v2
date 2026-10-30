@@ -71,6 +71,7 @@ const PublicInscricaoForm: React.FC = () => {
   const [schoolQuery, setSchoolQuery] = useState('');
   const [schoolResults, setSchoolResults] = useState<EscolaItem[]>([]);
   const [schoolLoading, setSchoolLoading] = useState(false);
+  const [schoolError, setSchoolError] = useState('');
   const [showSchoolResults, setShowSchoolResults] = useState(false);
   const [escolaOutroSelecionado, setEscolaOutroSelecionado] = useState(false);
 
@@ -78,19 +79,27 @@ const PublicInscricaoForm: React.FC = () => {
     const busca = toCleanString(schoolQuery);
     if (form.escola_id || escolaOutroSelecionado || busca.length < 2) {
       setSchoolResults([]);
+      setSchoolError('');
       setSchoolLoading(false);
       return;
     }
 
     let active = true;
     setSchoolLoading(true);
+    setSchoolError('');
     const timer = window.setTimeout(async () => {
       try {
         const response = await fetch(`/api/inscricoes/create?resource=escolas&busca=${encodeURIComponent(busca)}`);
         const body = await response.json();
-        if (active) setSchoolResults(response.ok && Array.isArray(body?.data) ? body.data : []);
+        if (active) {
+          setSchoolResults(response.ok && Array.isArray(body?.data) ? body.data : []);
+          setSchoolError(response.ok && Array.isArray(body?.data) ? '' : 'A pesquisa de colégios está indisponível. Tente novamente ou informe o colégio em Outro.');
+        }
       } catch {
-        if (active) setSchoolResults([]);
+        if (active) {
+          setSchoolResults([]);
+          setSchoolError('A pesquisa de colégios está indisponível. Verifique sua conexão ou informe o colégio em Outro.');
+        }
       } finally {
         if (active) setSchoolLoading(false);
       }
@@ -326,7 +335,8 @@ const PublicInscricaoForm: React.FC = () => {
                     <div className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
                       {schoolLoading ? <p className="px-3 py-2 text-sm text-slate-500">Pesquisando colégios...</p> : null}
                       {!schoolLoading && schoolQuery.trim().length < 2 ? <p className="px-3 py-2 text-sm text-slate-500">Digite pelo menos 2 letras para pesquisar.</p> : null}
-                      {!schoolLoading && schoolQuery.trim().length >= 2 && schoolResults.length === 0 ? <p className="px-3 py-2 text-sm text-slate-500">Nenhum colégio encontrado.</p> : null}
+                      {!schoolLoading && !schoolError && schoolQuery.trim().length >= 2 && schoolResults.length === 0 ? <p className="px-3 py-2 text-sm text-slate-500">Nenhum colégio encontrado.</p> : null}
+                      {schoolError ? <p role="alert" className="px-3 py-2 text-sm text-amber-700">{schoolError}</p> : null}
                       {schoolResults.map((escola) => (
                         <button key={escola.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => {
                           setForm((prev) => ({ ...prev, escola_id: escola.id, escola_nome_outro: '' }));
