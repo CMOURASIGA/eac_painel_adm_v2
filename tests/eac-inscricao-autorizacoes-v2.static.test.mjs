@@ -15,7 +15,7 @@ test('Previously issued links validate against original term snapshots', () => {
  assert.match(s,/termsForThisInscricao/);
 });
 test('Consent details are read behind authenticated member permissions', () => {
- const api=read('api/inscricoes/termos.ts');
+ const api=read('utils/inscricaoTermosAdmin.ts');
  const view=read('components/MembersPage.tsx');
  assert.match(api,/auth\.getUser\(accessToken\)/);
  assert.match(api,/modules\.includes\('members'\)/);
