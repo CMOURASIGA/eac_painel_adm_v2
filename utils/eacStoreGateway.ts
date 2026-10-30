@@ -94,7 +94,7 @@ export async function eacStoreGateway(req:NextApiRequest,res:NextApiResponse){
   }else{return res.status(400).json({success:false,error:'INVALID_ACTION'});}
   if(result.error){
    const reason=String(result.error?.code||result.error?.status||'UNKNOWN').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,60);
-   console.error('EAC_STORE_GATEWAY_OPERATION_FAILED',{action,stage:action==='resendEmail'?'email-rpc-or-function':'store-operation',reason});
+   console.error('EAC_STORE_GATEWAY_OPERATION_FAILED',{action,stage:'store-operation',reason});
    return res.status(502).json({success:false,error:'STORE_OPERATION_FAILED',operation:action,reason});
   }
   return res.status(200).json({success:true,data:result.data});
