@@ -29,7 +29,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, focusEnco
   const [savingEncontro, setSavingEncontro] = useState(false);
   const [encontrosError, setEncontrosError] = useState('');
   const [encontrosFeedback, setEncontrosFeedback] = useState('');
-  const [formSettings, setFormSettings] = useState<any>({ encontrista_ativo: true, encontreiro_ativo: true, presenca_ativo: true, banda_ativo: true, banda_responsaveis_token: '', encontro_confirmacao_id: '' });
+  const [formSettings, setFormSettings] = useState<any>({ encontrista_ativo: true, encontreiro_ativo: true, presenca_ativo: true, banda_ativo: true, banda_responsaveis_token: '', encontro_confirmacao_id: '', inscricao_exigir_termos: true });
   const [savingForms, setSavingForms] = useState(false);
   const [editingId, setEditingId] = useState('');
   const [encontroForm, setEncontroForm] = useState({
@@ -186,6 +186,15 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ settings, onSave, focusEnco
               ['presenca_ativo', 'Presença'],
               ['banda_ativo', 'Banda do EAC'],
             ] as const).map(([field, label]) => <label key={field} className="flex items-center gap-3 rounded-xl border border-slate-200 p-4 text-sm font-bold text-slate-700"><input type="checkbox" checked={formSettings[field] !== false} onChange={(e) => setFormSettings((prev: any) => ({ ...prev, [field]: e.target.checked }))} /> {label} ativo</label>)}
+          </div>
+          <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-sm font-black text-slate-800">Inscrição de adolescente - termos</p>
+            <p className="mt-1 text-xs text-slate-600">A primeira etapa do formulário permanece idêntica. Esta opção altera apenas a exigência da etapa posterior de confirmação de termos.</p>
+            <label className="mt-3 flex items-center gap-3 text-sm font-bold text-slate-800">
+              <input type="checkbox" checked={formSettings.inscricao_exigir_termos !== false} onChange={(e) => setFormSettings((prev: any) => ({ ...prev, inscricao_exigir_termos: e.target.checked }))} />
+              Exigir confirmação dos termos pelo responsável
+            </label>
+            <p className="mt-2 text-xs text-slate-600">{formSettings.inscricao_exigir_termos !== false ? 'Ativo: após o cadastro, o responsável confirma os termos por e-mail.' : 'Desativado: a inscrição é registrada sem a etapa posterior de termos, mantendo os dados e validações cadastrais.'}</p>
           </div>
           <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p className="text-sm font-black text-slate-800">Banda do EAC</p>
