@@ -39,6 +39,7 @@ const PublicInscricaoForm: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submittedMessage, setSubmittedMessage] = useState(DEFAULT_SUCCESS_MESSAGE);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formConfig, setFormConfig] = useState<any>(null);
 
@@ -199,8 +200,9 @@ const PublicInscricaoForm: React.FC = () => {
         throw new Error((r as any)?.raw?.message || r.error || 'Não foi possível enviar sua inscrição agora.');
       }
 
-      setIsSubmitted(true);
       const msg = r.data.message || DEFAULT_SUCCESS_MESSAGE;
+      setSubmittedMessage(msg);
+      setIsSubmitted(true);
       showToast(msg, 'success');
     } catch (e: any) {
       console.error('[PublicInscricaoForm] falha submit:', e);
@@ -222,8 +224,8 @@ const PublicInscricaoForm: React.FC = () => {
           <div className="p-8 text-center">
             <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl font-black">✓</div>
             <h1 className="text-3xl font-black text-emerald-600 mb-4">Formulário enviado!</h1>
-            <p className="text-slate-700 text-lg">{formConfig?.inscricao_exigir_termos === false ? 'Inscrição registrada com sucesso.' : DEFAULT_SUCCESS_MESSAGE}</p>
-            {formConfig?.inscricao_exigir_termos !== false ? <p className="mt-5 text-sm text-slate-500">A inscrição ainda ficará aguardando a confirmação do responsável pelo e-mail informado.</p> : null}
+            <p className="text-slate-700 text-lg">{submittedMessage}</p>
+            {submittedMessage === DEFAULT_SUCCESS_MESSAGE || submittedMessage.includes('confirmação') || submittedMessage.includes('termos') ? <p className="mt-5 text-sm text-slate-500">A inscrição ficará aguardando a confirmação do responsável pelo e-mail informado.</p> : null}
           </div>
         </div>
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
