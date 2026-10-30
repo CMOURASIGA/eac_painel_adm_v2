@@ -147,7 +147,7 @@ export async function confirmInscricaoByResponsavel(
     }
   }
 
-  if (!termsForThisInscricao.filter((term: any) => term.obrigatorio).every((term: any) => normalized[term.codigo] === 'ACEITO')) {
+  if (!termsForThisInscricao.filter((term) => term.obrigatorio).every((term) => normalized[term.codigo] === 'ACEITO')) {
     return {
       status: 400,
       body: {
