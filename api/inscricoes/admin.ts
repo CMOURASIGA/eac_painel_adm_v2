@@ -1,9 +1,11 @@
-﻿import type { NextApiRequest, NextApiResponse } from 'next';
+﻿import { handleTermos } from '../../utils/inscricaoTermosAdmin.js';
+import type { NextApiRequest, NextApiResponse } from 'next';
 import { getSupabaseServerClient } from '../../utils/supabaseServer.js';
 import { executeInscricoesAdminList } from '../../utils/inscricoesAdmin.js';
 import { executeAlterarStatusInscricao, executeAtualizarCadastroInscricao, executeExcluirInscricao } from '../../utils/inscricoesStatus.js';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method === 'GET' && String(req.query.resource || '') === 'termos') return handleTermos(req, res);
   if (req.method === 'GET') {
     try {
       const result = await executeInscricoesAdminList({
