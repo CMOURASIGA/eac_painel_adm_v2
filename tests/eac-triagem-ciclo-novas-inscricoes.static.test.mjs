@@ -4,8 +4,11 @@ import { readFileSync } from 'node:fs';
 
 const source = readFileSync(new URL('../utils/inscricoesAdmin.ts', import.meta.url), 'utf8');
 
-test('New registrations only accept last and next EAC links', () => {
-  assert.match(source, /encontro_ids_elegiveis: \[ultimo\.id, proximo\?\.id\]/);
+test('New registrations accept last, next and planned EAC A DEFINIR', () => {
+  assert.match(source, /encontro_ids_elegiveis: \[ultimo\.id, proximo\?\.id, \.\.\.encontrosADefinir\.map/);
+  assert.match(source, /toCleanString\(encontro\?\.nome\)\.toUpperCase\(\) === 'EAC - A DEFINIR'/);
+  assert.match(source, /toCleanString\(encontro\?\.status\)\.toUpperCase\(\) === 'PLANEJADO'/);
+  assert.match(source, /!toCleanString\(encontro\?\.numero\)/);
   assert.match(source, /if \(!encontroId \|\| !elegiveis\.includes\(encontroId\)\) return false;/);
 });
 
