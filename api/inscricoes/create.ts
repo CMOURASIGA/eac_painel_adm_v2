@@ -13,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     const supabase = getSupabaseServerClient();
     if (!supabase) return res.status(500).json({ success: false, error: 'SUPABASE_NOT_CONFIGURED', message: 'Supabase não configurado.' });
-    const { getInscricaoConfirmation } = await import('../../utils/inscricaoConfirm.js');
+    const { getInscricaoConfirmation } = await import('../../utils/inscricaoConfirm.ts');
     const result = await getInscricaoConfirmation(supabase, token);
     return res.status(result.status).json(result.body);
   }
@@ -70,7 +70,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       const supabase = getSupabaseServerClient();
       if (!supabase) return res.status(500).json({ success: false, error: 'SUPABASE_NOT_CONFIGURED', message: 'Supabase não configurado.' });
-      const { confirmInscricaoByResponsavel } = await import('../../utils/inscricaoConfirm.js');
+      const { confirmInscricaoByResponsavel } = await import('../../utils/inscricaoConfirm.ts');
       const result = await confirmInscricaoByResponsavel(
         supabase,
         token,
@@ -79,7 +79,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(result.status).json(result.body);
     }
 
-    const { executeInscricaoCreate } = await import('../../utils/inscricaoCreate.js');
+    const { executeInscricaoCreate } = await import('../../utils/inscricaoCreate.ts');
     const result = await executeInscricaoCreate({
       supabase: getSupabaseServerClient(),
       body,
