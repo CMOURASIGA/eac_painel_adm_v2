@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { INSCRICAO_TERMS, requiredTermsAccepted } from './inscricaoTerms.js';
+import { INSCRICAO_TERMS } from './inscricaoTerms.js';
 
 type AnySupabaseClient = SupabaseClient<any, 'public', string, any, any>;
 
@@ -124,7 +124,10 @@ export async function confirmInscricaoByResponsavel(
   }
 
   const normalized: Record<string, string> = {};
-  for (const term of INSCRICAO_TERMS) {
+  const termsForThisInscricao = Array.isArray(ctx.inscricao.termos_snapshot) && ctx.inscricao.termos_snapshot.length
+    ? ctx.inscricao.termos_snapshot
+    : INSCRICAO_TERMS;
+  for (const term of termsForThisInscricao) {
     const value = clean(respostas?.[term.codigo]).toUpperCase();
     if (term.tipo_resposta === 'SIM_NAO') {
       if (!['SIM', 'NAO'].includes(value)) {
@@ -144,7 +147,7 @@ export async function confirmInscricaoByResponsavel(
     }
   }
 
-  if (!requiredTermsAccepted(normalized)) {
+  if (!termsForThisInscricao.filter((term: any) => term.obrigatorio).every((term: any) => normalized[term.codigo] === 'ACEITO')) {
     return {
       status: 400,
       body: {
