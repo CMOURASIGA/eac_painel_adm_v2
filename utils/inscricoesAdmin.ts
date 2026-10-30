@@ -118,13 +118,19 @@ async function getCicloNovasInscricoes(supabase: AnySupabaseClient) {
   if (error) throw error;
 
   const todayYmd = getSaoPauloTodayYmd();
-  const encontros = (Array.isArray(data) ? data : [])
-    .map((encontro: any) => ({
-      ...encontro,
-      inicioYmd: extractDateYmd(encontro?.data_inicio),
-      fimYmd: extractDateYmd(encontro?.data_fim) || extractDateYmd(encontro?.data_inicio),
-    }))
-    .filter((encontro: any) => encontro.inicioYmd);
+  const todosEncontros = (Array.isArray(data) ? data : []).map((encontro: any) => ({
+    ...encontro,
+    inicioYmd: extractDateYmd(encontro?.data_inicio),
+    fimYmd: extractDateYmd(encontro?.data_fim) || extractDateYmd(encontro?.data_inicio),
+  }));
+  // O encontro de triagem "EAC - A DEFINIR" não tem número nem data.
+  // Ele representa candidatos aguardando definição, não um EAC histórico.
+  const encontrosADefinir = todosEncontros.filter((encontro: any) =>
+    toCleanString(encontro?.nome).toUpperCase() === 'EAC - A DEFINIR'
+    && toCleanString(encontro?.status).toUpperCase() === 'PLANEJADO'
+    && !toCleanString(encontro?.numero)
+  );
+  const encontros = todosEncontros.filter((encontro: any) => encontro.inicioYmd);
 
   const realizados = encontros.filter((encontro: any) => encontro.fimYmd && encontro.fimYmd < todayYmd);
   const ultimo = realizados.length
@@ -161,9 +167,10 @@ async function getCicloNovasInscricoes(supabase: AnySupabaseClient) {
     ultimo_encontro_nome: formatEncontroCycleName(ultimo),
     proximo_encontro_id: proximo?.id ?? null,
     proximo_encontro_nome: proximo ? formatEncontroCycleName(proximo) : null,
-    // As novas inscrições podem ser vinculadas ao último EAC ou ao próximo,
-    // mas nunca a um encontro histórico anterior (ex.: EAC34 no ciclo 37 -> 38).
-    encontro_ids_elegiveis: [ultimo.id, proximo?.id].filter(Boolean).map(String),
+    // Inclui EAC atual, próximo ou o cadastro provisório "EAC - A DEFINIR".
+    // Exclui vínculos com encontros históricos anteriores, como EAC34.
+    encontro_ids_elegiveis: [ultimo.id, proximo?.id, ...encontrosADefinir.map((encontro: any) => encontro.id)]
+      .filter(Boolean).map(String),
     label: proximo
       ? `${formatEncontroCycleName(ultimo)} → ${formatEncontroCycleName(proximo)}`
       : `Desde ${formatEncontroCycleName(ultimo)}`,
