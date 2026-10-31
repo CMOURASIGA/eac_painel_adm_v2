@@ -39,6 +39,7 @@ const PublicInscricaoForm: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submittedMessage, setSubmittedMessage] = useState(DEFAULT_SUCCESS_MESSAGE);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [formConfig, setFormConfig] = useState<any>(null);
 
@@ -199,8 +200,9 @@ const PublicInscricaoForm: React.FC = () => {
         throw new Error((r as any)?.raw?.message || r.error || 'Não foi possível enviar sua inscrição agora.');
       }
 
-      setIsSubmitted(true);
       const msg = r.data.message || DEFAULT_SUCCESS_MESSAGE;
+      setSubmittedMessage(msg);
+      setIsSubmitted(true);
       showToast(msg, 'success');
     } catch (e: any) {
       console.error('[PublicInscricaoForm] falha submit:', e);
@@ -222,8 +224,8 @@ const PublicInscricaoForm: React.FC = () => {
           <div className="p-8 text-center">
             <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl font-black">✓</div>
             <h1 className="text-3xl font-black text-emerald-600 mb-4">Formulário enviado!</h1>
-            <p className="text-slate-700 text-lg">{DEFAULT_SUCCESS_MESSAGE}</p>
-            <p className="mt-5 text-sm text-slate-500">A inscrição ainda ficará aguardando a confirmação do responsável pelo e-mail informado.</p>
+            <p className="text-slate-700 text-lg">{submittedMessage}</p>
+            {submittedMessage === DEFAULT_SUCCESS_MESSAGE || submittedMessage.includes('confirmação') || submittedMessage.includes('termos') ? <p className="mt-5 text-sm text-slate-500">A inscrição ficará aguardando a confirmação do responsável pelo e-mail informado.</p> : null}
           </div>
         </div>
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -492,13 +494,13 @@ const PublicInscricaoForm: React.FC = () => {
                 />
               </div>
 
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+              {formConfig?.inscricao_exigir_termos !== false ? <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
                 <p className="text-sm font-black text-blue-900">Confirmação obrigatória do responsável</p>
                 <p className="mt-1 text-sm text-blue-800">
                   Depois do envio deste formulário, o responsável receberá um e-mail com um link individual para revisar os dados,
                   ler os termos e responder às autorizações. A inscrição só será concluída após essa confirmação.
                 </p>
-              </div>
+              </div> : null}
 
               <button
                 type="submit"

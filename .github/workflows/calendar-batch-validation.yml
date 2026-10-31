@@ -14,6 +14,6 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: node --test tests/eac-store-finance.test.mjs
+      - run: node --test tests/eac-store-finance.test.mjs tests/eac-inscricao-modo-termos.static.test.mjs
       - run: npm run typecheck
       - run: npm run build

@@ -22,7 +22,7 @@ const STAGING_SYNC_PROCESSAR_RPCS = true;
 // Se quiser rodar este arquivo isoladamente, preencha estes valores.
 // Se deixar vazio, o script tenta ler de Script Properties.
 const STAGING_SYNC_SUPABASE_URL = 'https://niagdoowqmngxjcrmstd.supabase.co';
-const STAGING_SYNC_SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5pYWdkb293cW1uZ3hqY3Jtc3RkIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NzQwNjIyNSwiZXhwIjoyMDkyOTgyMjI1fQ.0GasHMRPXwcuxfPNmEStwF5nnwXWymFGNotKMbogMy8';
+const STAGING_SYNC_SUPABASE_SERVICE_ROLE_KEY = ''; // Configure SUPABASE_SERVICE_ROLE_KEY em Script Properties; nunca versionar credenciais.
 const STAGING_SYNC_ENCONTRO_ID_CADASTRO_ATE_73 = 'd8a87f32-ecff-4b1d-b832-b734342696a2';
 const STAGING_SYNC_ENCONTRO_ID_CADASTRO_74_EM_DIANTE = '7191d2b7-4895-4d68-8360-cc2bda900ccb';
 const STAGING_SYNC_LINHA_CORTE_CADASTRO_OFICIAL = 74;
