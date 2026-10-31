@@ -66,11 +66,21 @@ const MemberCard: React.FC<MemberCardProps> = ({ member, onView, onEdit, onDelet
     : (dataCadastroRaw ? String(dataCadastroRaw) : '-');
   const isNovo = cadastroDate ? (Date.now() - cadastroDate.getTime()) <= (48 * 60 * 60 * 1000) : false;
   const ageBadgeLabel = ageInfo.age === null ? 'Idade n/d' : `${ageInfo.age} anos`;
+  // Exibe a data no mesmo padrão da lista de Prioritárias, sem criar datas fictícias.
+  const birthDateLabel = (() => {
+    if (ageInfo.age === null) return undefined;
+    const iso = nascimento.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|[T\s])/);
+    if (iso) return `Nascimento: ${iso[3]}/${iso[2]}/${iso[1]}`;
+    const br = nascimento.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:$|\s)/);
+    if (br) return `Nascimento: ${br[1].padStart(2, '0')}/${br[2].padStart(2, '0')}/${br[3]}`;
+    return undefined;
+  })();
 
   return (
     <PersonCard
       ageLabel={ageBadgeLabel}
       ageClassName={ageInfo.range.badgeClassName}
+      birthLabel={birthDateLabel}
       statusLabel={isNovo ? 'Novo' : undefined}
       statusTextClassName={isNovo ? 'text-emerald-700' : undefined}
       statusDotClassName={isNovo ? 'bg-emerald-500' : undefined}
