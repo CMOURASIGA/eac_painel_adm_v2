@@ -64,6 +64,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
   const [internalEvents, setInternalEvents] = useState<CalendarEvent[]>([]);
   const [googleEvents,setGoogleEvents] = useState<CalendarEvent[]>([]);
   const [googleStatus,setGoogleStatus] = useState('');
+  const [googleNeedsReconnect,setGoogleNeedsReconnect] = useState(false);
   const [publishedGoogle,setPublishedGoogle]=useState<Record<string,string>>({});
   const [publicationBusy,setPublicationBusy]=useState<string|null>(null);
   const [googleSetupBusy,setGoogleSetupBusy] = useState(false);
@@ -186,6 +187,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
           return `${sourceName}: ${reason[String(item.code)] || 'falha não identificada'}`;
         };
         const diagnostic = issues.map(issueLabel).join(' | ');
+        setGoogleNeedsReconnect(issues.some(item => item.code === 'TOKEN_INVALID') || result.error === 'NOT_CONFIGURED');
         if(!response.ok||!result.success) {
           setGoogleEvents([]);
           setGoogleStatus(diagnostic || ((result.error==='AUTH_REQUIRED'||result.error==='AUTH_INVALID'||result.error==='GOOGLE_AUTH_SESSION_MISSING')?'Sessão EAC indisponível. Saia e entre novamente no sistema.':result.error==='NOT_CONFIGURED'?'Configuração da integração Google indisponível no servidor.':result.error||'Agendas Google indisponíveis'));
@@ -196,7 +198,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
           ? `Consulta parcial do Google Calendar. ${diagnostic}`
           : result.enabled ? 'Agendas Google sincronizadas' : 'Integração Google ainda não ativada');
       }catch{
-        if(active){setGoogleEvents([]);setGoogleStatus('Agenda paroquial indisponível');}
+        if(active){setGoogleEvents([]);setGoogleStatus('Agenda paroquial indisponível');setGoogleNeedsReconnect(false);}
       }
     })();
     return ()=>{active=false;controller.abort();};
@@ -233,7 +235,7 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
   };
 
   const startGoogleSetup = async () => {
-    const key = window.prompt('Informe a chave privada de configuração OAuth (não será armazenada):');
+    const key = window.prompt('Informe a chave de configuração OAuth do EAC. Não compartilhe a chave ou o token na conversa.');
     if (!key) return;
     setGoogleSetupBusy(true);
     try {
@@ -550,10 +552,10 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         </div>
         <label className="text-xs font-bold text-slate-600">Origem <select aria-label="Filtrar origem" value={sourceFilter} onChange={e=>setSourceFilter(e.target.value as typeof sourceFilter)} className="ml-2 rounded-xl border border-slate-200 bg-white px-3 py-2"><option>Todos</option><option>EAC</option><option>Paróquia</option><option>Google EAC</option></select></label>
         <p className="w-full text-xs text-slate-500" role="status">{googleStatus}</p>
-        {user.role === 'ADMIN' && googleStatus.includes('não ativada') && (
+        {user.role === 'ADMIN' && (googleNeedsReconnect || googleStatus.includes('não ativada')) && (
           <button type="button" disabled={googleSetupBusy} onClick={startGoogleSetup}
             className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-900 disabled:opacity-50">
-            {googleSetupBusy ? 'Conectando…' : 'Autorizar conta Google do EAC'}
+            {googleSetupBusy ? 'Conectando…' : googleNeedsReconnect ? 'Reconectar Google Calendar do EAC' : 'Autorizar conta Google do EAC'}
           </button>
         )}
       </div>
