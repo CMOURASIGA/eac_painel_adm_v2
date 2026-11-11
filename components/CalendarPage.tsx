@@ -172,13 +172,29 @@ export default function CalendarPage({ googleWebAppUrl, user }: CalendarPageProp
         });
         const result=await response.json();
         if(!active)return;
+        const issues: Array<{ source?: string; code?: string }> = Array.isArray(result.sourceErrors) ? result.sourceErrors : [];
+        const issueLabel = (item: { source?: string; code?: string }) => {
+          const sourceName = item.source === 'GOOGLE_PAROQUIA' ? 'Paróquia' : 'Google EAC';
+          const reason: Record<string,string> = {
+            TOKEN_INVALID: 'autorização Google inválida ou expirada',
+            PERMISSION_DENIED: 'permissão de acesso negada',
+            CALENDAR_NOT_FOUND: 'agenda não encontrada',
+            RATE_LIMITED: 'limite de consultas excedido',
+            GOOGLE_UNAVAILABLE: 'serviço Google indisponível',
+            GOOGLE_API_ERROR: 'erro de consulta',
+          };
+          return `${sourceName}: ${reason[String(item.code)] || 'falha não identificada'}`;
+        };
+        const diagnostic = issues.map(issueLabel).join(' | ');
         if(!response.ok||!result.success) {
           setGoogleEvents([]);
-          setGoogleStatus((result.error==='AUTH_REQUIRED'||result.error==='GOOGLE_AUTH_SESSION_MISSING')?'Sessão do Google não disponível. Saia e entre novamente no EAC para autenticar as agendas.':result.error==='GOOGLE_AUTH_SERVER_CONFIG_MISSING'?'Configuração da integração Google indisponível no servidor.':result.error||'Agendas Google indisponíveis');
+          setGoogleStatus(diagnostic || ((result.error==='AUTH_REQUIRED'||result.error==='AUTH_INVALID'||result.error==='GOOGLE_AUTH_SESSION_MISSING')?'Sessão EAC indisponível. Saia e entre novamente no sistema.':result.error==='NOT_CONFIGURED'?'Configuração da integração Google indisponível no servidor.':result.error||'Agendas Google indisponíveis'));
           return;
         }
         setGoogleEvents(Array.isArray(result.events)?result.events:[]);
-        setGoogleStatus(result.enabled?'Agendas Google sincronizadas':'Integração Google ainda não ativada');
+        setGoogleStatus(result.partial
+          ? `Consulta parcial do Google Calendar. ${diagnostic}`
+          : result.enabled ? 'Agendas Google sincronizadas' : 'Integração Google ainda não ativada');
       }catch{
         if(active){setGoogleEvents([]);setGoogleStatus('Agenda paroquial indisponível');}
       }
