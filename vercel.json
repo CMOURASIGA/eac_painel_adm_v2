@@ -48,6 +48,30 @@
       "destination": "/api/auth/login?eac_google_route=events"
     },
     {
+      "source": "/google-oauth",
+      "destination": "/google-oauth.html"
+    },
+    {
+      "source": "/google-oauth/",
+      "destination": "/google-oauth.html"
+    },
+    {
+      "source": "/google-oauth-privacidade",
+      "destination": "/google-oauth-privacidade.html"
+    },
+    {
+      "source": "/google-oauth-privacidade/",
+      "destination": "/google-oauth-privacidade.html"
+    },
+    {
+      "source": "/google-oauth-termos",
+      "destination": "/google-oauth-termos.html"
+    },
+    {
+      "source": "/google-oauth-termos/",
+      "destination": "/google-oauth-termos.html"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/"
     }
