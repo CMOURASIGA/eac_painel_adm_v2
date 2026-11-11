@@ -78,7 +78,7 @@ export async function googleRead(req: NextApiRequest, res: NextApiResponse) {
  if (successfulSources.length === 0) return res.status(502).json({success:false,error:'Falha na consulta Google Calendar',sourceErrors:issues,events:[]});
  // Only reconcile publication when Google's EAC source was fully read.
  // Otherwise an API failure could be mistaken for a deleted calendar event.
- if (successfulSources.includes('GOOGLE_EAC')) {
+ if (successfulSources.includes('GOOGLE_EAC') && process.env.EAC_GOOGLE_EAC_CALENDAR_ID) {
    try {
      const googleItems = events.filter(e=>e.origemDado==='GOOGLE_EAC');
      const byId = new Map(googleItems.map(e=>[String(e.id).replace(/^google:GOOGLE_EAC:/,''),e]));
